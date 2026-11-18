@@ -6,7 +6,7 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn --workers 2 --threads 4 --timeout 60 --bind 0.0.0.0:$PORT app:app
     healthCheckPath: /healthz
-    autoDeploy: false
+    autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
@@ -24,9 +24,25 @@ services:
         value: property-images
       - key: STORAGE_BACKEND
         value: supabase
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: EMAIL_PROVIDER
+        value: brevo
       - key: BREVO_API_KEY
         sync: false
       - key: BREVO_SENDER_EMAIL
         sync: false
       - key: BREVO_SENDER_NAME
         value: KwachaStay
+      - key: BREVO_WEBHOOK_TOKEN
+        generateValue: true
+      - key: EMAIL_VERIFICATION_TTL_SECONDS
+        value: "86400"
+      - key: PASSWORD_RESET_TTL_SECONDS
+        value: "3600"
+      - key: FLUTTERWAVE_PUBLIC_KEY
+        sync: false
+      - key: FLUTTERWAVE_SECRET_KEY
+        sync: false
+      - key: FLUTTERWAVE_SECRET_HASH
+        sync: false

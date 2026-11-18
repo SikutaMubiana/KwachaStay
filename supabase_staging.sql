@@ -9,27 +9,27 @@ CREATE TABLE IF NOT EXISTS users (
     password TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'tenant', -- 'tenant' or 'owner'
     profile_pic TEXT,
-    is_admin BOOLEAN DEFAULT FALSE,
+    is_admin INTEGER DEFAULT 0,
     host_verification_status TEXT DEFAULT 'unverified',
     host_verification_note TEXT,
     email_verified_at TIMESTAMP,
     email_verification_token TEXT,
     email_verification_token_hash TEXT,
-    email_verification_expires REAL,
+    email_verification_expires DOUBLE PRECISION,
     email_verification_code_hash TEXT,
-    email_verification_code_expires REAL,
-    email_verification_sent_at REAL,
+    email_verification_code_expires DOUBLE PRECISION,
+    email_verification_sent_at DOUBLE PRECISION,
     email_verification_attempts INTEGER NOT NULL DEFAULT 0,
     phone_verified_at TIMESTAMP,
     phone_verification_token TEXT,
-    phone_verification_expires REAL,
-    phone_verification_sent_at REAL,
+    phone_verification_expires DOUBLE PRECISION,
+    phone_verification_sent_at DOUBLE PRECISION,
     phone_verification_attempts INTEGER NOT NULL DEFAULT 0,
     email_delivery_status TEXT DEFAULT 'unknown',
     email_delivery_last_event TEXT,
-    email_bounced_at REAL,
+    email_bounced_at DOUBLE PRECISION,
     password_reset_token TEXT, -- legacy plaintext token, cleared when hashed token is issued
-    password_reset_expires REAL, -- legacy expiry paired with password_reset_token
+    password_reset_expires DOUBLE PRECISION, -- legacy expiry paired with password_reset_token
     password_reset_token_hash TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS properties (
     owner_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
-    price_per_night REAL NOT NULL, -- Storing as generic price value
+    price_per_night DOUBLE PRECISION NOT NULL, -- Storing as generic price value
     price_period TEXT DEFAULT 'night', -- 'night' or 'month'
     compound TEXT NOT NULL,
     location_details TEXT,
@@ -53,26 +53,26 @@ CREATE TABLE IF NOT EXISTS properties (
     bedrooms INTEGER DEFAULT 1,
     bathrooms INTEGER DEFAULT 1,
     kitchen_type TEXT, -- Private, Shared, None
-    has_sitting_room BOOLEAN DEFAULT FALSE,
+    has_sitting_room INTEGER DEFAULT 0,
     
     -- Lusaka Essentials & Luxury
-    has_solar BOOLEAN DEFAULT FALSE,
-    has_borehole BOOLEAN DEFAULT FALSE,
-    has_pool BOOLEAN DEFAULT FALSE,
-    has_garden BOOLEAN DEFAULT FALSE,
-    has_bbq BOOLEAN DEFAULT FALSE,
-    has_balcony BOOLEAN DEFAULT FALSE,
-    has_ac BOOLEAN DEFAULT FALSE,
-    has_wifi BOOLEAN DEFAULT FALSE,
-    has_parking BOOLEAN DEFAULT FALSE,
+    has_solar INTEGER DEFAULT 0,
+    has_borehole INTEGER DEFAULT 0,
+    has_pool INTEGER DEFAULT 0,
+    has_garden INTEGER DEFAULT 0,
+    has_bbq INTEGER DEFAULT 0,
+    has_balcony INTEGER DEFAULT 0,
+    has_ac INTEGER DEFAULT 0,
+    has_wifi INTEGER DEFAULT 0,
+    has_parking INTEGER DEFAULT 0,
     
     -- Status & Verification
-    is_verified BOOLEAN DEFAULT FALSE,
-    is_featured BOOLEAN DEFAULT FALSE,
+    is_verified INTEGER DEFAULT 0,
+    is_featured INTEGER DEFAULT 0,
     view_count INTEGER DEFAULT 0,
-    is_active BOOLEAN DEFAULT TRUE,
-    latitude REAL,
-    longitude REAL,
+    is_active INTEGER DEFAULT 1,
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
 
     image_main TEXT,
     agent_name TEXT,
@@ -80,9 +80,9 @@ CREATE TABLE IF NOT EXISTS properties (
     cancellation_policy TEXT DEFAULT 'moderate',
     house_rules TEXT,
     last_confirmed_at TIMESTAMP,
-    cleaning_fee REAL NOT NULL DEFAULT 0,
-    refundable_deposit REAL NOT NULL DEFAULT 0,
-    utilities_included BOOLEAN NOT NULL DEFAULT FALSE,
+    cleaning_fee DOUBLE PRECISION NOT NULL DEFAULT 0,
+    refundable_deposit DOUBLE PRECISION NOT NULL DEFAULT 0,
+    utilities_included INTEGER NOT NULL DEFAULT 0,
     power_backup TEXT,
     water_supply TEXT,
     internet_availability TEXT,
@@ -139,11 +139,11 @@ CREATE TABLE IF NOT EXISTS bookings (
     tenant_phone TEXT NOT NULL,
     check_in DATE NOT NULL,
     check_out DATE NOT NULL,
-    total_price REAL NOT NULL,
-    base_amount REAL NOT NULL DEFAULT 0,
-    service_fee REAL NOT NULL DEFAULT 0,
-    cleaning_fee REAL NOT NULL DEFAULT 0,
-    refundable_deposit REAL NOT NULL DEFAULT 0,
+    total_price DOUBLE PRECISION NOT NULL,
+    base_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    service_fee DOUBLE PRECISION NOT NULL DEFAULT 0,
+    cleaning_fee DOUBLE PRECISION NOT NULL DEFAULT 0,
+    refundable_deposit DOUBLE PRECISION NOT NULL DEFAULT 0,
     payment_status TEXT DEFAULT 'pending', -- 'pending', 'paid', 'failed'
     booking_status TEXT DEFAULT 'pending', -- 'pending', 'confirmed', 'declined', 'cancelled'
     payment_method TEXT,
@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS messages (
     receiver_id INTEGER NOT NULL,
     property_id INTEGER,
     content TEXT NOT NULL,
-    is_read BOOLEAN DEFAULT FALSE,
+    is_read INTEGER DEFAULT 0,
     parent_id INTEGER REFERENCES messages (id),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (sender_id) REFERENCES users (id),
@@ -218,7 +218,7 @@ CREATE TABLE IF NOT EXISTS payout_methods (
     account_name TEXT NOT NULL,
     account_number TEXT NOT NULL,
     branch_code TEXT,
-    is_primary BOOLEAN DEFAULT FALSE,
+    is_primary INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
@@ -228,14 +228,14 @@ CREATE TABLE IF NOT EXISTS saved_searches (
     user_id INTEGER NOT NULL,
     search_query TEXT,
     compound TEXT,
-    min_price REAL,
-    max_price REAL,
+    min_price DOUBLE PRECISION,
+    max_price DOUBLE PRECISION,
     property_type TEXT,
     power_backup TEXT,
     water_supply TEXT,
-    near_lat REAL,
-    near_lon REAL,
-    near_radius_km REAL,
+    near_lat DOUBLE PRECISION,
+    near_lon DOUBLE PRECISION,
+    near_radius_km DOUBLE PRECISION,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
@@ -271,7 +271,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     user_id INTEGER NOT NULL,
     message TEXT NOT NULL,
     link TEXT,
-    is_read BOOLEAN DEFAULT FALSE,
+    is_read INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
@@ -327,7 +327,7 @@ CREATE TABLE IF NOT EXISTS seasonal_pricing (
     property_id INTEGER NOT NULL,
     start_date DATE NOT NULL,
     end_date DATE NOT NULL,
-    price REAL,
+    price DOUBLE PRECISION,
     minimum_stay INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CHECK (end_date > start_date),
@@ -342,7 +342,7 @@ CREATE TABLE IF NOT EXISTS payout_ledger (
     id BIGSERIAL PRIMARY KEY,
     booking_id INTEGER NOT NULL UNIQUE,
     owner_id INTEGER NOT NULL,
-    amount REAL NOT NULL,
+    amount DOUBLE PRECISION NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     reference TEXT,
     paid_at TIMESTAMP,
@@ -360,13 +360,13 @@ CREATE TABLE IF NOT EXISTS email_messages (
     template_key TEXT,
     status TEXT NOT NULL DEFAULT 'accepted',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    sent_at REAL,
-    delivered_at REAL,
-    delayed_at REAL,
-    bounced_at REAL,
-    failed_at REAL,
-    complained_at REAL,
-    last_event_at REAL,
+    sent_at DOUBLE PRECISION,
+    delivered_at DOUBLE PRECISION,
+    delayed_at DOUBLE PRECISION,
+    bounced_at DOUBLE PRECISION,
+    failed_at DOUBLE PRECISION,
+    complained_at DOUBLE PRECISION,
+    last_event_at DOUBLE PRECISION,
     failure_reason TEXT,
     UNIQUE(provider, provider_message_id)
 );
@@ -384,10 +384,40 @@ CREATE TABLE IF NOT EXISTS email_webhook_events (
 CREATE TABLE IF NOT EXISTS email_rate_limits (
     action TEXT NOT NULL,
     rate_key TEXT NOT NULL,
-    window_started REAL NOT NULL,
+    window_started DOUBLE PRECISION NOT NULL,
     request_count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY(action, rate_key)
 );
+
+CREATE OR REPLACE FUNCTION julianday(ts text, modifier text DEFAULT NULL)
+RETURNS double precision
+LANGUAGE sql STABLE
+AS $$
+    SELECT EXTRACT(EPOCH FROM (
+        (CASE WHEN ts = 'now' THEN now()::text ELSE ts END)::timestamp
+        + COALESCE(modifier, '0 days')::interval
+    )) / 86400.0 + 2440587.5
+$$;
+
+CREATE OR REPLACE FUNCTION distance_km(
+    latitude_a double precision,
+    longitude_a double precision,
+    latitude_b double precision,
+    longitude_b double precision
+)
+RETURNS double precision
+LANGUAGE sql IMMUTABLE
+AS $$
+    SELECT CASE
+        WHEN latitude_a IS NULL OR longitude_a IS NULL
+             OR latitude_b IS NULL OR longitude_b IS NULL THEN NULL
+        ELSE 6371 * 2 * ASIN(SQRT(LEAST(1,
+            POWER(SIN(RADIANS(latitude_b - latitude_a) / 2), 2)
+            + COS(RADIANS(latitude_a)) * COS(RADIANS(latitude_b))
+            * POWER(SIN(RADIANS(longitude_b - longitude_a) / 2), 2)
+        )))
+    END
+$$;
 
 -- Supabase Storage bucket for listing images (public read).
 INSERT INTO storage.buckets (id, name, public)

@@ -49,6 +49,10 @@ Set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, and `BREVO_SE
 
 Use a long random value for `BREVO_WEBHOOK_TOKEN`; it is required by the endpoint. Subscribe to delivery, bounce, blocked, invalid-address, deferred, and spam events.
 
+## Runtime database
+
+`app.py` uses SQLite only when `DATABASE_URL` is empty. When `DATABASE_URL` is set, `database.py` connects to PostgreSQL and translates the existing route SQL (placeholders, `julianday`, `date('now')`, `INSERT OR IGNORE`, `lastrowid`, case-insensitive `LIKE`, and the distance helper). Apply the Supabase staging schema before pointing the live service at that database.
+
 ## Important limitation
 
-The current Flask route SQL is SQLite-specific. The migration scripts create and validate PostgreSQL data safely, but the runtime database adapter must be switched and integration-tested against Supabase before setting `DATABASE_URL` for the live Flask service. Do not point production traffic at a partially migrated database.
+Do not point production traffic at a partially migrated database. Run `scripts/stage_supabase.py --check` and `scripts/verify_postgres.py` first, then deploy with `DATABASE_URL` set in Render.

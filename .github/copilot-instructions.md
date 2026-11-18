@@ -2,6 +2,7 @@
 
 ## Project shape
 - This is a Flask app with one main entry point in `app.py`; database access is centralized through `get_db()` and `@app.before_request` loads the current user from `session`.
+- `database.py` is the runtime adapter: SQLite when `DATABASE_URL` is empty, PostgreSQL (Supabase) when it is set. Keep route SQL portable and let the adapter translate `?` placeholders and SQLite helpers.
 - The canonical data model lives in `schema.sql`: `users`, `properties`, `property_images`, `reviews`, `bookings`, `messages`, `wishlists`, `availability`, `payout_methods`.
 - UI is server-rendered Jinja templates under `templates/`; most pages extend `base.html` and use Tailwind-style utility classes.
 - The app is a single-service marketplace: listings, booking flow, dashboard, admin actions, notifications, and profile logic all live in `app.py`, not a separate API/backend split.

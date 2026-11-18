@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 from werkzeug.middleware.proxy_fix import ProxyFix
 from upload_storage import LocalUploadStorage
 from supabase_storage import SupabaseUploadStorage
+from database import DB_ERRORS, DB_INTEGRITY_ERRORS, connect as connect_postgres
 import phonenumbers
 
 # Load environment variables from .env file
@@ -51,7 +52,10 @@ BOOKING_SERVICE_FEE = 50
 BOOKING_REQUEST_EXPIRY_HOURS = max(1, min(168, int(os.getenv('BOOKING_REQUEST_EXPIRY_HOURS', '24'))))
 FLUTTERWAVE_SECRET_KEY = os.getenv('FLUTTERWAVE_SECRET_KEY', '').strip()
 FLUTTERWAVE_SECRET_HASH = os.getenv('FLUTTERWAVE_SECRET_HASH', '').strip()
-PUBLIC_BASE_URL = os.getenv('PUBLIC_BASE_URL', '').strip().rstrip('/')
+PUBLIC_BASE_URL = (
+    os.getenv('PUBLIC_BASE_URL', '').strip()
+    or os.getenv('RENDER_EXTERNAL_URL', '').strip()
+).rstrip('/')
 DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
 STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local').strip().lower()
 EMAIL_PROVIDER = os.getenv('EMAIL_PROVIDER', 'resend').strip().lower()
@@ -704,7 +708,10 @@ def quote_property_stay(db, property_row, check_in, duration):
 def refresh_payout_ledger(db, owner_id):
     db.execute(
         '''INSERT OR IGNORE INTO payout_ledger (booking_id, owner_id, amount, status)
-           SELECT b.id, p.owner_id, MAX(0, b.base_amount + b.cleaning_fee), 'pending'
+           SELECT b.id, p.owner_id,
+                  CASE WHEN b.base_amount + b.cleaning_fee > 0
+                       THEN b.base_amount + b.cleaning_fee ELSE 0 END,
+                  'pending'
            FROM bookings b
            JOIN properties p ON p.id = b.property_id
            WHERE p.owner_id = ? AND b.booking_status = 'confirmed'
@@ -757,7 +764,7 @@ def expire_pending_booking_requests(db, force=False):
                     )
             db.commit()
             _last_booking_expiry_sweep = time.monotonic()
-        except sqlite3.Error:
+        except DB_ERRORS:
             db.rollback()
             app.logger.exception('Could not expire stale booking requests')
 
@@ -966,15 +973,18 @@ def notify_matching_searches(db, property_row, event='new', previous_price=None)
 
 # --- Database setup ---
 def get_db():
-    if not os.path.exists(DATABASE):
-        init_db()
     if 'db' not in g.__dict__:
-        conn = sqlite3.connect(DATABASE, timeout=30)
-        conn.row_factory = sqlite3.Row
-        conn.execute('PRAGMA busy_timeout = 30000')
-        conn.execute('PRAGMA foreign_keys = ON')
-        conn.create_function('distance_km', 4, distance_km)
-        g.db = conn
+        if DATABASE_URL:
+            g.db = connect_postgres(DATABASE_URL)
+        else:
+            if not os.path.exists(DATABASE):
+                init_db()
+            conn = sqlite3.connect(DATABASE, timeout=30)
+            conn.row_factory = sqlite3.Row
+            conn.execute('PRAGMA busy_timeout = 30000')
+            conn.execute('PRAGMA foreign_keys = ON')
+            conn.create_function('distance_km', 4, distance_km)
+            g.db = conn
     return g.db
 
 @app.teardown_appcontext
@@ -1533,7 +1543,8 @@ def ensure_db_schema():
         conn.close()
 
 # Ensure newer listing/search schema fields exist when app starts
-ensure_db_schema()
+if not DATABASE_URL:
+    ensure_db_schema()
 
 # --- Auth Decorator ---
 def login_required(view):
@@ -1962,7 +1973,7 @@ def signup():
                         (full_name, email, full_phone, generate_password_hash(password), role),
                     )
                     db.commit()
-                except sqlite3.IntegrityError:
+                except DB_INTEGRITY_ERRORS:
                     flash('An account already uses that email address.', 'error')
                 else:
                     user = db.execute('SELECT * FROM users WHERE id = ?', (cursor.lastrowid,)).fetchone()
@@ -2220,7 +2231,7 @@ def create_trip_plan():
             [(cursor.lastrowid, property_id) for property_id in property_ids],
         )
         db.commit()
-    except sqlite3.Error:
+    except DB_ERRORS:
         db.rollback()
         app.logger.exception('Could not create trip plan for user %s', g.user['id'])
         flash('Could not create your trip plan. Please try again.', 'error')
@@ -3004,7 +3015,7 @@ def confirm_listing_details(property_id):
             return redirect(url_for('dashboard'))
         db.commit()
         flash('Listing details and availability confirmed as current.', 'success')
-    except sqlite3.Error:
+    except DB_ERRORS:
         db.rollback()
         app.logger.exception('Could not confirm listing details for property %s', property_id)
         flash('Could not confirm the listing. Please try again.', 'error')
@@ -3096,7 +3107,7 @@ def add_review(property_id):
             [(review_cursor.lastrowid, image_url) for _, image_url in saved_photo_paths],
         )
         db.commit()
-    except (OSError, sqlite3.Error):
+    except (OSError,) + DB_ERRORS:
         db.rollback()
         for save_path, _ in saved_photo_paths:
             try:
@@ -3272,10 +3283,10 @@ def block_date(property_id):
                    (property_id, blocked_date.isoformat(), 'blocked'))
         db.commit()
         flash('Date blocked.', 'success')
-    except sqlite3.IntegrityError:
+    except DB_INTEGRITY_ERRORS:
         db.rollback()
         flash('Date already blocked.', 'info')
-    except sqlite3.Error:
+    except DB_ERRORS:
         db.rollback()
         app.logger.exception('Could not block date %s for property %s', blocked_date, property_id)
         flash('Could not block that date. Please try again.', 'error')
@@ -3604,7 +3615,7 @@ def import_property_calendar(property_id):
             [(import_id, uid, start, end) for uid, start, end in events],
         )
         db.commit()
-    except sqlite3.Error:
+    except DB_ERRORS:
         db.rollback()
         app.logger.exception('Could not import calendar for property %s', property_id)
         flash('Calendar import failed. Existing imported dates were not changed.', 'error')
@@ -3763,7 +3774,7 @@ def block_date_range(property_id):
             current += timedelta(days=1)
         db.commit()
         flash(f'Availability blocked from {check_in.isoformat()} through {check_out.isoformat()}.', 'success')
-    except sqlite3.Error:
+    except DB_ERRORS:
         db.rollback()
         app.logger.exception('Could not block date range for property %s', property_id)
         flash('Could not block those dates. Please try again.', 'error')
@@ -3879,7 +3890,10 @@ def admin_dashboard():
     ''').fetchall()
     db.execute(
         '''INSERT OR IGNORE INTO payout_ledger (booking_id, owner_id, amount, status)
-           SELECT b.id, p.owner_id, MAX(0, b.base_amount + b.cleaning_fee), 'pending'
+           SELECT b.id, p.owner_id,
+                  CASE WHEN b.base_amount + b.cleaning_fee > 0
+                       THEN b.base_amount + b.cleaning_fee ELSE 0 END,
+                  'pending'
            FROM bookings b
            JOIN properties p ON p.id = b.property_id
            WHERE b.booking_status = 'confirmed' AND b.payment_status = 'paid'
@@ -4063,7 +4077,7 @@ def process_refund(booking_id, action):
             )
             db.commit()
             flash(f'Flutterwave refund status: {provider_status}.', 'success')
-        except (RuntimeError, ValueError, TypeError, sqlite3.Error):
+        except (RuntimeError, ValueError, TypeError) + DB_ERRORS:
             db.rollback()
             app.logger.exception('Could not refresh Flutterwave refund for booking %s', booking_id)
             flash('Could not refresh the provider refund status. No refund status was changed.', 'error')
@@ -4118,7 +4132,7 @@ def process_refund(booking_id, action):
                 else f'Flutterwave accepted the refund; provider status: {provider_status}.',
                 'success',
             )
-        except (RuntimeError, ValueError, sqlite3.Error):
+        except (RuntimeError, ValueError) + DB_ERRORS:
             db.rollback()
             app.logger.exception('Could not initiate Flutterwave refund for booking %s', booking_id)
             flash('Flutterwave did not confirm the refund request. Its status remains processing to prevent duplicate refunds; reconcile it in the provider dashboard.', 'error')
@@ -4173,10 +4187,10 @@ def verify_booking_payment(booking_id):
             return redirect(url_for('admin_dashboard'))
         db.commit()
         flash('Payment recorded as verified. This action records your provider-side verification; it does not charge the guest.', 'success')
-    except sqlite3.IntegrityError:
+    except DB_INTEGRITY_ERRORS:
         db.rollback()
         flash('That provider reference is already linked to another booking.', 'error')
-    except sqlite3.Error:
+    except DB_ERRORS:
         db.rollback()
         app.logger.exception('Could not record payment verification for booking %s', booking_id)
         flash('Could not record payment verification. Please try again.', 'error')
@@ -4445,7 +4459,7 @@ def resend_webhook():
                VALUES ('resend', ?, ?, ?)''',
             (event_id, event_type, raw_body.decode('utf-8')),
         )
-    except sqlite3.IntegrityError:
+    except DB_INTEGRITY_ERRORS:
         return jsonify({'status': 'duplicate'}), 200
 
     event_column = {
@@ -4503,7 +4517,7 @@ def brevo_webhook():
             '''INSERT INTO email_webhook_events (provider, event_id, event_type, payload)
                VALUES ('brevo', ?, ?, ?)''', (event_id, event_type, raw_body.decode('utf-8')),
         )
-    except sqlite3.IntegrityError:
+    except DB_INTEGRITY_ERRORS:
         return jsonify({'status': 'duplicate'}), 200
     mapping = {
         'request': ('sent', 'sent_at'), 'delivered': ('delivered', 'delivered_at'),
@@ -4991,7 +5005,7 @@ def checkout(property_id):
                  request.form.get('payment_method', '').strip(), duration, duration_unit, tx_ref),
             )
             db.commit()
-        except sqlite3.Error:
+        except DB_ERRORS:
             db.rollback()
             app.logger.exception('Could not create booking request for property %s', property_id)
             flash('We could not submit your booking request. Please try again.', 'error')
@@ -5119,7 +5133,7 @@ def start_mobile_money_payment(booking_id):
             (booking_id, tx_ref),
         )
         db.commit()
-    except sqlite3.Error:
+    except DB_ERRORS:
         db.rollback()
         app.logger.exception('Could not start mobile-money payment for booking %s', booking_id)
         flash('Could not start mobile-money checkout. Please try again.', 'error')
@@ -5155,7 +5169,7 @@ def start_mobile_money_payment(booking_id):
         )
         db.commit()
         return redirect(checkout_url)
-    except (RuntimeError, sqlite3.Error):
+    except (RuntimeError,) + DB_ERRORS:
         db.rollback()
         db.execute(
             '''UPDATE payment_attempts SET status = 'failed', updated_at = CURRENT_TIMESTAMP
@@ -5215,7 +5229,7 @@ def bank_transfer_payment(booking_id):
                 flash('Booking payment status changed. Refresh the receipt and try again.', 'error')
                 return redirect(url_for('booking_receipt', booking_id=booking_id))
             db.commit()
-        except sqlite3.Error:
+        except DB_ERRORS:
             db.rollback()
             app.logger.exception('Could not record bank transfer claim for booking %s', booking_id)
             flash('Could not submit the bank transfer reference. Please try again.', 'error')
@@ -5251,7 +5265,7 @@ def flutterwave_payment_callback():
     try:
         booking_id = record_flutterwave_payment(db, tx_ref, transaction_id)
         flash('Mobile-money payment verified. Your receipt has been updated.', 'success')
-    except (RuntimeError, ValueError, sqlite3.Error):
+    except (RuntimeError, ValueError) + DB_ERRORS:
         db.rollback()
         app.logger.exception('Could not verify Flutterwave payment for booking %s', attempt['booking_id'])
         flash('We could not verify this payment yet. No paid status was recorded; please contact support.', 'error')
@@ -5285,7 +5299,7 @@ def flutterwave_webhook():
     except ValueError:
         app.logger.warning('Ignoring Flutterwave webhook for unknown or invalid payment reference %s', tx_ref)
         return jsonify({'error': 'Payment reference not found or invalid.'}), 404
-    except (RuntimeError, sqlite3.Error):
+    except (RuntimeError,) + DB_ERRORS:
         get_db().rollback()
         app.logger.exception('Could not process Flutterwave payment webhook for reference %s', tx_ref)
         return jsonify({'error': 'Payment verification is temporarily unavailable.'}), 503
@@ -5337,7 +5351,7 @@ def approve_booking(booking_id):
             flash('This booking request has already been updated.', 'error')
             return redirect(url_for('dashboard'))
         db.commit()
-    except sqlite3.Error:
+    except DB_ERRORS:
         db.rollback()
         app.logger.exception('Could not approve booking %s', booking_id)
         flash('Could not approve this booking. Please try again.', 'error')
@@ -5553,7 +5567,7 @@ def edit_property(property_id):
                             'INSERT INTO property_images (property_id, image_url, category) VALUES (?, ?, ?)',
                             (property_id, img, extra_image_category),
                         )
-                    except sqlite3.Error:
+                    except DB_ERRORS:
                         app.logger.exception('Could not add gallery photo to property %s', property_id)
 
         db.commit()
@@ -5795,9 +5809,10 @@ def admin_force_relist(property_id):
 
 
 if __name__ == '__main__':
-    ensure_db_schema()  # Check and apply schema changes
-    if not os.path.exists(DATABASE):
-        init_db()
-        print("Initialized database.")
-        
+    if not DATABASE_URL:
+        ensure_db_schema()  # Check and apply schema changes
+        if not os.path.exists(DATABASE):
+            init_db()
+            print("Initialized database.")
+
     app.run(debug=APP_ENV != 'production')
