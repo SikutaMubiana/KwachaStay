@@ -1,0 +1,12 @@
+KwachaStay
+
+New booking request
+
+Hello {{ owner_name }},
+
+{{ tenant_name }} has requested a stay at {{ property_title }}.
+Dates: {{ check_in }} to {{ check_out }}
+Duration: {{ duration }} {{ duration_unit }}(s)
+Total: ZMW {{ '%.2f'|format(total_price) }}
+
+Review this request in your KwachaStay dashboard.

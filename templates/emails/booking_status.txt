@@ -1,0 +1,12 @@
+KwachaStay
+
+Booking {% if status == 'confirmed' %}confirmed{% else %}declined{% endif %}
+
+Hello {{ tenant_name }},
+
+Your booking request for {{ property_title }} has been {% if status == 'confirmed' %}confirmed{% else %}declined{% endif %}.
+
+Check-in: {{ check_in }}
+Check-out: {{ check_out }}
+
+Review your booking in your KwachaStay dashboard.

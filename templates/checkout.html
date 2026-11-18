@@ -1,0 +1,388 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-12">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+
+        <!-- Booking Summary -->
+        <div class="order-2 md:order-1">
+            <h2 class="text-2xl font-bold mb-6">Request your stay</h2>
+
+            <div class="bg-white border rounded-xl p-6 shadow-sm mb-6">
+                <div class="flex gap-4 mb-4">
+                    <img src="{{ property.image_main|listing_image }}" loading="lazy" decoding="async" class="w-24 h-24 object-cover rounded-lg">
+                    <div>
+                        <h3 class="font-semibold text-gray-900">{{ property.title }}</h3>
+                        <p class="text-gray-500 text-sm">{{ property.compound }}, Lusaka</p>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Check-in {{ property.checkin_time or '15:00' }} · Check-out {{ property.checkout_time or '10:00' }}
+                            {% if property.self_checkin_method %} · {{ self_checkin_options.get(property.self_checkin_method, 'Contact host') }}{% endif %}
+                        </p>
+                        <div class="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                            <span>{{ property.property_type }}</span> •
+                            {% if property.has_wifi %} <i class="fa-solid fa-wifi"></i> {% endif %}
+                            {% if property.has_pool %} <i class="fa-solid fa-water-ladder"></i> {% endif %}
+                        </div>
+                        {% if property.power_backup or property.water_supply or property.internet_availability %}
+                        <div class="mt-2 space-y-1 text-xs text-gray-600">
+                            {% if property.power_backup %}<p>Power: {{ power_backup_options.get(property.power_backup, 'Other') }}</p>{% endif %}
+                            {% if property.water_supply %}<p>Water: {{ water_supply_options.get(property.water_supply, 'Other') }}</p>{% endif %}
+                            {% if property.internet_availability %}<p>Internet: {{ internet_options.get(property.internet_availability, 'Other') }}{% if property.internet_speed_mbps %} · {{ property.internet_speed_mbps }} Mbps{% endif %}</p>{% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <hr class="border-gray-100 my-4">
+
+                <div class="space-y-4 text-sm mb-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-2">Select check-in date</label>
+                        <input type="hidden" id="checkInDate">
+                        <div class="flex items-center justify-between mb-2">
+                            <button type="button" id="checkoutPreviousMonth" class="rounded-lg border px-3 py-2 hover:bg-gray-50" aria-label="Previous month">
+                                <i class="fa-solid fa-chevron-left"></i>
+                            </button>
+                            <span id="checkoutCalendarMonth" class="font-bold"></span>
+                            <button type="button" id="checkoutNextMonth" class="rounded-lg border px-3 py-2 hover:bg-gray-50" aria-label="Next month">
+                                <i class="fa-solid fa-chevron-right"></i>
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-1">
+                            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                        </div>
+                        <div id="checkoutCalendarGrid" class="grid grid-cols-7 gap-1"></div>
+                        <p id="checkoutAvailabilityMessage" role="status" class="text-xs text-gray-500 mt-2">Loading available dates…</p>
+                        <div class="flex flex-wrap gap-3 text-xs text-gray-500 mt-2">
+                            <span><i class="fa-solid fa-circle text-gray-300"></i> Available</span>
+                            <span><i class="fa-solid fa-circle text-red-500"></i> Unavailable</span>
+                        </div>
+                    </div>
+                    {% if property.price_period == 'month' %}
+                    <!-- Monthly Booking UI (For Houses/Villas) -->
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Move-in date</label>
+                        <p id="selectedCheckIn" class="text-sm font-medium text-gray-700">Choose an available date above</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Duration
+                            (Months)</label>
+                        <select id="duration"
+                            class="w-full p-2 border rounded-lg bg-white focus:ring-1 focus:ring-primary outline-none">
+                            {% for i in range(1, 13) %}
+                            <option value="{{ i }}">{{ i }} Month{% if i > 1 %}s{% endif %}</option>
+                            {% endfor %}
+                            <option value="24">2 Years</option>
+                        </select>
+                    </div>
+                    {% else %}
+                    <!-- Nightly Booking UI (For Hotels/Guest Houses) -->
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Check-in date</label>
+                        <p id="selectedCheckIn" class="text-sm font-medium text-gray-700">Choose an available date above</p>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">How many days?</label>
+                        <input type="number" id="duration" value="1" min="1" max="30"
+                            class="w-full p-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none" required
+                            placeholder="Number of nights">
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Base Price ({% if property.price_period == 'month' %}Per Month{%
+                            else %}Per Night{% endif %})</span>
+                        <span class="font-medium">ZMW <span id="basePriceDisplay">{{
+                                "{:,.0f}".format(property.price_per_night) }}</span></span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Service fee</span>
+                        <span class="font-medium">ZMW {{ service_fee }}</span>
+                    </div>
+                    {% if property.cleaning_fee %}
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">One-time cleaning fee</span>
+                        <span class="font-medium">ZMW {{ "{:,.2f}".format(property.cleaning_fee) }}</span>
+                    </div>
+                    {% endif %}
+                    <hr class="border-gray-100">
+                    <div class="flex justify-between text-base font-bold">
+                        <span>Total (ZMW)</span>
+                        <span id="totalPriceDisplay">ZMW ...</span>
+                    </div>
+                    {% if property.refundable_deposit %}
+                    <p class="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                        Refundable security deposit: ZMW {{ "{:,.2f}".format(property.refundable_deposit) }}.
+                        This is separate from the booking total; agree payment and return terms with the host.
+                    </p>
+                    {% endif %}
+                    <p class="text-xs text-gray-500">
+                        Utilities are {% if property.utilities_included %}included in the listed price{% else %}not included; confirm any utility charges with the host{% endif %}.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Payment Form -->
+        <div class="order-1 md:order-2">
+            <div class="bg-white border rounded-xl p-8 shadow-lg shadow-gray-100 sticky top-24">
+                <h3 class="text-xl font-bold mb-2">Request this stay</h3>
+                <p class="text-sm text-gray-600 mb-5">Sending a request does not charge you. The host must confirm availability first. Unpaid requests expire after {{ booking_request_expiry_hours }} hours if unanswered, releasing the dates. Payment and refunds are handled only after a real payment is confirmed.</p>
+                <a href="https://wa.me/{{ payment_whatsapp_number }}?text={{ ('Hello, I need help booking ' ~ property.title ~ ' in ' ~ property.compound ~ ', Lusaka.')|urlencode }}"
+                    target="_blank" rel="noopener noreferrer"
+                    class="mb-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-800 hover:bg-green-100">
+                    <i class="fa-brands fa-whatsapp text-lg"></i>Need help? WhatsApp KwachaStay
+                </a>
+
+                <form id="paymentForm" method="POST">
+                    <!-- Hidden fields to store calculated booking data -->
+                    <input type="hidden" name="check_in" id="finalCheckIn">
+                    <input type="hidden" name="check_out" id="finalCheckOut">
+                    <input type="hidden" name="total_price" id="finalTotalPrice">
+                    <input type="hidden" name="duration_val" id="finalDuration">
+                    {% if property.cancellation_policy == 'flexible' %}
+                    <p class="mb-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">Cancellation: full refund for cancellations at least 24 hours before check-in.</p>
+                    {% elif property.cancellation_policy == 'strict' %}
+                    <p class="mb-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">Cancellation: strict. Agree cancellation terms with the host before booking.</p>
+                    {% else %}
+                    <p class="mb-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">Cancellation: full refund at least 5 days before check-in; later cases are reviewed under the host's terms.</p>
+                    {% endif %}
+                    {% if property.house_rules %}
+                    <p class="mb-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-600"><strong>House rules:</strong> {{ property.house_rules }}</p>
+                    {% endif %}
+                    <label class="mb-5 flex items-start gap-2 text-sm text-gray-700">
+                        <input type="checkbox" name="accept_policies" id="acceptPolicies" required class="mt-1">
+                        <span>I have reviewed and agree to the house rules and cancellation policy.</span>
+                    </label>
+
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Full Name</label>
+                            <input type="text" id="name" name="tenant_name" value="{{ user['full_name'] }}" required
+                                class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none bg-gray-50">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Phone Number</label>
+                            <input type="tel" id="mobile" name="tenant_phone" value="{{ user['phone'] }}" required
+                                class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary outline-none bg-gray-50">
+                        </div>
+                    </div>
+
+                    <p id="errorMsg" class="text-red-500 text-sm mb-4 hidden"></p>
+
+                    <button type="button" onclick="makePayment()"
+                        class="w-full py-4 bg-primary text-white font-bold rounded-xl text-lg hover:bg-red-600 transition shadow-lg shadow-red-200"
+                        id="payBtn">
+                        Send booking request
+                    </button>
+                    <p class="text-xs text-center text-gray-500 mt-4"><i class="fa-solid fa-shield-halved"></i> Your dates are checked again before the request is saved.</p>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const pricePerUnit = {{ property.price_per_night }};
+    const serviceFee = {{ service_fee }};
+    const cleaningFee = {{ property.cleaning_fee or 0 }};
+    const isMonthly = "{{ property.price_period }}" === "month";
+    let calculatedTotal = 0;
+    let checkoutMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    let checkoutAvailability = {};
+    let availabilityCheckVersion = 0;
+    let checkoutCalendarRequest = 0;
+
+    function localIsoDate(year, month, day) {
+        return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    }
+
+    function addDaysToIso(value, days) {
+        const parts = value.split('-').map(Number);
+        const result = new Date(parts[0], parts[1] - 1, parts[2]);
+        result.setDate(result.getDate() + days);
+        return localIsoDate(result.getFullYear(), result.getMonth(), result.getDate());
+    }
+
+    function addMonthsToIso(value, months) {
+        const parts = value.split('-').map(Number);
+        const target = new Date(parts[0], parts[1] - 1 + months, 1);
+        const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+        const day = Math.min(parts[2], lastDay);
+        return localIsoDate(target.getFullYear(), target.getMonth(), day);
+    }
+
+    function stayCheckOut(checkIn, duration) {
+        return isMonthly ? addMonthsToIso(checkIn, duration) : addDaysToIso(checkIn, duration);
+    }
+
+    async function fetchMonthAvailability(monthKey, refresh) {
+        const cached = checkoutAvailability[monthKey];
+        if (!refresh && cached && Date.now() - cached.fetchedAt < 30000) return cached.dates;
+        const response = await fetch('/property/{{ property.id }}/availability?month=' + monthKey);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Could not load availability.');
+        checkoutAvailability[monthKey] = { dates: data.dates || {}, fetchedAt: Date.now() };
+        return checkoutAvailability[monthKey].dates;
+    }
+
+    async function renderCheckoutCalendar() {
+        const requestId = ++checkoutCalendarRequest;
+        const year = checkoutMonth.getFullYear();
+        const month = checkoutMonth.getMonth();
+        const monthKey = year + '-' + String(month + 1).padStart(2, '0');
+        const grid = document.getElementById('checkoutCalendarGrid');
+        const message = document.getElementById('checkoutAvailabilityMessage');
+        document.getElementById('checkoutCalendarMonth').innerText =
+            checkoutMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        grid.innerHTML = '';
+        message.innerText = 'Loading available dates…';
+        try {
+            const statuses = await fetchMonthAvailability(monthKey, true);
+            if (requestId !== checkoutCalendarRequest) return;
+            const today = localIsoDate(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+            const firstWeekday = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            for (let blank = 0; blank < firstWeekday; blank++) grid.appendChild(document.createElement('span'));
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateValue = localIsoDate(year, month, day);
+                const status = statuses[dateValue] || 'available';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = String(day);
+                button.title = dateValue + (status === 'available' ? ' — available' : ' — unavailable');
+                button.setAttribute('aria-label', button.title);
+                button.className = 'h-10 rounded-lg text-sm border transition ';
+                const unavailable = status !== 'available' || dateValue < today;
+                if (unavailable) {
+                    button.disabled = true;
+                    button.className += 'bg-red-50 border-red-200 text-red-400 cursor-not-allowed';
+                } else {
+                    button.className += 'bg-white border-gray-200 text-gray-800 hover:border-primary hover:bg-red-50';
+                    button.addEventListener('click', function () {
+                        document.getElementById('checkInDate').value = dateValue;
+                        document.getElementById('selectedCheckIn').innerText = dateValue;
+                        renderCheckoutCalendar();
+                        calculateTotal();
+                    });
+                }
+                if (dateValue === document.getElementById('checkInDate').value) {
+                    button.className += ' ring-2 ring-primary bg-red-50';
+                }
+                grid.appendChild(button);
+            }
+            message.innerText = 'Choose an available check-in date. Pending requests and confirmed stays are unavailable.';
+        } catch (error) {
+            if (requestId !== checkoutCalendarRequest) return;
+            message.innerText = error.message + ' Refresh the page to try again.';
+            message.className = 'text-xs text-red-600 mt-2';
+        }
+    }
+
+    function calculateTotal() {
+        const checkIn = document.getElementById('checkInDate').value;
+        const errorMsg = document.getElementById('errorMsg');
+        const btn = document.getElementById('payBtn');
+        let multiplier = 1;
+
+        if (!checkIn) {
+            btn.innerText = "Select Dates";
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            errorMsg.classList.add('hidden');
+            return;
+        }
+
+        const durationVal = parseInt(document.getElementById('duration').value) || 1;
+        multiplier = durationVal;
+        const checkOutDateVal = stayCheckOut(checkIn, durationVal);
+
+        errorMsg.classList.add('hidden');
+
+        const total = (pricePerUnit * multiplier) + serviceFee + cleaningFee;
+        calculatedTotal = total;
+
+        document.getElementById('totalPriceDisplay').innerText = "ZMW " + total.toLocaleString();
+        document.getElementById('payBtn').innerText = "Send request · ZMW " + total.toLocaleString();
+
+        // Update hidden inputs
+        document.getElementById('finalCheckIn').value = checkIn;
+        document.getElementById('finalCheckOut').value = checkOutDateVal;
+        document.getElementById('finalTotalPrice').value = total;
+        document.getElementById('finalDuration').value = durationVal;
+        validateSelectedStay(checkIn, checkOutDateVal);
+    }
+
+    async function validateSelectedStay(checkIn, checkOut) {
+        const checkVersion = ++availabilityCheckVersion;
+        const btn = document.getElementById('payBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        const availabilityMessage = document.getElementById('checkoutAvailabilityMessage');
+        btn.disabled = true;
+        btn.classList.add('opacity-50');
+        availabilityMessage.innerText = 'Checking all dates in your stay…';
+        errorMsg.classList.add('hidden');
+
+        try {
+            let current = checkIn;
+            while (current < checkOut) {
+                const monthKey = current.slice(0, 7);
+                const monthStatuses = await fetchMonthAvailability(monthKey);
+                if (checkVersion !== availabilityCheckVersion) return;
+                if (monthStatuses[current] && monthStatuses[current] !== 'available') {
+                    throw new Error(current + ' is unavailable. Choose different dates.');
+                }
+                current = addDaysToIso(current, 1);
+            }
+            if (checkVersion !== availabilityCheckVersion) return;
+            btn.disabled = false;
+            btn.classList.remove('opacity-50');
+            availabilityMessage.innerText = 'All selected dates are currently available. The server will check again when you submit.';
+        } catch (error) {
+            if (checkVersion !== availabilityCheckVersion) return;
+            errorMsg.innerText = error.message;
+            errorMsg.classList.remove('hidden');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            availabilityMessage.innerText = 'Some dates in this stay are unavailable.';
+            availabilityMessage.className = 'text-xs text-red-600 mt-2';
+        }
+    }
+
+    document.getElementById('checkoutPreviousMonth').addEventListener('click', function () {
+        checkoutMonth = new Date(checkoutMonth.getFullYear(), checkoutMonth.getMonth() - 1, 1);
+        renderCheckoutCalendar();
+    });
+    document.getElementById('checkoutNextMonth').addEventListener('click', function () {
+        checkoutMonth = new Date(checkoutMonth.getFullYear(), checkoutMonth.getMonth() + 1, 1);
+        renderCheckoutCalendar();
+    });
+    document.getElementById('duration').addEventListener('change', calculateTotal);
+
+    renderCheckoutCalendar();
+    calculateTotal();
+
+    function makePayment() {
+        const name = document.getElementById('name').value;
+        const phone = document.getElementById('mobile').value;
+        const checkIn = document.getElementById('checkInDate').value;
+
+        if (!checkIn || calculatedTotal <= 0) {
+            alert("Please select valid dates.");
+            return;
+        }
+
+        if (!name || !phone) {
+            alert("Please fill in all details");
+            return;
+        }
+        if (!document.getElementById('acceptPolicies').checked) {
+            alert("Please accept the house rules and cancellation policy.");
+            return;
+        }
+        document.getElementById('paymentForm').submit();
+    }
+</script>
+{% endblock %}

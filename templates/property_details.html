@@ -1,0 +1,671 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8">
+
+    <!-- Header -->
+    <div class="mb-6">
+        <div class="flex items-center gap-3 mb-2 flex-wrap">
+            <h1 class="text-3xl font-bold text-gray-900">{{ property.title }}</h1>
+            {% if property.is_verified %}
+            <span class="bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                <i class="fa-solid fa-circle-check"></i> Verified Listing
+            </span>
+            {% endif %}
+            {% if property.is_featured %}
+            <span class="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                <i class="fa-solid fa-star"></i> Featured
+            </span>
+            {% endif %}
+        </div>
+        <div class="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
+            <span><i class="fa-solid fa-star text-black mr-0.5"></i>
+                {% if reviews %}{{ (reviews|sum(attribute='rating') / reviews|length)|round(1) }}{% else %}New{% endif %}
+            </span>
+            <span>•</span>
+            <span class="underline font-medium">{{ reviews|length }} reviews</span>
+            <span>•</span>
+            <a href="{{ url_for('lusaka_areas') }}" class="hover:text-primary hover:underline">
+                {{ property.compound }}, Lusaka, Zambia <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+            </a>
+            <span>•</span>
+            <span class="bg-gray-100 px-2.5 py-0.5 rounded text-xs font-semibold flex items-center gap-1 text-gray-700">
+                <i class="fa-regular fa-eye"></i> {{ property.view_count or 1 }} views
+            </span>
+        </div>
+    </div>
+
+    <!-- Summary badges -->
+    <div class="mb-8 flex flex-wrap gap-3">
+        <span class="bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-2 rounded-full">{{ property.property_type }}</span>
+        <span class="bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-2 rounded-full">{{ property.listing_category or 'rental' }}</span>
+        <span class="bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-2 rounded-full">{{ property.bedrooms or 1 }} bed</span>
+        <span class="bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-2 rounded-full">{{ property.bathrooms or 1 }} bath</span>
+        <span class="bg-gray-100 text-gray-700 text-xs font-semibold px-3 py-2 rounded-full">{{ property.availability_status or 'available' }}</span>
+    </div>
+    {% if property.power_backup or property.water_supply or property.internet_availability %}
+    <section class="mb-8 rounded-xl border bg-white p-5">
+        <h2 class="mb-3 text-sm font-bold text-gray-900">Power, water &amp; connectivity</h2>
+        <div class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+            {% if property.power_backup %}
+            <p><span class="block text-xs text-gray-500">Power</span>{{ power_backup_options.get(property.power_backup, 'Other') }}</p>
+            {% endif %}
+            {% if property.water_supply %}
+            <p><span class="block text-xs text-gray-500">Water</span>{{ water_supply_options.get(property.water_supply, 'Other') }}</p>
+            {% endif %}
+            {% if property.internet_availability %}
+            <p><span class="block text-xs text-gray-500">Internet</span>{{ internet_options.get(property.internet_availability, 'Other') }}{% if property.internet_speed_mbps %} · {{ property.internet_speed_mbps }} Mbps{% endif %}</p>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+    {% if property.listing_recently_confirmed %}
+    <p class="mb-6 -mt-5 text-sm text-green-700">
+        <i class="fa-solid fa-circle-check mr-1"></i>
+        Host confirmed these listing details and availability on {{ property.last_confirmed_at[:10] }}.
+    </p>
+    {% elif property.last_confirmed_at %}
+    <p class="mb-6 -mt-5 text-sm text-amber-700">
+        <i class="fa-solid fa-clock mr-1"></i>
+        Last host confirmation was {{ property.last_confirmed_at[:10] }}. Please message the host to reconfirm details and availability.
+    </p>
+    {% else %}
+    <p class="mb-6 -mt-5 text-sm text-amber-700">
+        <i class="fa-solid fa-circle-info mr-1"></i>
+        The host has not confirmed this listing recently. Please message the host to confirm details and availability.
+    </p>
+    {% endif %}
+
+    <!-- Image Gallery with Lightbox -->
+    <div class="mb-8">
+        {% if images and images|length > 1 %}
+        <!-- Multi-image grid -->
+        <div class="grid grid-cols-4 grid-rows-2 gap-2 h-64 md:h-[480px] rounded-2xl overflow-hidden">
+            <div class="col-span-2 row-span-2 cursor-pointer" onclick="openLightbox(0)">
+                <img src="{{ images[0]|listing_image }}" loading="lazy" decoding="async" class="w-full h-full object-cover hover:brightness-90 transition"
+                    onerror="this.src='https://placehold.co/800x600/f3f4f6/9ca3af?text=No+Image'">
+            </div>
+            {% for img in images[1:4] %}
+            <div class="cursor-pointer" onclick="openLightbox({{ loop.index }})">
+                <img src="{{ img|listing_image }}" loading="lazy" decoding="async" class="w-full h-full object-cover hover:brightness-90 transition"
+                    onerror="this.src='https://placehold.co/400x300/f3f4f6/9ca3af?text=Photo'">
+            </div>
+            {% endfor %}
+        </div>
+        {% if images|length > 4 %}
+        <button onclick="openLightbox(4)" class="mt-2 text-sm text-gray-600 underline hover:text-primary">
+            +{{ images|length - 4 }} more photos
+        </button>
+        {% endif %}
+        {% else %}
+        <!-- Single image -->
+        <div class="h-64 md:h-[480px] rounded-2xl overflow-hidden shadow-md cursor-pointer" onclick="openLightbox(0)">
+            <img src="{{ property.image_main|listing_image }}" loading="lazy" decoding="async"
+                class="w-full h-full object-cover hover:scale-105 transition duration-700"
+                onerror="this.src='https://placehold.co/800x600/f3f4f6/9ca3af?text=No+Image'">
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Lightbox Overlay -->
+    <div id="lightbox" class="fixed inset-0 bg-black/95 z-[200] hidden flex-col items-center justify-center"
+        onclick="closeLightboxOnBg(event)">
+        <button onclick="closeLightbox()" class="absolute top-5 right-6 text-white text-3xl hover:text-primary z-10">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        <button onclick="prevImg()"
+            class="absolute left-4 top-1/2 -translate-y-1/2 text-white text-4xl opacity-70 hover:opacity-100 z-10">
+            <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <img id="lightbox-img" src="" class="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl">
+        <div class="text-gray-400 text-sm mt-4" id="lightbox-counter"></div>
+        <button onclick="nextImg()"
+            class="absolute right-4 top-1/2 -translate-y-1/2 text-white text-4xl opacity-70 hover:opacity-100 z-10">
+            <i class="fa-solid fa-chevron-right"></i>
+        </button>
+    </div>
+
+    {% if photo_categories %}
+    <div class="mb-8 flex flex-wrap items-center gap-2 text-xs">
+        <span class="font-semibold text-gray-600">Photos include:</span>
+        {% for key, label in [('bedroom', 'Bedroom'), ('bathroom', 'Bathroom'), ('kitchen', 'Kitchen'), ('entrance', 'Entrance'), ('parking', 'Parking'), ('living_area', 'Living area'), ('other', 'Other')] %}
+        {% if key in photo_categories %}
+        <span class="rounded-full bg-gray-100 px-3 py-1 text-gray-700">{{ label }}</span>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-12">
+
+        <!-- Left Column: Details -->
+        <div class="md:col-span-2 space-y-8">
+            <!-- Host Info -->
+            <div class="flex justify-between items-center border-b pb-6">
+                <div>
+                    <h2 class="text-xl font-semibold">
+                        Hosted by
+                        <a href="{{ url_for('host_profile', user_id=property.owner_id) }}"
+                            class="hover:text-primary hover:underline transition">{{ property.owner_name.split()[0] }}</a>
+                    </h2>
+                    <p class="text-gray-500 text-sm">Joined {{ property.owner_joined.split()[0] }}</p>
+                    {% if property.owner_verification_status == 'verified' %}
+                    <p class="mt-2 inline-flex items-center gap-2 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1">
+                        <i class="fa-solid fa-shield-check"></i> Verified host
+                    </p>
+                    {% endif %}
+                    {% if host_response_stats %}
+                    <p class="mt-2 inline-flex items-center gap-2 rounded-full bg-green-50 text-green-800 text-xs font-semibold px-2.5 py-1"
+                        title="Based on {{ host_response_stats.inquiry_count }} recent listing enquiries">
+                        <i class="fa-solid fa-reply"></i> {{ host_response_stats.label }}
+                    </p>
+                    {% endif %}
+                    {% if host_reliability_stats.completed_stays >= 3 %}
+                    <p class="mt-2 text-xs text-gray-600">
+                        {{ host_reliability_stats.completed_stays }} completed stays
+                        {% if host_reliability_stats.confirmation_rate is not none %}
+                        · {{ host_reliability_stats.confirmation_rate }}% host confirmation rate
+                        {% endif %}
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="w-14 h-14 rounded-full bg-gray-200 overflow-hidden">
+                    {% if property.owner_pic %}
+                    <img src="{{ property.owner_pic }}" class="w-full h-full object-cover">
+                    {% else %}
+                    <div class="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
+                        <i class="fa-solid fa-user text-2xl"></i>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="bg-gray-50 border rounded-2xl p-5 space-y-4">
+                <div>
+                    <h3 class="font-bold text-gray-900 mb-1">Cancellation policy</h3>
+                    {% if property.cancellation_policy == 'flexible' %}
+                    <p class="text-sm text-gray-600">Flexible: full refund for cancellations at least 24 hours before check-in.</p>
+                    {% elif property.cancellation_policy == 'strict' %}
+                    <p class="text-sm text-gray-600">Strict: cancellation terms must be agreed with the host; contact the host before booking.</p>
+                    {% else %}
+                    <p class="text-sm text-gray-600">Moderate: full refund at least 5 days before check-in; later cancellations are reviewed under the host's stated terms.</p>
+                    {% endif %}
+                </div>
+                {% if property.house_rules %}
+                <div class="border-t pt-4">
+                    <h3 class="font-bold text-gray-900 mb-1">House rules</h3>
+                    <p class="text-sm text-gray-600 whitespace-pre-line">{{ property.house_rules }}</p>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if property.agent_name or property.agent_phone %}
+            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
+                        <i class="fa-solid fa-user-tie"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900">Agent / Contact Name</h3>
+                        <p class="text-sm text-gray-600">{{ property.agent_name or 'Property agent' }}</p>
+                    </div>
+                </div>
+                {% if property.agent_phone %}
+                <p class="text-sm text-gray-700"><i class="fa-solid fa-phone mr-2 text-green-600"></i>{{ property.agent_phone }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Amenities -->
+            <div>
+                <h3 class="text-lg font-semibold mb-4">What this place offers</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    {% if property.has_solar %}
+                    <div class="flex items-center gap-3"><i class="fa-solid fa-solar-panel text-xl w-6"></i> Solar Power
+                    </div>
+                    {% endif %}
+                    {% if property.has_borehole %}
+                    <div class="flex items-center gap-3"><i class="fa-solid fa-faucet-drip text-xl w-6"></i> Borehole
+                        Water
+                    </div>
+                    {% endif %}
+                    {% if property.has_wifi %}
+                    <div class="flex items-center gap-3"><i class="fa-solid fa-wifi text-xl w-6"></i> WiFi</div>
+                    {% endif %}
+                    {% if property.has_ac %}
+                    <div class="flex items-center gap-3"><i class="fa-solid fa-snowflake text-xl w-6"></i> Air
+                        Conditioning
+                    </div>
+                    {% endif %}
+                    {% if property.has_pool %}
+                    <div class="flex items-center gap-3"><i class="fa-solid fa-water-ladder text-xl w-6"></i> Pool</div>
+                    {% endif %}
+                    {% if property.has_garden %}
+                    <div class="flex items-center gap-3"><i class="fa-solid fa-tree text-xl w-6"></i> Garden</div>
+                    {% endif %}
+                    {% if property.has_parking %}
+                    <div class="flex items-center gap-3"><i class="fa-solid fa-car text-xl w-6"></i> Free Parking</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <hr>
+
+            <!-- About this location -->
+            <div>
+                <h3 class="text-lg font-semibold mb-4">About this location</h3>
+                <p class="text-gray-700 leading-relaxed">
+                    {% if property.location_details %}
+                        {{ property.location_details }}
+                    {% else %}
+                        Located in {{ property.compound }}, this property is well positioned for access to schools, shopping, transport routes, and daily amenities in Lusaka.
+                    {% endif %}
+                </p>
+            </div>
+
+            <hr>
+
+            <!-- Description -->
+            <div>
+                <p class="text-gray-700 leading-relaxed whitespace-pre-line">{{ property.description }}</p>
+            </div>
+
+            <hr>
+
+            <!-- Map -->
+            <div>
+                <h3 class="text-lg font-semibold mb-4">Where you'll be</h3>
+                {% set has_exact_pin = property.latitude is not none and property.longitude is not none %}
+                {% set lat = property.latitude if has_exact_pin else -15.4167 %}
+                {% set lng = property.longitude if has_exact_pin else 28.2833 %}
+                <div id="map" class="w-full h-[400px] rounded-xl bg-gray-200 z-0"></div>
+                <p class="mt-2 text-sm text-gray-500">
+                    {% if has_exact_pin %}
+                    Host-pinned location · {{ property.compound }}, Lusaka
+                    {% else %}
+                    Approximate neighbourhood view only · {{ property.compound }}, Lusaka
+                    {% endif %}
+                </p>
+                {% if has_exact_pin %}
+                <a href="https://www.google.com/maps/dir/?api=1&amp;destination={{ property.latitude }},{{ property.longitude }}"
+                    target="_blank" rel="noopener noreferrer"
+                    class="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800">
+                    <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>Get directions in Google Maps
+                </a>
+                {% else %}
+                <a href="https://www.google.com/maps/search/?api=1&amp;query={{ (property.compound ~ ', Lusaka, Zambia')|urlencode }}"
+                    target="_blank" rel="noopener noreferrer"
+                    class="mt-3 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                    <i class="fa-solid fa-map-location-dot" aria-hidden="true"></i>Find this neighbourhood in Google Maps
+                </a>
+                {% endif %}
+            </div>
+
+            <hr>
+
+            <!-- Reviews -->
+            <div id="reviews">
+                <h3 class="text-xl font-semibold mb-6">
+                    <i class="fa-solid fa-star"></i>
+                    {% if reviews %}{{ (reviews|sum(attribute='rating') / reviews|length)|round(1) }}{% else %}New{%
+                    endif
+                    %}
+                    · {{ reviews|length }} reviews
+                </h3>
+                <div class="mb-6 grid grid-cols-2 gap-3 text-sm">
+                    {% for label, key in [('Cleanliness', 'cleanliness'), ('Accuracy', 'accuracy'), ('Communication', 'communication'), ('Location', 'location')] %}
+                    {% if review_averages[key] %}
+                    <p class="rounded-lg bg-gray-50 p-3">
+                        <span class="text-gray-600">{{ label }}</span>
+                        <strong class="float-right">{{ review_averages[key]|round(1) }} / 5</strong>
+                    </p>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+
+                {% if g.user and g.user.id != property.owner_id %}
+                    {% if has_review %}
+                    <p class="mb-8 rounded-xl bg-green-50 p-4 text-sm text-green-800">Thank you — you have already reviewed this stay.</p>
+                    {% elif has_booking %}
+                    <!-- Add Review Form -->
+                    <div class="bg-gray-50 p-6 rounded-xl mb-8">
+                        <h4 class="font-bold mb-3">Leave a Review</h4>
+                        <form action="{{ url_for('add_review', property_id=property.id) }}" method="POST" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Rating</label>
+                                <div class="flex gap-4">
+                                    {% for i in range(5, 0, -1) %}
+                                    <label class="cursor-pointer hover:text-yellow-500">
+                                        <input type="radio" name="rating" value="{{ i }}" class="hidden peer" required>
+                                        <span class="text-gray-300 peer-checked:text-yellow-400 text-2xl"><i
+                                                class="fa-solid fa-star"></i></span>
+                                        <span class="text-xs text-gray-400 block text-center">{{ i }}</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {% for field, label in [('cleanliness_rating', 'Cleanliness'), ('accuracy_rating', 'Accuracy'), ('communication_rating', 'Communication'), ('location_rating', 'Location')] %}
+                                <label class="text-xs font-bold uppercase text-gray-500">
+                                    {{ label }}
+                                    <select name="{{ field }}" required class="mt-1 w-full rounded-lg border p-2 text-sm normal-case">
+                                        <option value="" disabled selected>Choose 1–5</option>
+                                        {% for score in range(1, 6) %}
+                                        <option value="{{ score }}">{{ score }} star{% if score != 1 %}s{% endif %}</option>
+                                        {% endfor %}
+                                    </select>
+                                </label>
+                                {% endfor %}
+                            </div>
+                            <div class="mb-3">
+                                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Comment</label>
+                                <textarea name="comment" rows="3"
+                                    class="w-full p-3 border rounded-lg focus:ring-primary focus:border-primary"
+                                    placeholder="How was your stay?"></textarea>
+                            </div>
+                            <div class="mb-4">
+                                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Stay photos (optional, up to 3)</label>
+                                <input type="file" name="photos" accept=".jpg,.jpeg,.png,.gif,.webp" multiple
+                                    class="w-full rounded-lg border bg-white p-2 text-sm">
+                                <p class="mt-1 text-xs text-gray-500">Share recent photos from your completed stay.</p>
+                            </div>
+                            <button type="submit"
+                                class="bg-black text-white px-6 py-2 rounded-lg font-bold text-sm hover:bg-gray-800">Post
+                                Review</button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <!-- Review Gate Locked Notice -->
+                    <div class="bg-gray-50 border border-gray-100 p-6 rounded-xl mb-8 flex items-start gap-4">
+                        <div class="w-10 h-10 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid fa-lock"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-gray-800 mb-1">Reviewing is restricted</h4>
+                            <p class="text-sm text-gray-500 leading-normal">Only guests with a paid or confirmed stay that has ended can review this property.</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endif %}
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {% for review in reviews %}
+                    <div>
+                        <div class="flex items-center gap-3 mb-3">
+                            <div
+                                class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-500">
+                                {{ review.reviewer_name[0] }}
+                            </div>
+                            <div>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <h5 class="font-bold text-sm">{{ review.reviewer_name }}</h5>
+                                    <span class="rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-bold text-green-700">
+                                        <i class="fa-solid fa-circle-check mr-1"></i>Verified stay
+                                    </span>
+                                </div>
+                                <p class="text-xs text-gray-500">{{ review.created_at.split()[0] }}</p>
+                            </div>
+                        </div>
+                        <div class="flex text-xs text-black mb-1">
+                            {% for n in range(review.rating) %}<i class="fa-solid fa-star"></i>{% endfor %}
+                        </div>
+                        <p class="mb-2 text-xs text-gray-600">
+                            Cleanliness {{ review.cleanliness_rating or '—' }}/5 ·
+                            Accuracy {{ review.accuracy_rating or '—' }}/5 ·
+                            Communication {{ review.communication_rating or '—' }}/5 ·
+                            Location {{ review.location_rating or '—' }}/5
+                        </p>
+                        <p class="text-gray-700 text-sm">{{ review.comment }}</p>
+                        {% if review.photos %}
+                        <div class="mt-3 grid grid-cols-3 gap-2">
+                            {% for photo in review.photos %}
+                            <img src="{{ photo|listing_image }}" loading="lazy" decoding="async"
+                                alt="Guest photo from a verified stay"
+                                class="h-24 w-full rounded-lg border object-cover">
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Booking Card -->
+        <div class="relative">
+            <div class="sticky top-24 border rounded-xl shadow-lg p-6 bg-white">
+                <div class="flex justify-between items-end mb-4">
+                    <div>
+                        <span class="text-2xl font-bold">ZMW {{ "{:,.0f}".format(property.price_per_night) }}</span>
+                        <span class="text-gray-500 text-sm"> / {{ property.price_period }}</span>
+                    </div>
+                </div>
+                <div class="mb-4 space-y-1 text-xs text-gray-600">
+                    {% if property.cleaning_fee %}
+                    <p>One-time cleaning fee: ZMW {{ "{:,.2f}".format(property.cleaning_fee) }}</p>
+                    {% endif %}
+                    {% if property.refundable_deposit %}
+                    <p class="text-amber-800">Refundable deposit: ZMW {{ "{:,.2f}".format(property.refundable_deposit) }} (separate)</p>
+                    {% endif %}
+                    <p>Utilities {% if property.utilities_included %}included{% else %}may be charged separately{% endif %}.</p>
+                    <p>Service fee and full total shown before you submit a request.</p>
+                </div>
+
+                <div class="border rounded-lg mb-4">
+                    <!-- Simple static summary for now, pointing to checkout -->
+                    <div class="p-3 border-b">
+                        <span class="block text-xs font-bold uppercase text-gray-500 mb-1">Dates</span>
+                        <span class="text-sm text-primary font-medium">Select in Checkout</span>
+                    </div>
+                </div>
+
+                <a href="{{ url_for('checkout', property_id=property.id) }}"
+                    class="block w-full bg-primary text-white text-center py-3 rounded-lg font-bold text-lg hover:bg-red-600 transition shadow-lg shadow-red-200">
+                    Reserve
+                </a>
+
+                <div class="mt-4 flex gap-2">
+                    <!-- Wishlist Button -->
+                    <button onclick="toggleWishlist({{ property.id }})" id="wishlistBtn" class="flex-1 py-2 border rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-gray-50 transition 
+                    {% if is_wishlisted %}text-red-500 border-red-200 bg-red-50{% else %}text-gray-700{% endif %}">
+                        <i class="fa-{% if is_wishlisted %}solid{% else %}regular{% endif %} fa-heart"></i>
+                        <span id="wishlistText">{% if is_wishlisted %}Saved{% else %}Save{% endif %}</span>
+                    </button>
+
+                    <!-- Contact Host Button -->
+                    <button onclick="document.getElementById('contactModal').classList.remove('hidden')"
+                        class="flex-1 py-2 border rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-gray-50 transition text-gray-700">
+                        <i class="fa-regular fa-envelope"></i> Contact Host
+                    </button>
+                </div>
+
+                <p class="text-center text-xs text-gray-500 mt-3">You won't be charged yet</p>
+
+                <div class="mt-6 flex justify-between text-gray-600 text-sm">
+                    <span class="underline">{% if property.is_verified %}Verified Listing{% else %}Listing details provided by host{% endif %}</span>
+                    <span><i class="fa-solid fa-shield-cat"></i></span>
+                </div>
+                {% if g.user and g.user.id != property.owner_id %}
+                <details class="mt-5 border-t pt-4">
+                    <summary class="cursor-pointer text-sm text-gray-500 hover:text-red-600">Report this listing</summary>
+                    <form action="{{ url_for('report_property', property_id=property.id) }}" method="POST" class="mt-3 space-y-3">
+                        <select name="reason" required class="w-full border rounded-lg p-2 text-sm">
+                            <option value="">Choose a reason</option>
+                            <option>Incorrect or misleading information</option>
+                            <option>Suspicious or fraudulent listing</option>
+                            <option>Inappropriate content</option>
+                            <option>Other</option>
+                        </select>
+                        <textarea name="details" maxlength="2000" rows="3" placeholder="Add helpful details (optional)"
+                            class="w-full border rounded-lg p-2 text-sm"></textarea>
+                        <button class="w-full border border-red-200 text-red-600 rounded-lg py-2 text-sm font-bold hover:bg-red-50">Send report</button>
+                    </form>
+                </details>
+                <a href="{{ url_for('support_center') }}"
+                    class="mt-3 inline-block text-xs font-semibold text-gray-600 underline">Contact KwachaStay support</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Similar Properties Section -->
+    {% if similar %}
+    <div class="mt-16 border-t pt-12">
+        <h3 class="text-2xl font-bold text-gray-900 mb-6">Similar Properties in {{ property.compound }}</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            {% for prop in similar %}
+            <article class="bg-white rounded-2xl overflow-hidden border hover:shadow-lg transition flex flex-col">
+                <div class="relative h-48 bg-gray-100 overflow-hidden">
+                    <img src="{{ (prop.images[0] if prop.images else prop.image_main)|listing_image }}" loading="lazy" decoding="async"
+                        class="w-full h-full object-cover"
+                        alt="{{ prop.title }}"
+                        onerror="this.src='https://placehold.co/600x400/f3f4f6/9ca3af?text=No+Image'">
+                    <div class="absolute top-3 left-3 flex flex-col gap-1 items-start">
+                        <span class="bg-white/90 backdrop-blur-sm text-gray-800 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+                            {{ prop.property_type }}
+                        </span>
+                        {% if prop.is_verified %}
+                        <span class="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1">
+                            <i class="fa-solid fa-circle-check"></i> Verified
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="p-4 flex-grow flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-start mb-1">
+                            <h4 class="font-bold text-gray-900 leading-tight truncate">{{ prop.title }}</h4>
+                            {% if prop.rating %}
+                            <div class="flex items-center gap-1 text-xs text-gray-900">
+                                <i class="fa-solid fa-star text-yellow-400"></i>
+                                <span>{{ prop.rating }}</span>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3"><i class="fa-solid fa-location-dot text-primary mr-1"></i>{{ prop.compound }}, Lusaka</p>
+                    </div>
+                    <div class="flex justify-between items-center pt-3 border-t">
+                        <div>
+                            <span class="text-base font-bold text-gray-900">ZMW {{ "{:,.0f}".format(prop.price_per_night) }}</span>
+                            <span class="text-gray-400 text-xs"> / {{ prop.price_period }}</span>
+                        </div>
+                        <a href="{{ url_for('property_details', property_id=prop.id) }}"
+                            class="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-600 transition shadow-sm">
+                            View
+                        </a>
+                    </div>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+
+<!-- Contact Modal -->
+<div id="contactModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 relative">
+        <button onclick="document.getElementById('contactModal').classList.add('hidden')"
+            class="absolute top-4 right-4 text-gray-400 hover:text-black">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+        <h3 class="text-xl font-bold mb-4">Contact {{ property.owner_name.split()[0] }}</h3>
+        <form action="{{ url_for('send_message') }}" method="POST">
+            <input type="hidden" name="receiver_id" value="{{ property.owner_id }}">
+            <input type="hidden" name="property_id" value="{{ property.id }}">
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Your Message</label>
+                <textarea name="content" rows="4"
+                    class="w-full p-3 border rounded-lg focus:ring-primary focus:border-primary"
+                    placeholder="Hi, is the property still available for these dates?"></textarea>
+            </div>
+            <button type="submit" class="w-full bg-black text-white py-3 rounded-lg font-bold hover:bg-gray-800">Send
+                Message</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleWishlist(propId) {
+        fetch(`/toggle_wishlist/${propId}`, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                const btn = document.getElementById('wishlistBtn');
+                const icon = btn.querySelector('i');
+                const text = document.getElementById('wishlistText');
+
+                if (data.action === 'added') {
+                    btn.classList.add('text-red-500', 'border-red-200', 'bg-red-50');
+                    btn.classList.remove('text-gray-700');
+                    icon.classList.remove('fa-regular');
+                    icon.classList.add('fa-solid');
+                    text.innerText = "Saved";
+                } else {
+                    btn.classList.remove('text-red-500', 'border-red-200', 'bg-red-50');
+                    btn.classList.add('text-gray-700');
+                    icon.classList.remove('fa-solid');
+                    icon.classList.add('fa-regular');
+                    text.innerText = "Save";
+                }
+            });
+    }
+</script>
+
+<!-- Lightbox JS -->
+<script>
+    const lbImages = [{% for img in images %}"{{ img|listing_image }}",{% endfor %}];
+    let lbCurrent = 0;
+
+    function openLightbox(idx) {
+        lbCurrent = idx;
+        const lb = document.getElementById('lightbox');
+        lb.classList.remove('hidden');
+        lb.classList.add('flex');
+        document.body.style.overflow = 'hidden';
+        updateLightbox();
+    }
+    function closeLightbox() {
+        const lb = document.getElementById('lightbox');
+        lb.classList.add('hidden');
+        lb.classList.remove('flex');
+        document.body.style.overflow = '';
+    }
+    function closeLightboxOnBg(e) {
+        if (e.target === document.getElementById('lightbox')) closeLightbox();
+    }
+    function updateLightbox() {
+        if (!lbImages.length) return;
+        document.getElementById('lightbox-img').src = lbImages[lbCurrent];
+        document.getElementById('lightbox-counter').innerText = (lbCurrent + 1) + ' / ' + lbImages.length;
+    }
+    function nextImg() { lbCurrent = (lbCurrent + 1) % lbImages.length; updateLightbox(); }
+    function prevImg() { lbCurrent = (lbCurrent - 1 + lbImages.length) % lbImages.length; updateLightbox(); }
+
+    document.addEventListener('keydown', function(e) {
+        const lb = document.getElementById('lightbox');
+        if (lb.classList.contains('hidden')) return;
+        if (e.key === 'ArrowRight') nextImg();
+        if (e.key === 'ArrowLeft') prevImg();
+        if (e.key === 'Escape') closeLightbox();
+    });
+</script>
+
+{% if not low_data_mode %}
+<!-- Leaflet Map JS -->
+<script>
+    var hasExactPropertyPin = {{ has_exact_pin|tojson }};
+    var map = L.map('map').setView([{{ lat|tojson }}, {{ lng|tojson }}], hasExactPropertyPin ? 16 : 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    if (hasExactPropertyPin) {
+        L.marker([{{ lat|tojson }}, {{ lng|tojson }}]).addTo(map)
+            .bindPopup({{ (property.title ~ '<br>' ~ property.compound)|tojson }})
+            .openPopup();
+    }
+</script>
+{% endif %}
+{% endblock %}

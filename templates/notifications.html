@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 py-10">
+    <div class="flex items-center gap-4 mb-8">
+        <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <i class="fa-solid fa-bell text-primary text-xl"></i>
+        </div>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Notifications</h1>
+            <p class="text-sm text-gray-500">Your latest activity and updates</p>
+        </div>
+    </div>
+
+    {% if notifications %}
+    <div class="space-y-3">
+        {% for notif in notifications %}
+        <div class="flex items-start gap-4 p-4 rounded-2xl border transition
+            {% if not notif.is_read %}bg-red-50 border-red-100{% else %}bg-white border-gray-100 hover:border-gray-200{% endif %}">
+            
+            <div class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center
+                {% if not notif.is_read %}bg-primary text-white{% else %}bg-gray-100 text-gray-400{% endif %}">
+                <i class="fa-solid fa-bell text-sm"></i>
+            </div>
+
+            <div class="flex-grow min-w-0">
+                <p class="text-gray-800 text-sm {% if not notif.is_read %}font-semibold{% endif %}">
+                    {{ notif.message }}
+                </p>
+                <p class="text-xs text-gray-400 mt-1">{{ notif.created_at }}</p>
+            </div>
+
+            {% if notif.link %}
+            <a href="{{ notif.link }}"
+                class="flex-shrink-0 text-xs text-primary font-bold hover:underline whitespace-nowrap">
+                View <i class="fa-solid fa-arrow-right ml-1"></i>
+            </a>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-20 bg-gray-50 rounded-3xl">
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white shadow-sm mb-5">
+            <i class="fa-solid fa-bell-slash text-gray-300 text-3xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-gray-700 mb-1">All caught up!</h3>
+        <p class="text-gray-400 text-sm">You have no notifications right now.</p>
+        <a href="{{ url_for('index') }}" class="inline-block mt-4 text-primary font-bold hover:underline text-sm">
+            Explore properties
+        </a>
+    </div>
+    {% endif %}
+
+    <div class="mt-6 text-center">
+        <a href="{{ url_for('dashboard') }}" class="text-gray-500 hover:text-primary text-sm transition">
+            <i class="fa-solid fa-arrow-left mr-1"></i> Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<main class="max-w-7xl mx-auto px-4 py-10">
+    <header class="max-w-3xl mb-10">
+        <p class="text-sm font-bold uppercase tracking-wide text-primary mb-2">KwachaStay Lusaka guide</p>
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Find the right area for your stay</h1>
+        <p class="text-gray-600">
+            Get a quick orientation to popular Lusaka neighbourhoods, then browse available places.
+            Area descriptions are general; confirm the exact location, transport, and nearby services with your host.
+        </p>
+    </header>
+
+    <section aria-labelledby="featured-areas-heading">
+        <h2 id="featured-areas-heading" class="text-2xl font-bold text-gray-900 mb-5">Popular areas</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {% for area in area_guide %}
+            <article class="rounded-2xl border bg-white p-6 shadow-sm flex flex-col">
+                <div class="flex items-start justify-between gap-3 mb-3">
+                    <h3 class="text-xl font-bold text-gray-900">{{ area.name }}</h3>
+                    <i class="fa-solid fa-location-dot text-primary mt-1" aria-hidden="true"></i>
+                </div>
+                <p class="text-sm text-gray-600 mb-4">{{ area.overview }}</p>
+                <p class="text-sm text-gray-700 mb-2"><strong>Often suits:</strong> {{ area.good_for }}</p>
+                <p class="text-sm text-gray-500 mb-5"><strong>Tip:</strong> {{ area.tip }}</p>
+                <a href="{{ url_for('index', compound=area.name) }}"
+                    class="mt-auto inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
+                    Browse {{ area.name }} stays <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                </a>
+            </article>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section aria-labelledby="all-areas-heading" class="mt-12 border-t pt-8">
+        <h2 id="all-areas-heading" class="text-2xl font-bold text-gray-900 mb-2">Browse all neighbourhoods</h2>
+        <p class="text-sm text-gray-600 mb-5">Explore listings across Lusaka's neighbourhoods and compounds.</p>
+        <div class="flex flex-wrap gap-2">
+            {% for neighbourhood in other_neighbourhoods %}
+            <a href="{{ url_for('index', compound=neighbourhood) }}"
+                class="rounded-full border bg-white px-4 py-2 text-sm text-gray-700 hover:border-primary hover:text-primary">
+                {{ neighbourhood }}
+            </a>
+            {% endfor %}
+            {% for area in area_guide %}
+            <a href="{{ url_for('index', compound=area.name) }}"
+                class="rounded-full border bg-white px-4 py-2 text-sm text-gray-700 hover:border-primary hover:text-primary">
+                {{ area.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+</main>
+{% endblock %}

@@ -1,0 +1,12 @@
+KwachaStay
+
+Booking request received
+
+Hello {{ tenant_name }},
+
+Your request for {{ property_title }} has been sent to {{ owner_name }}. This is not a confirmed booking and no payment has been taken.
+
+Dates: {{ check_in }} to {{ check_out }}
+Reference: {{ tx_ref }}
+
+You will be notified after the host responds.

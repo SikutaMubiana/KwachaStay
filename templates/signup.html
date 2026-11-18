@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-[calc(100vh-80px)] flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl shadow-gray-100 border border-gray-100">
+        <div>
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                Create an account
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600">
+                Join our community of travelers and hosts
+            </p>
+        </div>
+        <form class="mt-8 space-y-6" method="POST" onsubmit="return validateForm()">
+            <div class="rounded-md shadow-sm -space-y-px">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input name="full_name" type="text" required
+                        class="appearance-none rounded-lg relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+                    <input name="email" type="email" autocomplete="email" required
+                        class="appearance-none rounded-lg relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                    <div class="flex">
+                        <select name="country_code"
+                            class="rounded-l-lg border border-gray-300 bg-gray-50 text-gray-600 px-3 py-3 text-sm focus:outline-none focus:ring-primary focus:border-primary border-r-0">
+                            <option value="+260">🇿🇲 +260</option>
+                            <option value="+1">🇺🇸 +1</option>
+                            <option value="+44">🇬🇧 +44</option>
+                            <option value="+27">🇿🇦 +27</option>
+                            <!-- Add more as needed -->
+                        </select>
+                        <input name="phone" id="phoneInput" type="tel" required placeholder="97xxxxxxx"
+                            class="appearance-none rounded-r-lg relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                    </div>
+                    <p id="phoneError" class="text-xs text-red-500 mt-1 hidden">Enter a valid 9-digit Zambian mobile
+                        number (starts with 7 or 9).</p>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                    <input name="password" id="passwordInput" type="password" required
+                        class="appearance-none rounded-lg relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                    <ul class="mt-2 space-y-1 text-xs text-gray-500">
+                        <li id="ruleLength"><i class="fa-solid fa-circle text-[8px] mr-1"></i> At least 8 characters
+                        </li>
+                        <li id="ruleAlpha"><i class="fa-solid fa-circle text-[8px] mr-1"></i> Contains letters and
+                            numbers</li>
+                    </ul>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">I want to</label>
+                    <select name="role"
+                        class="block w-full px-3 py-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                        <option value="tenant">Rent a place</option>
+                        <option value="owner">List a property</option>
+                    </select>
+                </div>
+            </div>
+
+            <button type="submit"
+                class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-full text-white bg-primary hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 shadow-lg shadow-red-200 transition">
+                Sign up
+            </button>
+        </form>
+        <div class="text-center">
+            <p class="text-sm text-gray-600">
+                Already have an account?
+                <a href="{{ url_for('login') }}" class="font-medium text-primary hover:text-red-500">
+                    Log in
+                </a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const phoneInput = document.getElementById('phoneInput');
+    const phoneError = document.getElementById('phoneError');
+    const passwordInput = document.getElementById('passwordInput');
+    const ruleLength = document.getElementById('ruleLength');
+    const ruleAlpha = document.getElementById('ruleAlpha');
+    const countrySelect = document.querySelector('select[name="country_code"]');
+
+    // Real-time Phone Validation
+    phoneInput.addEventListener('input', function () {
+        if (countrySelect.value === '+260') {
+            // Zambian logic
+            const val = this.value.replace(/\D/g, ''); // Remove non-digits
+            // Should start with 7 or 9 and be 9 digits long (excluding +260)
+            if (val.length > 0 && !/^[79]/.test(val)) {
+                phoneError.classList.remove('hidden');
+                phoneError.innerText = "Number must start with 7 or 9.";
+            } else if (val.length > 9) {
+                phoneError.classList.remove('hidden');
+                phoneError.innerText = "Too many digits (max 9).";
+            } else {
+                phoneError.classList.add('hidden');
+            }
+        }
+    });
+
+    // Real-time Password Validation
+    passwordInput.addEventListener('input', function () {
+        const val = this.value;
+
+        // Length Check
+        if (val.length >= 8) {
+            ruleLength.classList.remove('text-gray-500');
+            ruleLength.classList.add('text-green-600', 'font-bold');
+            ruleLength.querySelector('i').classList.add('text-green-600');
+        } else {
+            ruleLength.classList.remove('text-green-600', 'font-bold');
+            ruleLength.classList.add('text-gray-500');
+            ruleLength.querySelector('i').classList.remove('text-green-600');
+        }
+
+        // AlphaNumeric Check
+        if (/[a-zA-Z]/.test(val) && /[0-9]/.test(val)) {
+            ruleAlpha.classList.remove('text-gray-500');
+            ruleAlpha.classList.add('text-green-600', 'font-bold');
+            ruleAlpha.querySelector('i').classList.add('text-green-600');
+        } else {
+            ruleAlpha.classList.remove('text-green-600', 'font-bold');
+            ruleAlpha.classList.add('text-gray-500');
+            ruleAlpha.querySelector('i').classList.remove('text-green-600');
+        }
+    });
+
+    function validateForm() {
+        // Final Check
+        const phone = phoneInput.value.replace(/\D/g, '');
+        const pass = passwordInput.value;
+        let valid = true;
+
+        if (countrySelect.value === '+260') {
+            if (phone.length !== 9 || !/^[79]/.test(phone)) {
+                alert("Please enter a valid 9-digit Zambian mobile number.");
+                valid = false;
+            }
+        }
+
+        if (pass.length < 8 || !(/[a-zA-Z]/.test(pass) && /[0-9]/.test(pass))) {
+            alert("Password must be at least 8 characters and contain both letters and numbers.");
+            valid = false;
+        }
+
+        return valid;
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>KwachaStay | Premium Lusaka Stays</title>
+    <meta name="description"
+        content="Find and book premium accommodation in Lusaka, Zambia. From cozy guest houses to luxury villas in Kabulonga, Rhodes Park, and more.">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts for Premium Feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    {% if not low_data_mode and request.endpoint in ['index', 'property_details', 'add_house', 'edit_property'] %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    {% endif %}
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#FF385C', /* Airbnb Red */
+                        dark: '#222222',
+                        light: '#F7F7F7'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Flash message animations */
+        @keyframes slideInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-12px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeOut {
+            from {
+                opacity: 1;
+                max-height: 80px;
+                margin-bottom: 16px;
+                padding: 16px;
+            }
+
+            to {
+                opacity: 0;
+                max-height: 0;
+                margin-bottom: 0;
+                padding: 0;
+                overflow: hidden;
+            }
+        }
+
+        .flash-msg {
+            animation: slideInDown 0.3s ease-out, fadeOut 0.5s ease-in 5s forwards;
+        }
+
+        /* Smooth mobile menu */
+        .slide-in-top {
+            animation: slideInDown 0.2s ease-out;
+        }
+    </style>
+</head>
+
+<body class="font-sans text-dark bg-white antialiased">
+
+    <!-- Navbar -->
+    <nav class="border-b border-gray-100 bg-white/95 backdrop-blur-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-20">
+                <div class="flex items-center">
+                    <a href="{{ url_for('index') }}"
+                        class="flex items-center gap-2 text-primary text-2xl font-bold tracking-tighter">
+                        <i class="fa-solid fa-house-chimney"></i> KwachaStay
+                    </a>
+                </div>
+                <div class="hidden md:flex space-x-8 items-center">
+                    <a href="{{ url_for('index') }}"
+                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Find Stays</a>
+                    <a href="{{ url_for('lusaka_areas') }}"
+                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Lusaka Areas</a>
+                    <a href="{{ url_for('about') }}"
+                        class="text-sm font-medium text-gray-700 hover:text-primary transition">About</a>
+                    <form action="{{ url_for('toggle_low_data_mode') }}" method="POST" class="inline">
+                        <input type="hidden" name="enabled" value="{{ 0 if low_data_mode else 1 }}">
+                        <button class="text-sm font-medium text-gray-700 hover:text-primary transition" type="submit"
+                            aria-pressed="{{ 'true' if low_data_mode else 'false' }}">
+                            {{ 'Standard data' if low_data_mode else 'Low-data mode' }}
+                        </button>
+                    </form>
+                    <a href="{{ url_for('add_house') }}"
+                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Become a Host</a>
+
+                    {% if g.user %}
+                    <div class="flex items-center gap-4">
+                        {% if g.user['is_admin'] %}
+                        <a href="{{ url_for('admin_dashboard') }}"
+                            class="text-sm font-bold text-red-600 hover:text-red-800 transition uppercase">Admin</a>
+                        {% endif %}
+                        <span class="text-sm font-medium text-gray-900">Hi, {{ g.user['full_name'].split()[0] }}</span>
+                        <a href="{{ url_for('dashboard') }}"
+                            class="text-sm font-medium text-gray-700 hover:text-primary transition">Dashboard
+                            {% if unread_messages > 0 %}
+                            <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full ml-0.5 -mt-1 align-top">{{ unread_messages }}</span>
+                            {% endif %}
+                        </a>
+                        <a href="{{ url_for('support_center') }}"
+                            class="text-sm font-medium text-gray-700 hover:text-primary transition">Support</a>
+                        <!-- Notifications Bell -->
+                        <a href="{{ url_for('notifications') }}" class="relative text-gray-600 hover:text-primary transition" title="Notifications">
+                            <i class="fa-solid fa-bell text-lg"></i>
+                            {% if unread_notifications > 0 %}
+                            <span class="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold text-white bg-primary rounded-full flex items-center justify-center">{{ unread_notifications }}</span>
+                            {% endif %}
+                        </a>
+                        <a href="{{ url_for('logout') }}"
+                            class="text-sm font-medium text-gray-500 hover:text-red-600 transition">Logout</a>
+                    </div>
+                    {% else %}
+                    <a href="{{ url_for('login') }}"
+                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Log in</a>
+                    <a href="{{ url_for('signup') }}"
+                        class="px-4 py-2 text-sm font-medium text-white bg-primary rounded-full hover:bg-red-600 transition shadow-md shadow-red-200">Sign
+                        Up</a>
+                    {% endif %}
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <div class="md:hidden flex items-center">
+                    <button id="mobile-menu-btn" class="text-gray-700 hover:text-primary focus:outline-none">
+                        <i class="fa-solid fa-bars text-2xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-gray-100 pb-4 px-4 slide-in-top">
+            <div class="flex flex-col space-y-3 mt-4">
+                <a href="{{ url_for('index') }}"
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">Find Stays</a>
+                <a href="{{ url_for('lusaka_areas') }}"
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">Lusaka Areas</a>
+                <a href="{{ url_for('about') }}"
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">About KwachaStay</a>
+                <form action="{{ url_for('toggle_low_data_mode') }}" method="POST">
+                    <input type="hidden" name="enabled" value="{{ 0 if low_data_mode else 1 }}">
+                    <button class="text-base font-medium text-gray-700 hover:text-primary transition" type="submit"
+                        aria-pressed="{{ 'true' if low_data_mode else 'false' }}">
+                        {{ 'Standard data mode' if low_data_mode else 'Enable low-data mode' }}
+                    </button>
+                </form>
+                <a href="{{ url_for('add_house') }}"
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">Become a Host</a>
+
+                {% if g.user %}
+                <hr class="border-gray-100">
+                <div class="flex items-center gap-3 py-2">
+                    <div
+                        class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                        {{ g.user['full_name'][0] }}
+                    </div>
+                    <span class="font-bold text-gray-900">{{ g.user['full_name'] }}</span>
+                </div>
+                {% if g.user['is_admin'] %}
+                <a href="{{ url_for('admin_dashboard') }}" class="text-base font-bold text-red-600 uppercase">Admin
+                    Dashboard</a>
+                {% endif %}
+                <a href="{{ url_for('dashboard') }}"
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">Dashboard</a>
+                <a href="{{ url_for('support_center') }}"
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">Support</a>
+                <a href="{{ url_for('logout') }}"
+                    class="text-base font-medium text-gray-500 hover:text-red-600 transition">Logout</a>
+                {% else %}
+                <hr class="border-gray-100">
+                <a href="{{ url_for('login') }}"
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">Log in</a>
+                <a href="{{ url_for('signup') }}"
+                    class="text-base font-medium text-primary hover:text-red-600 transition font-bold">Sign Up</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 mt-4">
+        {% for category, message in messages %}
+        <div class="flash-msg p-4 rounded-lg mb-4 flex items-center gap-3 shadow-sm
+            {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200
+            {% elif category == 'success' %}bg-green-50 text-green-700 border border-green-200
+            {% elif category == 'info' %}bg-blue-50 text-blue-700 border border-blue-200
+            {% else %}bg-gray-50 text-gray-700 border border-gray-200{% endif %}">
+            {% if category == 'error' %}
+            <i class="fa-solid fa-circle-exclamation flex-shrink-0"></i>
+            {% elif category == 'success' %}
+            <i class="fa-solid fa-circle-check flex-shrink-0"></i>
+            {% else %}
+            <i class="fa-solid fa-circle-info flex-shrink-0"></i>
+            {% endif %}
+            <span class="flex-grow">{{ message }}</span>
+            <button onclick="this.parentElement.remove()" class="flex-shrink-0 opacity-50 hover:opacity-100">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Content -->
+    <main class="min-h-screen">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-50 border-t border-gray-100 mt-12">
+        <div
+            class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
+            <p class="text-base text-gray-500">&copy; 2026 KwachaStay. Made for Lusaka.</p>
+            <div class="flex flex-wrap items-center gap-5 mt-4 md:mt-0">
+                <a href="{{ url_for('about') }}" class="text-sm font-medium text-gray-600 hover:text-primary">About KwachaStay</a>
+                <a href="{{ url_for('terms_of_service') }}" class="text-sm font-medium text-gray-600 hover:text-primary">Terms</a>
+                <a href="{{ url_for('privacy_policy') }}" class="text-sm font-medium text-gray-600 hover:text-primary">Privacy</a>
+                <a href="https://wa.me/{{ payment_whatsapp_number }}?text={{ 'Hello KwachaStay, I need help with a booking or property listing.'|urlencode }}"
+                    target="_blank" rel="noopener noreferrer"
+                    class="text-sm font-semibold text-green-700 hover:text-green-800">
+                    <i class="fa-brands fa-whatsapp mr-1"></i>+260 764 483 750
+                </a>
+                <a href="https://www.facebook.com/share/1QGWyvp4dq/?mibextid=wwXIfr"
+                    target="_blank" rel="noopener noreferrer"
+                    class="text-gray-500 hover:text-blue-700" aria-label="KwachaStay on Facebook">
+                    <i class="fa-brands fa-facebook text-xl" aria-hidden="true"></i>
+                </a>
+                <a href="https://www.instagram.com/_sikuta/"
+                    target="_blank" rel="noopener noreferrer"
+                    class="text-gray-500 hover:text-pink-700" aria-label="Sikuta Mubiana on Instagram">
+                    <i class="fa-brands fa-instagram text-xl" aria-hidden="true"></i>
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-gray-900/75 flex items-center justify-center z-[100] hidden">
+        <div class="text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary mx-auto"></div>
+            <p class="text-white mt-4 text-lg font-semibold">Processing...</p>
+        </div>
+    </div>
+
+    <script>
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = (input, init = {}) => {
+            const requestMethod = (init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+            if (csrfToken && !['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(requestMethod)) {
+                const requestUrl = new URL(input instanceof Request ? input.url : input, window.location.href);
+                if (requestUrl.origin === window.location.origin) {
+                    const headers = new Headers(init.headers || (input instanceof Request ? input.headers : {}));
+                    headers.set('X-CSRF-Token', csrfToken);
+                    init = { ...init, headers };
+                }
+            }
+            return nativeFetch(input, init);
+        };
+
+        function addCsrfInput(form) {
+            if (csrfToken && form.method.toUpperCase() !== 'GET' && !form.querySelector('input[name="csrf_token"]')) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'csrf_token';
+                input.value = csrfToken;
+                form.appendChild(input);
+            }
+        }
+
+        document.addEventListener('submit', function (event) {
+            if (event.target instanceof HTMLFormElement) {
+                addCsrfInput(event.target);
+            }
+        }, true);
+
+        // Global Loading State Handler
+        document.addEventListener('DOMContentLoaded', function () {
+            const forms = document.querySelectorAll('form');
+            const overlay = document.getElementById('loadingOverlay');
+
+            forms.forEach(form => {
+                addCsrfInput(form);
+                form.addEventListener('submit', function () {
+                    addCsrfInput(this);
+                    // Don't show loader if the form has a 'no-loader' class
+                    if (!this.classList.contains('no-loader')) {
+                        overlay.classList.remove('hidden');
+                    }
+                });
+            });
+        });
+
+        // Mobile Menu Toggle
+        const btn = document.getElementById('mobile-menu-btn');
+        const menu = document.getElementById('mobile-menu');
+
+        if (btn && menu) {
+            btn.addEventListener('click', () => {
+                menu.classList.toggle('hidden');
+            });
+        }
+    </script>
+</body>
+
+</html>

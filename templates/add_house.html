@@ -1,0 +1,537 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto px-4 py-12">
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">List your property</h1>
+        <p class="text-gray-500 mt-2">Share your space with travelers in Lusaka.</p>
+        <p class="mt-3 text-sm text-gray-600">
+            Need help creating or managing a listing?
+            <a class="font-semibold text-green-700 underline"
+                href="https://wa.me/{{ payment_whatsapp_number }}?text={{ 'Hello, I need help listing my property on KwachaStay.'|urlencode }}"
+                target="_blank" rel="noopener noreferrer">WhatsApp +260 764 483 750</a>
+        </p>
+    </div>
+
+    <form method="post" class="space-y-8" id="propertyForm" enctype="multipart/form-data">
+        <!-- Property Type -->
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h2 class="text-lg font-semibold mb-4">Property Type</h2>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">What kind of place is it?</label>
+                <select name="property_type" id="propertyType" required onchange="toggleFields()"
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                    <option value="House">House</option>
+                    <option value="Villa">Villa</option>
+                    <option value="Guest House">Guest House</option>
+                    <option value="Hotel">Hotel</option>
+                    <option value="Hostel">Hostel</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Basic Info -->
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h2 class="text-lg font-semibold mb-4">Basic Information</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Property Title</label>
+                    <input type="text" name="title" required placeholder="e.g. Modern Villa in Rhodes Park"
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <textarea name="description" rows="4" placeholder="Describe the ambiance, view, etc."
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dynamic Details Section -->
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm" id="detailsSection">
+            <h2 class="text-lg font-semibold mb-4">Room & Layout Details</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                <!-- Hostel/Guest House Specific -->
+                <div id="bedTypeField" class="hidden">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Bed Type</label>
+                    <select name="bed_type"
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                        <option value="Double">Double Bed</option>
+                        <option value="Single">Single Bed</option>
+                        <option value="Bunk">Bunk Bed</option>
+                        <option value="King">King Size</option>
+                    </select>
+                </div>
+
+                <div id="capacityField">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">People per Room</label>
+                    <input type="number" name="room_capacity" min="1" value="2"
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border">
+                </div>
+
+                <!-- House/Villa Specific -->
+                <div id="kitchenField">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Kitchen Type</label>
+                    <select name="kitchen_type"
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                        <option value="Private">Private Kitchen</option>
+                        <option value="Shared">Shared Kitchen</option>
+                        <option value="None">No Kitchen</option>
+                    </select>
+                </div>
+
+                <div id="sittingRoomField" class="flex items-center pt-6">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="has_sitting_room"
+                            class="rounded text-primary focus:ring-primary w-5 h-5">
+                        <span class="text-sm font-medium text-gray-700">Has Sitting Room</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Location & Price -->
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h2 class="text-lg font-semibold mb-4">Location & Pricing</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Neighbourhood / Compound</label>
+                    <select name="compound" required
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                        <option value="" disabled selected>Select location</option>
+                        {% for comp in compounds %}
+                        <option value="{{ comp }}">{{ comp }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label id="priceLabel" class="block text-sm font-medium text-gray-700 mb-1">Price per Night
+                        (ZMW)</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-3 text-gray-500">K</span>
+                        <input type="number" name="price" required min="0" step="0.01" placeholder="0.00"
+                            class="w-full pl-8 rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border">
+                        <input type="hidden" name="price_period" id="pricePeriod" value="night">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">One-time cleaning fee (ZMW)</label>
+                    <input type="number" name="cleaning_fee" min="0" step="0.01" value="0"
+                        class="w-full rounded-lg border-gray-300 p-3 border">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Refundable security deposit (ZMW)</label>
+                    <input type="number" name="refundable_deposit" min="0" step="0.01" value="0"
+                        class="w-full rounded-lg border-gray-300 p-3 border">
+                    <p class="text-xs text-gray-500 mt-1">Shown separately; it is not included in the booking total.</p>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
+                    <input type="checkbox" name="utilities_included" checked class="rounded text-primary">
+                    Utilities are included in the displayed price
+                </label>
+            </div>
+            <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label class="block text-sm font-medium text-gray-700">Power and backup
+                    <select name="power_backup" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                        <option value="">Not specified</option>
+                        {% for value, label in power_backup_options.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label class="block text-sm font-medium text-gray-700">Water supply
+                    <select name="water_supply" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                        <option value="">Not specified</option>
+                        {% for value, label in water_supply_options.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label class="block text-sm font-medium text-gray-700">Internet
+                    <select name="internet_availability" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                        <option value="">Not specified</option>
+                        {% for value, label in internet_options.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label class="block text-sm font-medium text-gray-700">Internet speed (optional, Mbps)
+                    <input type="number" name="internet_speed_mbps" min="1" max="1000" step="1"
+                        class="mt-1 w-full rounded-lg border-gray-300 p-3 border" placeholder="e.g. 20">
+                </label>
+            </div>
+            <div class="mt-6 border-t pt-5">
+                <h3 class="font-semibold text-gray-900">Pin the property's location</h3>
+                <p class="mt-1 text-sm text-gray-600">Click the map or enter coordinates. You can also use your device's current location while at the property. Your browser may ask permission.</p>
+                <button type="button" id="useCurrentLocation"
+                    class="mt-3 rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                    <i class="fa-solid fa-location-crosshairs mr-1"></i>Use my current location
+                </button>
+                <p id="locationPickerStatus" role="status" class="mt-2 text-xs text-gray-500">Map coordinates are optional. Without a pin, guests will see the neighbourhood only.</p>
+                <div id="locationPickerMap" class="mt-3 h-72 w-full rounded-xl border bg-gray-100"></div>
+                <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <label class="text-xs font-semibold text-gray-600">Latitude
+                        <input id="latitude" name="latitude" type="number" step="any" min="-90" max="90"
+                            class="mt-1 w-full rounded-lg border p-2 text-sm font-normal" placeholder="-15.4167">
+                    </label>
+                    <label class="text-xs font-semibold text-gray-600">Longitude
+                        <input id="longitude" name="longitude" type="number" step="any" min="-180" max="180"
+                            class="mt-1 w-full rounded-lg border p-2 text-sm font-normal" placeholder="28.2833">
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h2 class="text-lg font-semibold mb-2">Booking policies</h2>
+            <p class="text-sm text-gray-500 mb-4">Set clear expectations before guests request a stay.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Cancellation policy</label>
+                    <select name="cancellation_policy" class="w-full rounded-lg border-gray-300 p-3 border bg-white">
+                        <option value="flexible">Flexible — full refund up to 24 hours before check-in</option>
+                        <option value="moderate" selected>Moderate — full refund up to 5 days before check-in</option>
+                        <option value="strict">Strict — cancellation terms agreed with host</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">House rules</label>
+                    <textarea name="house_rules" rows="3" maxlength="2000"
+                        placeholder="Check-in time, guests, smoking, noise, pets..."
+                        class="w-full rounded-lg border-gray-300 p-3 border"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h2 class="text-lg font-semibold mb-2">Arrival guide</h2>
+            <p class="text-sm text-gray-500 mb-4">Only shared with the guest after you confirm their booking.</p>
+            <div class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <label class="block text-sm font-medium text-gray-700">Check-in time
+                        <input type="time" name="checkin_time" value="15:00" required
+                            class="mt-1 w-full rounded-lg border-gray-300 p-3 border">
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">Check-out time
+                        <input type="time" name="checkout_time" value="10:00" required
+                            class="mt-1 w-full rounded-lg border-gray-300 p-3 border">
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">Check-in method
+                        <select name="self_checkin_method" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                            <option value="">Not specified</option>
+                            {% for value, label in self_checkin_options.items() %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                        </select>
+                    </label>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Check-in instructions</label>
+                    <textarea name="arrival_instructions" rows="3" maxlength="3000"
+                        placeholder="Check-in time, key collection, gate or reception instructions"
+                        class="w-full rounded-lg border-gray-300 p-3 border"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Directions or meeting point</label>
+                    <textarea name="arrival_directions" rows="2" maxlength="1000"
+                        placeholder="Landmarks or directions to help guests find the property"
+                        class="w-full rounded-lg border-gray-300 p-3 border"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nearby essentials</label>
+                    <textarea name="nearby_essentials" rows="2" maxlength="1000"
+                        placeholder="Nearby grocery shops, pharmacies, fuel stations, or transport"
+                        class="w-full rounded-lg border-gray-300 p-3 border"></textarea>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 border-t pt-4">
+                    <label class="block text-sm font-medium text-gray-700">Emergency contact name (optional)
+                        <input type="text" name="emergency_contact_name" maxlength="100"
+                            class="mt-1 w-full rounded-lg border-gray-300 p-3 border">
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">Emergency contact phone
+                        <input type="tel" name="emergency_contact_phone" maxlength="40"
+                            class="mt-1 w-full rounded-lg border-gray-300 p-3 border">
+                    </label>
+                    <p class="text-xs text-gray-500 sm:col-span-2">Shared only with guests whose booking is confirmed. Enter both fields or leave both blank.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Commodities / Amenities -->
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h2 class="text-lg font-semibold mb-4">Amenities & Features</h2>
+
+            <div class="mb-6">
+                <span class="block text-sm font-medium text-gray-700 mb-3">Lusaka Essentials (Critical)</span>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label
+                        class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                        <input type="checkbox" name="has_solar" class="rounded text-primary focus:ring-primary w-5 h-5">
+                        <div class="text-sm">
+                            <span class="font-bold block text-gray-900"><i
+                                    class="fa-solid fa-solar-panel text-orange-500 mr-2"></i>Solar / Inverter</span>
+                            <span class="text-gray-500 text-xs">Backup power available</span>
+                        </div>
+                    </label>
+                    <label
+                        class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                        <input type="checkbox" name="has_borehole"
+                            class="rounded text-primary focus:ring-primary w-5 h-5">
+                        <div class="text-sm">
+                            <span class="font-bold block text-gray-900"><i
+                                    class="fa-solid fa-faucet-drip text-blue-500 mr-2"></i>Borehole Water</span>
+                            <span class="text-gray-500 text-xs">Consistent water supply</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <span class="block text-sm font-medium text-gray-700 mb-3">Comfort & Leisure</span>
+                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="has_wifi" class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-wifi w-5 text-center"></i> WiFi</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="has_ac" class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-snowflake w-5 text-center"></i>
+                            AC</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="has_pool" class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-water-ladder w-5 text-center"></i>
+                            Pool</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="has_garden"
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-tree w-5 text-center"></i>
+                            Garden</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="has_bbq" class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-fire-burner w-5 text-center"></i> BBQ
+                            Area</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="has_balcony"
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-cloud-sun w-5 text-center"></i>
+                            Balcony</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="has_parking"
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-car w-5 text-center"></i>
+                            Parking</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Main Photo Upload -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Main Photo <span class="text-red-500">*</span></label>
+                {% if not uploads_enabled %}
+                <p class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    Photo uploads are disabled on this server until durable storage is configured. Existing local uploads will not survive redeployments.
+                </p>
+                {% endif %}
+                <p class="mb-2 text-xs text-gray-500">Build guest confidence with labeled photos of the bedroom, bathroom, kitchen, entrance, and parking when available.</p>
+                <label class="block text-xs text-gray-600 mb-2">Photo type
+                    <select name="main_photo_category" class="ml-2 rounded-lg border p-2">
+                        {% for key, label in photo_categories.items() %}
+                        <option value="{{ key }}">{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <!-- Drop Zone -->
+                <div id="dropZone"
+                    {% if uploads_enabled %}onclick="document.getElementById('mainFileInput').click()"{% endif %}
+                    ondragover="event.preventDefault();this.classList.add('border-primary','bg-red-50')"
+                    ondragleave="this.classList.remove('border-primary','bg-red-50')"
+                    ondrop="handleDrop(event)"
+                    class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center {% if uploads_enabled %}cursor-pointer hover:border-primary hover:bg-red-50{% else %}cursor-not-allowed opacity-60{% endif %} transition">
+                    <div id="dropPlaceholder">
+                        <i class="fa-solid fa-cloud-arrow-up text-4xl text-gray-300 mb-3"></i>
+                        <p class="font-semibold text-gray-700">Click or drag &amp; drop your photo here</p>
+                        <p class="text-xs text-gray-400 mt-1">JPG, PNG, WebP &bull; Max 16 MB</p>
+                    </div>
+                    <div id="uploadedPreview" class="hidden">
+                        <img id="previewImg" src="" class="mx-auto max-h-40 rounded-lg shadow" alt="Preview">
+                        <p class="text-green-600 font-semibold mt-2 text-sm"><i class="fa-solid fa-check-circle mr-1"></i><span id="uploadedName"></span></p>
+                    </div>
+                </div>
+
+                <input type="file" id="mainFileInput" accept="image/*" class="hidden" onchange="uploadImage(this, 'mainUrl', 'dropZone')" {% if not uploads_enabled %}disabled{% endif %}>
+                <input type="hidden" name="image_url" id="mainUrl" required>
+
+                <!-- Upload Progress -->
+                <div id="uploadingIndicator" class="hidden mt-2 flex items-center gap-2 text-primary text-sm">
+                    <i class="fa-solid fa-spinner fa-spin"></i> Uploading photo...
+                </div>
+            </div>
+
+            <!-- Additional Photos Upload (up to 4) -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Additional Photos <span class="text-gray-400 font-normal">(optional, up to 4)</span></label>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="extraPhotosGrid">
+                    <!-- Slots filled by JS -->
+                </div>
+                <input type="hidden" name="extra_images" id="extraImagesInput">
+                <input type="hidden" name="extra_image_categories" id="extraImageCategoriesInput">
+                <p class="text-xs text-gray-400 mt-2">These appear in the property photo gallery.</p>
+            </div>
+
+        </div>
+
+        <button type="submit"
+            class="w-full bg-primary text-white font-bold text-lg py-4 rounded-xl shadow-lg shadow-red-200 hover:bg-red-600 transition transform hover:-translate-y-0.5">
+            List Property
+        </button>
+    </form>
+</div>
+
+<script>
+    const MAX_EXTRA = 4;
+    const uploadedExtraUrls = [];
+    const uploadedExtraCategories = [];
+    const photoCategoryOptions = {{ photo_categories|tojson }};
+
+    function syncExtraPhotoFields() {
+        const photos = uploadedExtraUrls
+            .map((url, index) => ({ url: url, category: uploadedExtraCategories[index] || 'other' }))
+            .filter(photo => photo.url);
+        document.getElementById('extraImagesInput').value = photos.map(photo => photo.url).join(',');
+        document.getElementById('extraImageCategoriesInput').value =
+            photos.map(photo => photo.category).join(',');
+    }
+
+    function buildExtraSlots() {
+        const grid = document.getElementById('extraPhotosGrid');
+        grid.innerHTML = '';
+        for (let i = 0; i < MAX_EXTRA; i++) {
+            buildSlot(i);
+        }
+    }
+
+    function buildSlot(index) {
+        const grid = document.getElementById('extraPhotosGrid');
+        let slot = document.getElementById(`extraSlot${index}`);
+        if (!slot) {
+            slot = document.createElement('div');
+            grid.appendChild(slot);
+        }
+        slot.id = `extraSlot${index}`;
+        slot.className = 'space-y-1';
+        slot.innerHTML = `
+            <div class="relative border-2 border-dashed border-gray-200 rounded-xl h-24 flex items-center justify-center cursor-pointer hover:border-primary hover:bg-red-50 transition overflow-hidden">
+                <div class="text-center pointer-events-none">
+                    <i class="fa-solid fa-plus text-gray-300 text-xl"></i>
+                    <p class="text-xs text-gray-400 mt-1">Photo ${index + 1}</p>
+                </div>
+                <input type="file" accept="image/*" title="Upload photo ${index+1}" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    onchange="uploadExtraImage(this, ${index})">
+            </div>
+            <select class="w-full text-xs rounded border p-1" aria-label="Photo ${index + 1} category"
+                onchange="uploadedExtraCategories[${index}] = this.value; syncExtraPhotoFields()">
+                ${Object.entries(photoCategoryOptions).map(([key, label]) => `<option value="${key}" ${uploadedExtraCategories[index] === key ? 'selected' : ''}>${label}</option>`).join('')}
+            </select>
+        `;
+    }
+
+    async function uploadImage(input, hiddenId, zoneId) {
+        const file = input.files ? input.files[0] : input;
+        if (!file) return;
+
+        const indicator = document.getElementById('uploadingIndicator');
+        indicator.classList.remove('hidden');
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const resp = await fetch('/upload_image', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (data.url) {
+                document.getElementById(hiddenId).value = data.url;
+                document.getElementById('dropPlaceholder').classList.add('hidden');
+                document.getElementById('uploadedPreview').classList.remove('hidden');
+                document.getElementById('previewImg').src = data.url;
+                document.getElementById('uploadedName').textContent = file.name || 'Photo uploaded';
+            } else {
+                alert('Upload failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch (e) {
+            alert('Upload error: ' + e.message);
+        } finally {
+            indicator.classList.add('hidden');
+        }
+    }
+
+    async function uploadExtraImage(input, index) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const slot = document.getElementById(`extraSlot${index}`);
+        slot.querySelector('div').innerHTML = `<div class="text-center text-primary text-xs p-2"><i class="fa-solid fa-spinner fa-spin text-xl"></i><p class="mt-1">Uploading...</p></div>`;
+
+        const formData = new FormData();
+        formData.append('image', file);
+
+        try {
+            const resp = await fetch('/upload_image', { method: 'POST', body: formData });
+            const data = await resp.json();
+            if (data.url) {
+                uploadedExtraUrls[index] = data.url;
+                uploadedExtraCategories[index] = slot.querySelector('select').value;
+                syncExtraPhotoFields();
+                slot.querySelector('div').className = 'relative rounded-xl h-24 overflow-hidden border border-gray-200';
+                slot.querySelector('div').innerHTML = `
+                    <img src="${data.url}" class="w-full h-full object-cover" alt="Uploaded property photo">
+                    <div class="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition">
+                        <button type="button" onclick="removeExtra(${index})" class="text-white text-xs bg-red-500 px-2 py-1 rounded">
+                            <i class="fa-solid fa-trash"></i> Remove
+                        </button>
+                    </div>
+                `;
+            } else {
+                buildSlot(index);
+            }
+        } catch (e) {
+            buildSlot(index);
+        }
+    }
+
+    function removeExtra(index) {
+        uploadedExtraUrls[index] = null;
+        uploadedExtraCategories[index] = null;
+        syncExtraPhotoFields();
+        buildSlot(index);
+    }
+
+    function handleDrop(event) {
+        event.preventDefault();
+        const zone = document.getElementById('dropZone');
+        zone.classList.remove('border-primary', 'bg-red-50');
+        const file = event.dataTransfer.files[0];
+        if (!file) return;
+        uploadImage(file, 'mainUrl', 'dropZone');
+    }
+
+    function toggleFields() {
+        const type = document.getElementById('propertyType').value;
+        const bedTypeField = document.getElementById('bedTypeField');
+        const priceLabel = document.getElementById('priceLabel');
+        const pricePeriod = document.getElementById('pricePeriod');
+
+        if (type === 'Hostel' || type === 'Guest House' || type === 'Hotel') {
+            bedTypeField.classList.remove('hidden');
+            priceLabel.textContent = "Price per Night (ZMW)";
+            pricePeriod.value = "night";
+        } else {
+            bedTypeField.classList.add('hidden');
+            priceLabel.textContent = "Price per Month (ZMW)";
+            pricePeriod.value = "month";
+        }
+    }
+
+    toggleFields();
+    buildExtraSlots();
+</script>
+<script src="{{ url_for('static', filename='js/location-picker.js') }}"></script>
+{% endblock %}

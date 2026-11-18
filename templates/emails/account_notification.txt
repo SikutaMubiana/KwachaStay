@@ -1,0 +1,13 @@
+KwachaStay
+
+{{ title }}
+
+Hello {{ user_name or 'there' }},
+
+{{ message }}
+{% if action_url %}
+View in KwachaStay:
+{{ action_url }}
+{% endif %}
+
+KwachaStay · Lusaka, Zambia
