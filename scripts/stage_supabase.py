@@ -328,7 +328,7 @@ def main():
             raise SystemExit('Set SUPABASE_ACCESS_TOKEN or DATABASE_URL before checking Supabase.')
         return
 
-    if token and not database_url:
+    if token:
         stage_via_management_api(
             token, project_ref(), bucket,
             include_schema=not args.skip_schema,

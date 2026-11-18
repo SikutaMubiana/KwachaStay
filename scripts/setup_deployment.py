@@ -25,6 +25,13 @@ FIELDS = [
     ('BREVO_SENDER_EMAIL', 'Verified Brevo sender email', False),
 ]
 
+SERVICES = {
+    'supabase': ('SUPABASE_ACCESS_TOKEN', 'DATABASE_URL'),
+    'github': ('GITHUB_TOKEN', 'GITHUB_USERNAME'),
+    'render': ('RENDER_API_KEY',),
+    'brevo': ('BREVO_API_KEY', 'BREVO_SENDER_EMAIL'),
+}
+
 
 def read_env():
     if not ENV_FILE.is_file():
@@ -53,21 +60,27 @@ def write_value(lines, key, value):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Only report which values are set')
+    parser.add_argument(
+        '--service', choices=[*SERVICES, 'all'], default='all',
+        help='Configure one service at a time (default: all)',
+    )
     args = parser.parse_args()
 
+    selected = {key for key, _label, _secret in FIELDS}
+    if args.service != 'all':
+        selected = set(SERVICES[args.service])
+    fields = [field for field in FIELDS if field[0] in selected]
+
     lines = read_env()
-    missing = []
-    for key, _label, _secret in FIELDS:
+    for key, _label, _secret in fields:
         value = current_value(lines, key)
         if args.check:
             print(f'{key}: {"SET" if value else "EMPTY"}')
-        elif not value:
-            missing.append(key)
 
     if args.check:
         return
 
-    for key, label, secret in FIELDS:
+    for key, label, secret in fields:
         if current_value(lines, key):
             continue
         prompt = f'{label}: '
@@ -75,6 +88,8 @@ def main():
         value = value.strip()
         if not value:
             raise SystemExit(f'{key} is required. Re-run when you have it.')
+        if key == 'DATABASE_URL' and not value.startswith(('postgresql://', 'postgres://')):
+            raise SystemExit('DATABASE_URL must be a PostgreSQL connection URI (postgresql://...).')
         write_value(lines, key, value)
 
     if not ENV_FILE.is_file():
