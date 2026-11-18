@@ -6,6 +6,10 @@
 2. Create a Supabase project, then copy its server-side PostgreSQL connection string into `DATABASE_URL` only in Render (and locally in `.env` while staging).
 3. Create a **public** Supabase Storage bucket named `property-images`, or set `SUPABASE_STORAGE_BUCKET` to another public bucket name.
 
+## Credentials
+
+Run `python scripts/setup_deployment.py` in your terminal to enter missing tokens privately. `python scripts/setup_deployment.py --check` lists which values are still empty. Every service used here has a free tier.
+
 ## Supabase staging
 
 `schema.sql` is the canonical model. `scripts/stage_supabase.py` converts it to PostgreSQL, creates the tables, creates the public storage bucket, and uploads/deletes a probe object. It is idempotent and never drops data.
