@@ -70,7 +70,7 @@ def ensure_branch(name="main"):
 
 def push(token, owner, repo, branch):
     credentials = base64.b64encode(
-        f"x-access-token:{token}".encode("utf-8")
+        f"{owner}:{token}".encode("utf-8")
     ).decode("ascii")
 
     env = os.environ.copy()
