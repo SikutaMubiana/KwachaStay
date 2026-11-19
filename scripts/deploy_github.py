@@ -18,7 +18,7 @@ DEFAULT_REPO = "KwachaStay"
 
 def load_env():
     from dotenv import load_dotenv
-    load_dotenv(ROOT / ".env")
+    load_dotenv(ROOT / ".env", override=True)
 
 
 def request(method, path, token, payload=None):
