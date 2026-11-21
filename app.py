@@ -57,6 +57,11 @@ PUBLIC_BASE_URL = (
     or os.getenv('RENDER_EXTERNAL_URL', '').strip()
 ).rstrip('/')
 DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
+ADMIN_EMAILS = {
+    email.strip().lower()
+    for email in os.getenv('ADMIN_EMAILS', '').split(',')
+    if email.strip()
+}
 STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local').strip().lower()
 EMAIL_PROVIDER = os.getenv('EMAIL_PROVIDER', 'resend').strip().lower()
 RESEND_API_KEY = os.getenv('RESEND_API_KEY', '').strip()
@@ -1860,10 +1865,11 @@ def signup():
                 flash(str(error), 'error')
             else:
                 try:
+                    is_configured_admin = 1 if email in ADMIN_EMAILS else 0
                     db.execute(
-                        '''INSERT INTO users (full_name, email, phone, password, role)
-                           VALUES (?, ?, ?, ?, ?)''',
-                        (full_name, email, full_phone, generate_password_hash(password), role),
+                        '''INSERT INTO users (full_name, email, phone, password, role, is_admin)
+                           VALUES (?, ?, ?, ?, ?, ?)''',
+                        (full_name, email, full_phone, generate_password_hash(password), role, is_configured_admin),
                     )
                     db.commit()
                 except DB_INTEGRITY_ERRORS:
@@ -2223,6 +2229,9 @@ def login():
         elif user['role'] == 'banned':
             flash('This account has been suspended. Please contact support.', 'error')
         else:
+            if (user['email'] or '').strip().lower() in ADMIN_EMAILS and not user['is_admin']:
+                db.execute('UPDATE users SET is_admin = 1 WHERE id = ?', (user['id'],))
+                db.commit()
             session.clear()
             session['user_id'] = user['id']
             session.permanent = bool(request.form.get('remember_me'))
@@ -3591,7 +3600,10 @@ def unblock_date(property_id):
 def admin_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
-        if g.user is None or not g.user['is_admin']:
+        if g.user is None:
+            flash('Please log in with an administrator account to access the admin dashboard.', 'info')
+            return redirect(url_for('login'))
+        if not g.user['is_admin']:
             flash('Admin access required.', 'error')
             return redirect(url_for('index'))
         return view(**kwargs)
@@ -3602,8 +3614,19 @@ def admin_required(view):
 def admin_dashboard():
     db = get_db()
     users = db.execute('SELECT * FROM users ORDER BY created_at DESC').fetchall()
-    properties = db.execute('SELECT * FROM properties ORDER BY created_at DESC').fetchall()
-    bookings = db.execute('SELECT * FROM bookings ORDER BY created_at DESC').fetchall()
+    properties = db.execute('''
+        SELECT p.*, u.full_name AS owner_name, u.email AS owner_email
+        FROM properties p
+        LEFT JOIN users u ON u.id = p.owner_id
+        ORDER BY p.created_at DESC
+    ''').fetchall()
+    bookings = db.execute('''
+        SELECT b.*, p.title AS property_title, u.full_name AS tenant_name, u.email AS tenant_email
+        FROM bookings b
+        LEFT JOIN properties p ON p.id = b.property_id
+        LEFT JOIN users u ON u.id = b.user_id
+        ORDER BY b.created_at DESC
+    ''').fetchall()
     reports = db.execute('''
         SELECT r.*, p.title AS property_title, u.full_name AS reporter_name
         FROM property_reports r
@@ -3668,12 +3691,43 @@ def admin_dashboard():
            JOIN users host ON host.id = pl.owner_id
            ORDER BY CASE pl.status WHEN 'pending' THEN 0 ELSE 1 END, pl.created_at'''
     ).fetchall()
+
+    open_reports_count = sum(1 for r in reports if r['status'] == 'open')
+    open_support_count = sum(1 for sr in support_requests if sr['status'] in ('open', 'in_review'))
+    pending_payouts_count = sum(1 for pl in payout_ledger if pl['status'] == 'pending')
+    admin_stats = {
+        'total_users': len(users),
+        'total_hosts': sum(1 for u in users if u['role'] == 'owner'),
+        'total_tenants': sum(1 for u in users if u['role'] == 'tenant'),
+        'banned_users': sum(1 for u in users if u['role'] == 'banned'),
+        'admin_users': sum(1 for u in users if u['is_admin']),
+        'total_properties': len(properties),
+        'active_properties': sum(1 for p in properties if p['is_active']),
+        'verified_properties': sum(1 for p in properties if p['is_verified']),
+        'total_bookings': len(bookings),
+        'confirmed_bookings': sum(1 for b in bookings if b['booking_status'] == 'confirmed'),
+        'paid_revenue': sum(float(b['total_price'] or 0) for b in bookings if b['payment_status'] == 'paid'),
+        'open_reports_count': open_reports_count,
+        'open_support_count': open_support_count,
+        'pending_payouts_count': pending_payouts_count,
+        'pending_payments_tab': len(payment_review_bookings) + len(refund_requests) + pending_payouts_count,
+        'pending_moderation_tab': len(verification_requests) + open_reports_count + open_support_count,
+        'pending_actions': (
+            len(verification_requests)
+            + open_reports_count
+            + open_support_count
+            + len(payment_review_bookings)
+            + len(refund_requests)
+            + pending_payouts_count
+        ),
+    }
     return render_template('admin.html', users=users, properties=properties, bookings=bookings,
                            reports=reports, verification_requests=verification_requests,
                            refund_requests=refund_requests,
                            payment_review_bookings=payment_review_bookings,
                            support_requests=support_requests,
-                           payout_ledger=payout_ledger)
+                           payout_ledger=payout_ledger,
+                           admin_stats=admin_stats)
 
 
 @app.route('/admin/payout/<int:ledger_id>/mark-paid', methods=['POST'])
@@ -3717,6 +3771,49 @@ def verify_property(property_id):
     db.execute('UPDATE properties SET is_verified = 1 WHERE id = ?', (property_id,))
     db.commit()
     flash(f'Property "{property["title"]}" verified!', 'success')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/unverify_property/<int:property_id>', methods=['POST'])
+@admin_required
+def unverify_property(property_id):
+    db = get_db()
+    property = db.execute('SELECT title FROM properties WHERE id = ?', (property_id,)).fetchone()
+    if not property:
+        flash('Property not found.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    db.execute('UPDATE properties SET is_verified = 0 WHERE id = ?', (property_id,))
+    db.commit()
+    flash(f'Verified badge removed from "{property["title"]}".', 'info')
+    return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
+@admin_required
+def admin_toggle_admin(user_id):
+    if user_id == g.user['id']:
+        flash('You cannot change your own administrator role.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    db = get_db()
+    user = db.execute('SELECT id, full_name, role, is_admin FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not user:
+        flash('User not found.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    if user['is_admin']:
+        admin_count = db.execute('SELECT COUNT(*) FROM users WHERE is_admin = 1').fetchone()[0]
+        if admin_count <= 1:
+            flash('At least one administrator account must remain active.', 'error')
+            return redirect(url_for('admin_dashboard'))
+        db.execute('UPDATE users SET is_admin = 0 WHERE id = ?', (user_id,))
+        db.commit()
+        flash(f'Removed admin access from "{user["full_name"]}".', 'info')
+    else:
+        if user['role'] == 'banned':
+            flash('Unban this user before granting admin access.', 'error')
+            return redirect(url_for('admin_dashboard'))
+        db.execute('UPDATE users SET is_admin = 1 WHERE id = ?', (user_id,))
+        db.commit()
+        flash(f'Granted admin access to "{user["full_name"]}".', 'success')
     return redirect(url_for('admin_dashboard'))
 
 
@@ -5369,9 +5466,9 @@ def booking_receipt(booking_id):
         flash('Booking not found.', 'error')
         return redirect(url_for('dashboard'))
 
-    # Only the tenant or the host can view the receipt
+    # Only the tenant, the host, or an admin can view the receipt
     prop = db.execute('SELECT owner_id FROM properties WHERE id = ?', (booking['property_id'],)).fetchone()
-    if booking['user_id'] != g.user['id'] and (not prop or prop['owner_id'] != g.user['id']):
+    if not g.user['is_admin'] and booking['user_id'] != g.user['id'] and (not prop or prop['owner_id'] != g.user['id']):
         flash('Unauthorized.', 'error')
         return redirect(url_for('dashboard'))
 

@@ -45,6 +45,15 @@ Use [render.yaml](./render.yaml) as a Blueprint or create a Python Web Service m
 - Health check: `/healthz`
 - Set every secret in Render's Environment settings, never in Git.
 
+## Admin dashboard
+
+Grant administrator access in either of two ways:
+
+1. Run `python make_admin.py <email>` (uses `DATABASE_URL` when set, or local `kwachastay.db`). Use `python make_admin.py --list` to check current admins or `--revoke <email>` to remove access.
+2. Optionally set `ADMIN_EMAILS` in Render (comma-separated emails) to automatically ensure those accounts have admin access on sign-up or login.
+
+Once granted, log in and open `/admin` (or click **Admin** in the top navigation bar).
+
 ## Runtime database
 
 `app.py` uses SQLite only when `DATABASE_URL` is empty. When `DATABASE_URL` is set, `database.py` connects to PostgreSQL and translates the existing route SQL (placeholders, `julianday`, `date('now')`, `INSERT OR IGNORE`, `lastrowid`, case-insensitive `LIKE`, and the distance helper). Apply the Supabase staging schema before pointing the live service at that database.
