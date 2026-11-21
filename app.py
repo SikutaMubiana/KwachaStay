@@ -65,10 +65,6 @@ RESEND_WEBHOOK_SECRET = os.getenv('RESEND_WEBHOOK_SECRET', '').strip()
 EMAIL_VERIFICATION_TTL_SECONDS = max(900, int(os.getenv('EMAIL_VERIFICATION_TTL_SECONDS', '86400')))
 PASSWORD_RESET_TTL_SECONDS = max(900, int(os.getenv('PASSWORD_RESET_TTL_SECONDS', '3600')))
 EMAIL_WEBHOOK_MAX_AGE_SECONDS = max(60, int(os.getenv('EMAIL_WEBHOOK_MAX_AGE_SECONDS', '300')))
-BREVO_API_KEY = os.getenv('BREVO_API_KEY', '').strip()
-BREVO_SENDER_EMAIL = os.getenv('BREVO_SENDER_EMAIL', '').strip()
-BREVO_SENDER_NAME = os.getenv('BREVO_SENDER_NAME', 'KwachaStay').strip()
-BREVO_WEBHOOK_TOKEN = os.getenv('BREVO_WEBHOOK_TOKEN', '').strip()
 BANK_TRANSFER_DETAILS = {
     'bank_name': os.getenv('BANK_TRANSFER_BANK_NAME', '').strip(),
     'account_name': os.getenv('BANK_TRANSFER_ACCOUNT_NAME', '').strip(),
@@ -313,18 +309,11 @@ def normalize_phone_number(value, region=None):
     return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
 
 
-def contact_code_digest(user_id, channel, code):
-    payload = f'{channel}:{user_id}:{code}'.encode('utf-8')
-    return hmac.new(app.secret_key.encode('utf-8'), payload, hashlib.sha256).hexdigest()
-
-
 def token_digest(token):
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 
 def email_delivery_configured():
-    if EMAIL_PROVIDER == 'brevo':
-        return bool(BREVO_API_KEY and BREVO_SENDER_EMAIL)
     if EMAIL_PROVIDER == 'resend':
         return bool(RESEND_API_KEY and RESEND_FROM_EMAIL)
     if EMAIL_PROVIDER == 'smtp':
@@ -335,108 +324,6 @@ def email_delivery_configured():
             and (os.getenv('MAIL_DEFAULT_SENDER', '').strip() or os.getenv('MAIL_USERNAME', '').strip())
         )
     return False
-
-
-def send_email_code(recipient, code, verification_link=None, user_name=None):
-    send_email(
-        'Your KwachaStay verification code',
-        recipient,
-        render_template('emails/account_verification.html', user_name=user_name,
-                        verification_code=code, verification_link=verification_link),
-        render_template('emails/account_verification.txt', user_name=user_name,
-                        verification_code=code, verification_link=verification_link),
-        template_key='account_verification',
-    )
-
-
-def send_contact_verification_code(user, channel):
-    db = get_db()
-    now = time.time()
-    if channel == 'email':
-        if user['email_verified_at']:
-            return None
-        if not email_delivery_configured():
-            return 'Email delivery is not configured. Ask the administrator to configure the transactional email provider.'
-        if (
-            user['email_verification_sent_at']
-            and now - user['email_verification_sent_at'] < 60
-            and user['email_verification_code_hash']
-        ):
-            return 'Please wait one minute before requesting another email code.'
-        code = f'{secrets.randbelow(1_000_000):06d}'
-        verification_token = secrets.token_urlsafe(32)
-        verification_expires = now + EMAIL_VERIFICATION_TTL_SECONDS
-        db.execute(
-            '''UPDATE users SET email_verification_code_hash = ?,
-               email_verification_code_expires = ?, email_verification_sent_at = ?,
-               email_verification_attempts = 0, email_verification_token = NULL,
-               email_verification_token_hash = ?, email_verification_expires = ? WHERE id = ?''',
-            (contact_code_digest(user['id'], 'email', code), now + 600, now,
-             token_digest(verification_token), verification_expires, user['id']),
-        )
-        db.commit()
-        try:
-            send_email_code(
-                user['email'], code,
-                email_public_url('verify_email', token=verification_token),
-                user['full_name'],
-            )
-        except RuntimeError as error:
-            db.execute(
-                '''UPDATE users SET email_verification_code_hash = NULL,
-                   email_verification_code_expires = NULL WHERE id = ?''',
-                (user['id'],),
-            )
-            db.commit()
-            return str(error)
-        return None
-
-    if channel == 'phone':
-        if user['phone_verified_at']:
-            return None
-        if not (TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER):
-            return 'SMS OTP delivery is not configured. Configure Twilio before completing contact verification.'
-        if (
-            user['phone_verification_sent_at']
-            and now - user['phone_verification_sent_at'] < 60
-            and user['phone_verification_token']
-        ):
-            return 'Please wait one minute before requesting another SMS code.'
-        try:
-            phone = normalize_phone_number(user['phone'])
-        except ValueError:
-            return 'The phone number on this account is invalid. Update it before requesting an SMS code.'
-        code = f'{secrets.randbelow(1_000_000):06d}'
-        db.execute(
-            '''UPDATE users SET phone_verification_token = ?,
-               phone_verification_expires = ?, phone_verification_sent_at = ?,
-               phone_verification_attempts = 0 WHERE id = ?''',
-            (contact_code_digest(user['id'], 'phone', code), now + 600, now, user['id']),
-        )
-        db.commit()
-        try:
-            send_twilio_verification_sms(phone, code)
-        except RuntimeError as error:
-            db.execute(
-                '''UPDATE users SET phone_verification_token = NULL,
-                   phone_verification_expires = NULL WHERE id = ?''',
-                (user['id'],),
-            )
-            db.commit()
-            return str(error)
-        return None
-
-    raise ValueError('Unknown contact verification channel.')
-
-
-def send_contact_verification_codes(user):
-    errors = [
-        error for error in (
-            send_contact_verification_code(user, 'email'),
-            send_contact_verification_code(user, 'phone'),
-        ) if error
-    ]
-    return errors
 
 
 def parse_iso_date(value):
@@ -1559,7 +1446,7 @@ def login_required(view):
 def protect_csrf():
     if request.method not in {'POST', 'PUT', 'PATCH', 'DELETE'}:
         return
-    if request.path in {'/webhooks/flutterwave', '/webhooks/resend', '/webhooks/brevo'}:
+    if request.path in {'/webhooks/flutterwave', '/webhooks/resend'}:
         return
 
     expected_token = session.get('_csrf_token')
@@ -1945,6 +1832,7 @@ def signup():
         full_name = request.form.get('full_name', '').strip()
         email = request.form.get('email', '').strip().lower()
         phone_raw = request.form.get('phone', '').strip()
+        country_code = request.form.get('country_code', '').strip()
         country_region = request.form.get('country_region', 'ZM').upper()
         password = request.form.get('password', '')
         role = request.form.get('role', 'tenant')
@@ -1961,154 +1849,31 @@ def signup():
         ):
             flash('Password must be at least 8 characters and contain both letters and numbers.', 'error')
         else:
+            phone_input = (
+                f'{country_code}{phone_raw}'
+                if phone_raw and not phone_raw.startswith('+') and country_code.startswith('+')
+                else phone_raw
+            )
             try:
-                full_phone = normalize_phone_number(phone_raw, country_region)
+                full_phone = normalize_phone_number(phone_input, country_region)
             except ValueError as error:
                 flash(str(error), 'error')
             else:
                 try:
-                    cursor = db.execute(
+                    db.execute(
                         '''INSERT INTO users (full_name, email, phone, password, role)
                            VALUES (?, ?, ?, ?, ?)''',
                         (full_name, email, full_phone, generate_password_hash(password), role),
                     )
                     db.commit()
                 except DB_INTEGRITY_ERRORS:
+                    db.rollback()
                     flash('An account already uses that email address.', 'error')
                 else:
-                    user = db.execute('SELECT * FROM users WHERE id = ?', (cursor.lastrowid,)).fetchone()
-                    session.clear()
-                    session['pending_contact_verification_user_id'] = user['id']
-                    delivery_errors = send_contact_verification_codes(user)
-                    if delivery_errors:
-                        for message in delivery_errors:
-                            flash(message, 'error')
-                    else:
-                        flash('We sent a verification code to your email and phone. Enter both codes to activate your account.', 'success')
-                    return redirect(url_for('verify_contact'))
+                    flash('Account created successfully! Please log in with your email or phone and password.', 'success')
+                    return redirect(url_for('login'))
 
     return render_template('signup.html', phone_countries=phone_country_options())
-
-
-def verify_contact_code(user, channel, code):
-    if not code or not re.fullmatch(r'\d{6}', code):
-        return False, f'Enter the six-digit {channel} code.'
-
-    if channel == 'email':
-        verified_column = 'email_verified_at'
-        hash_column = 'email_verification_code_hash'
-        expires_column = 'email_verification_code_expires'
-        attempts_column = 'email_verification_attempts'
-    else:
-        verified_column = 'phone_verified_at'
-        hash_column = 'phone_verification_token'
-        expires_column = 'phone_verification_expires'
-        attempts_column = 'phone_verification_attempts'
-
-    if user[verified_column]:
-        return True, ''
-    if (
-        not user[hash_column]
-        or not user[expires_column]
-        or user[expires_column] < time.time()
-        or user[attempts_column] >= 5
-    ):
-        return False, f'The {channel} code expired or is locked. Request a new code.'
-
-    candidate = contact_code_digest(user['id'], channel, code)
-    if not hmac.compare_digest(candidate, user[hash_column]):
-        attempts = user[attempts_column] + 1
-        db = get_db()
-        db.execute(
-            f'''UPDATE users SET {attempts_column} = ?,
-               {hash_column} = CASE WHEN ? >= 5 THEN NULL ELSE {hash_column} END,
-               {expires_column} = CASE WHEN ? >= 5 THEN NULL ELSE {expires_column} END
-               WHERE id = ?''',
-            (attempts, attempts, attempts, user['id']),
-        )
-        db.commit()
-        return False, f'The {channel} code is incorrect. Codes are locked after five unsuccessful attempts.'
-
-    db = get_db()
-    if channel == 'email':
-        db.execute(
-            '''UPDATE users SET email_verified_at = CURRENT_TIMESTAMP,
-               email_verification_code_hash = NULL,
-               email_verification_code_expires = NULL,
-               email_verification_attempts = 0,
-               email_verification_token = NULL, email_verification_expires = NULL
-               WHERE id = ?''',
-            (user['id'],),
-        )
-    else:
-        db.execute(
-            '''UPDATE users SET phone_verified_at = CURRENT_TIMESTAMP,
-               phone_verification_token = NULL, phone_verification_expires = NULL,
-               phone_verification_attempts = 0 WHERE id = ?''',
-            (user['id'],),
-        )
-    db.commit()
-    return True, ''
-
-
-@app.route('/verify-contact', methods=('GET', 'POST'))
-def verify_contact():
-    pending_user_id = session.get('pending_contact_verification_user_id')
-    if not pending_user_id:
-        flash('Start by signing in or creating an account.', 'info')
-        return redirect(url_for('login'))
-
-    db = get_db()
-    user = db.execute('SELECT * FROM users WHERE id = ?', (pending_user_id,)).fetchone()
-    if not user:
-        session.pop('pending_contact_verification_user_id', None)
-        flash('The account could not be found. Please sign in again.', 'error')
-        return redirect(url_for('login'))
-
-    if request.method == 'POST':
-        errors = []
-        if not user['email_verified_at']:
-            valid, message = verify_contact_code(user, 'email', request.form.get('email_code', '').strip())
-            if not valid:
-                errors.append(message)
-        if not user['phone_verified_at']:
-            user = db.execute('SELECT * FROM users WHERE id = ?', (pending_user_id,)).fetchone()
-            valid, message = verify_contact_code(user, 'phone', request.form.get('phone_code', '').strip())
-            if not valid:
-                errors.append(message)
-
-        user = db.execute('SELECT * FROM users WHERE id = ?', (pending_user_id,)).fetchone()
-        if user['email_verified_at'] and user['phone_verified_at']:
-            session.clear()
-            session['user_id'] = user['id']
-            flash('Your email and phone are verified. Your account is ready.', 'success')
-            return redirect(url_for('index'))
-        for message in errors:
-            flash(message, 'error')
-        return render_template('verify_contact.html', user=user)
-
-    return render_template('verify_contact.html', user=user)
-
-
-@app.route('/verify-contact/resend', methods=['POST'])
-def resend_contact_codes():
-    pending_user_id = session.get('pending_contact_verification_user_id')
-    if not pending_user_id:
-        flash('Start by signing in or creating an account.', 'info')
-        return redirect(url_for('login'))
-    user = get_db().execute('SELECT * FROM users WHERE id = ?', (pending_user_id,)).fetchone()
-    if not user:
-        session.pop('pending_contact_verification_user_id', None)
-        flash('The account could not be found. Please sign in again.', 'error')
-        return redirect(url_for('login'))
-
-    errors = send_contact_verification_codes(user)
-    if errors:
-        for message in errors:
-            flash(message, 'error')
-    else:
-        flash('New verification codes have been sent to your unverified contact details.', 'success')
-    return redirect(url_for('verify_contact'))
 
 
 @app.route('/saved-searches/save', methods=['POST'])
@@ -2431,13 +2196,13 @@ def request_refund(booking_id):
 @app.route('/login', methods=('GET', 'POST'))
 def login():
     if request.method == 'POST':
-        identifier = request.form.get('identifier', '').strip()
+        identifier = (request.form.get('identifier') or request.form.get('email') or '').strip()
         password = request.form.get('password', '')
         db = get_db()
         user = None
         if '@' in identifier:
             user = db.execute(
-                'SELECT * FROM users WHERE email = ?', (identifier.lower(),)
+                'SELECT * FROM users WHERE LOWER(email) = ?', (identifier.lower(),)
             ).fetchone()
         elif identifier:
             try:
@@ -2455,18 +2220,12 @@ def login():
 
         if user is None or not check_password_hash(user['password'], password):
             flash('The email/phone or password is incorrect.', 'error')
-        elif not user['email_verified_at'] or not user['phone_verified_at']:
-            session.clear()
-            session['pending_contact_verification_user_id'] = user['id']
-            delivery_errors = send_contact_verification_codes(user)
-            for message in delivery_errors:
-                flash(message, 'error')
-            if not delivery_errors:
-                flash('Verify your remaining contact details to finish signing in.', 'info')
-            return redirect(url_for('verify_contact'))
+        elif user['role'] == 'banned':
+            flash('This account has been suspended. Please contact support.', 'error')
         else:
             session.clear()
             session['user_id'] = user['id']
+            session.permanent = bool(request.form.get('remember_me'))
             flash(f"Welcome back, {user['full_name']}!", 'success')
             return redirect(url_for('index'))
 
@@ -4339,34 +4098,6 @@ def _send_resend_email(subject, recipient, html_body, text_body):
     return message_id
 
 
-def _send_brevo_email(subject, recipient, html_body, text_body):
-    payload = json.dumps({
-        'sender': {'email': BREVO_SENDER_EMAIL, 'name': BREVO_SENDER_NAME},
-        'to': [{'email': recipient}],
-        'subject': subject,
-        'htmlContent': html_body,
-        'textContent': text_body,
-    }).encode('utf-8')
-    req = urllib.request.Request(
-        'https://api.brevo.com/v3/smtp/email', data=payload,
-        headers={'api-key': BREVO_API_KEY, 'accept': 'application/json', 'content-type': 'application/json'},
-        method='POST',
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as response:
-            data = json.loads(response.read().decode('utf-8'))
-    except urllib.error.HTTPError as error:
-        app.logger.error('Transactional email provider rejected a message: HTTP %s', error.code)
-        raise RuntimeError('The email provider rejected the message.') from error
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-        app.logger.error('Transactional email provider was unavailable.')
-        raise RuntimeError('The email provider could not be reached.') from error
-    message_id = data.get('messageId')
-    if not message_id:
-        raise RuntimeError('The email provider returned no message identifier.')
-    return message_id
-
-
 def _send_smtp_email(subject, recipient, html_body, text_body):
     smtp_server = os.getenv('MAIL_SERVER', '').strip()
     smtp_port = int(os.getenv('MAIL_PORT', '587'))
@@ -4403,8 +4134,6 @@ def send_email(subject, recipient, html_body, text_body=None, template_key=None)
     text_body = text_body or re.sub(r'<[^>]+>', ' ', html_body)
     if EMAIL_PROVIDER == 'resend':
         provider_message_id = _send_resend_email(subject, recipient, html_body, text_body)
-    elif EMAIL_PROVIDER == 'brevo':
-        provider_message_id = _send_brevo_email(subject, recipient, html_body, text_body)
     elif EMAIL_PROVIDER == 'smtp':
         provider_message_id = _send_smtp_email(subject, recipient, html_body, text_body)
     else:
@@ -4460,6 +4189,7 @@ def resend_webhook():
             (event_id, event_type, raw_body.decode('utf-8')),
         )
     except DB_INTEGRITY_ERRORS:
+        db.rollback()
         return jsonify({'status': 'duplicate'}), 200
 
     event_column = {
@@ -4492,58 +4222,6 @@ def resend_webhook():
     db.commit()
     return jsonify({'status': 'ok'}), 200
 
-
-@app.route('/webhooks/brevo', methods=['POST'])
-def brevo_webhook():
-    """Record Brevo delivery events. The random URL token is required because
-    Brevo's webhook security model supports protected endpoint URLs/headers."""
-    if not BREVO_WEBHOOK_TOKEN or not hmac.compare_digest(
-        request.args.get('token', ''), BREVO_WEBHOOK_TOKEN
-    ):
-        return jsonify({'error': 'Invalid webhook token.'}), 401
-    raw_body = request.get_data(cache=True)
-    try:
-        event = json.loads(raw_body.decode('utf-8'))
-        event_type = event['event']
-    except (UnicodeDecodeError, json.JSONDecodeError, KeyError):
-        return jsonify({'error': 'Invalid webhook payload.'}), 400
-    message_id = event.get('message-id')
-    event_id = f"{event.get('id', '')}:{message_id}:{event.get('ts_event', event.get('ts', ''))}:{event_type}"
-    if not event_id or event_id.startswith(':'):
-        return jsonify({'error': 'Missing webhook event identifier.'}), 400
-    db = get_db()
-    try:
-        db.execute(
-            '''INSERT INTO email_webhook_events (provider, event_id, event_type, payload)
-               VALUES ('brevo', ?, ?, ?)''', (event_id, event_type, raw_body.decode('utf-8')),
-        )
-    except DB_INTEGRITY_ERRORS:
-        return jsonify({'status': 'duplicate'}), 200
-    mapping = {
-        'request': ('sent', 'sent_at'), 'delivered': ('delivered', 'delivered_at'),
-        'deferred': ('delayed', 'delayed_at'), 'soft_bounce': ('delayed', 'delayed_at'),
-        'softBounce': ('delayed', 'delayed_at'), 'hard_bounce': ('bounced', 'bounced_at'),
-        'hardBounce': ('bounced', 'bounced_at'), 'invalid': ('bounced', 'bounced_at'),
-        'blocked': ('failed', 'failed_at'), 'error': ('failed', 'failed_at'),
-        'spam': ('complained', 'complained_at'),
-    }.get(event_type)
-    if mapping and message_id:
-        status, timestamp_column = mapping
-        occurred_at = float(event.get('ts_event') or event.get('ts') or time.time())
-        db.execute(
-            f'''UPDATE email_messages SET status = ?, {timestamp_column} = ?, last_event_at = ?,
-                failure_reason = COALESCE(?, failure_reason)
-                WHERE provider = 'brevo' AND provider_message_id = ?''',
-            (status, occurred_at, occurred_at, event.get('reason'), message_id),
-        )
-        if status == 'bounced' and event.get('email'):
-            db.execute(
-                '''UPDATE users SET email_delivery_status = 'bounced', email_delivery_last_event = ?,
-                   email_bounced_at = ? WHERE LOWER(email) = LOWER(?)''',
-                (event_type, occurred_at, event['email']),
-            )
-    db.commit()
-    return jsonify({'status': 'ok'}), 200
 
 # --- Forgot / Reset Password ---
 @app.route('/forgot_password', methods=['GET', 'POST'])

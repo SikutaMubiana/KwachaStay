@@ -18,11 +18,13 @@ class EmailSystemTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.original_database = app.DATABASE
+        self.original_database_url = app.DATABASE_URL
         self.original_provider = app.EMAIL_PROVIDER
         self.original_api_key = app.RESEND_API_KEY
         self.original_sender = app.RESEND_FROM_EMAIL
         self.original_webhook_secret = app.RESEND_WEBHOOK_SECRET
         self.original_base_url = app.PUBLIC_BASE_URL
+        app.DATABASE_URL = ''
         app.DATABASE = self.temp_dir.name + '/email-test.db'
         app.EMAIL_PROVIDER = 'resend'
         app.RESEND_API_KEY = 're_test'
@@ -34,6 +36,7 @@ class EmailSystemTests(unittest.TestCase):
 
     def tearDown(self):
         app.DATABASE = self.original_database
+        app.DATABASE_URL = self.original_database_url
         app.EMAIL_PROVIDER = self.original_provider
         app.RESEND_API_KEY = self.original_api_key
         app.RESEND_FROM_EMAIL = self.original_sender

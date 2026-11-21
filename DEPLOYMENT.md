@@ -45,14 +45,6 @@ Use [render.yaml](./render.yaml) as a Blueprint or create a Python Web Service m
 - Health check: `/healthz`
 - Set every secret in Render's Environment settings, never in Git.
 
-## Brevo
-
-Set `EMAIL_PROVIDER=brevo`, `BREVO_API_KEY`, `BREVO_SENDER_EMAIL`, and `BREVO_SENDER_NAME` in Render. Register the webhook URL as:
-
-`https://your-domain/webhooks/brevo?token=<BREVO_WEBHOOK_TOKEN>`
-
-Use a long random value for `BREVO_WEBHOOK_TOKEN`; it is required by the endpoint. Subscribe to delivery, bounce, blocked, invalid-address, deferred, and spam events.
-
 ## Runtime database
 
 `app.py` uses SQLite only when `DATABASE_URL` is empty. When `DATABASE_URL` is set, `database.py` connects to PostgreSQL and translates the existing route SQL (placeholders, `julianday`, `date('now')`, `INSERT OR IGNORE`, `lastrowid`, case-insensitive `LIKE`, and the distance helper). Apply the Supabase staging schema before pointing the live service at that database.

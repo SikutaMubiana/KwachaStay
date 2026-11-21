@@ -5,7 +5,7 @@ Run this in your own terminal so secrets never pass through chat:
   python scripts/setup_deployment.py          # prompt for anything missing
   python scripts/setup_deployment.py --check  # show which values are present
 
-Existing non-empty values are kept. All four services work on their free tiers.
+Existing non-empty values are kept. All three services work on their free tiers.
 """
 import argparse
 import getpass
@@ -21,15 +21,12 @@ FIELDS = [
     ('GITHUB_TOKEN', 'GitHub fine-grained PAT (Contents + Administration: write)', True),
     ('GITHUB_USERNAME', 'GitHub username', False),
     ('RENDER_API_KEY', 'Render API key (Account Settings -> API Keys)', True),
-    ('BREVO_API_KEY', 'Brevo API key (SMTP & API -> API Keys)', True),
-    ('BREVO_SENDER_EMAIL', 'Verified Brevo sender email', False),
 ]
 
 SERVICES = {
     'supabase': ('SUPABASE_ACCESS_TOKEN', 'DATABASE_URL'),
     'github': ('GITHUB_TOKEN', 'GITHUB_USERNAME'),
     'render': ('RENDER_API_KEY',),
-    'brevo': ('BREVO_API_KEY', 'BREVO_SENDER_EMAIL'),
 }
 
 
