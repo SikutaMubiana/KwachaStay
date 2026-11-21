@@ -59,12 +59,12 @@ class AdminDashboardTests(unittest.TestCase):
         self.assertEqual(anon_resp.status_code, 302)
         self.assertTrue(anon_resp.headers['Location'].endswith('/login'))
 
-        # Regular user -> redirected to index
+        # Regular tenant -> redirected to tenant dashboard (not landing page)
         user_id = self.create_user('Normal User', 'normal@example.com', '+260971000001')
         self.login_as(client, user_id)
         non_admin_resp = client.get('/admin', follow_redirects=False)
         self.assertEqual(non_admin_resp.status_code, 302)
-        self.assertTrue(non_admin_resp.headers['Location'].endswith('/'))
+        self.assertTrue(non_admin_resp.headers['Location'].endswith('/tenant/dashboard'))
 
     def test_admin_dashboard_and_management_actions(self):
         admin_id = self.create_user('Site Admin', 'admin@example.com', '+260971000000', role='owner', is_admin=1)

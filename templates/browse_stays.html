@@ -1,0 +1,452 @@
+{% extends 'dashboard_base.html' %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Compact In-App Header + Search Bar (no public landing hero/marketing banners) -->
+    <div class="bg-white rounded-2xl border border-gray-200 p-5 mb-8 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Browse Stays</h1>
+                <p class="text-xs text-gray-500 mt-0.5">
+                    {{ total_active }} active listing{{ 's' if total_active != 1 }} across {{ total_compounds }} Lusaka neighbourhood{{ 's' if total_compounds != 1 }}
+                </p>
+            </div>
+            <a href="{{ url_for('tenant_dashboard') }}"
+                class="px-3.5 py-2 text-xs font-bold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition">
+                <i class="fa-solid fa-arrow-left mr-1"></i>Back to Tenant Dashboard
+            </a>
+        </div>
+        <form action="{{ url_for('browse_stays') }}" method="GET" class="no-loader flex flex-col sm:flex-row gap-3">
+            <div class="relative flex-grow">
+                <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                <input type="text" name="q" value="{{ search_q or '' }}"
+                    placeholder="Search by property name, neighbourhood, or keyword…"
+                    class="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-300 text-gray-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary">
+            </div>
+            <button type="submit"
+                class="bg-primary hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold text-sm transition shadow-sm">
+                Search
+            </button>
+        </form>
+    </div>
+
+    <!-- Main Browse Workspace -->
+    <div class="flex flex-col lg:flex-row gap-8">
+        <!-- Sidebar Filters -->
+        <aside class="w-full lg:w-72 flex-shrink-0">
+            <div class="bg-white rounded-2xl border shadow-sm p-6 sticky top-20">
+                <h3 class="text-lg font-bold mb-5 flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-primary"></i> Filters
+                </h3>
+                <form id="searchFilters" action="{{ url_for('browse_stays') }}" method="GET" class="no-loader space-y-6">
+                    {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Neighbourhood / Compound</label>
+                        <select name="compound"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="All">All Areas</option>
+                            {% for c in compounds %}
+                            <option value="{{ c }}" {% if selected_compound==c %}selected{% endif %}>{{ c }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label for="nearbyLandmark" class="block text-sm font-bold text-gray-700">Search near a landmark or pin</label>
+                        <select id="nearbyLandmark"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="">Choose a Lusaka landmark</option>
+                            <option value="-15.4167,28.2833">Lusaka city centre</option>
+                            <option value="-15.3302,28.4526">Kenneth Kaunda International Airport</option>
+                            <option value="-15.3917,28.3292">University of Zambia</option>
+                            <option value="-15.3988,28.3304">EastPark Mall</option>
+                            <option value="-15.4303,28.2928">University Teaching Hospital</option>
+                            <option value="-15.3915,28.2806">Levy Junction</option>
+                        </select>
+                        <div class="flex gap-2">
+                            <button id="useSearchLocation" type="button"
+                                class="flex-1 rounded-xl border px-3 py-2 text-xs font-bold text-gray-700 hover:border-primary">
+                                Use my location
+                            </button>
+                            <select name="near_radius_km" aria-label="Distance from selected location"
+                                class="rounded-xl border px-3 py-2 text-xs">
+                                {% for radius in ['1', '2', '5', '10', '20', '50'] %}
+                                <option value="{{ radius }}" {% if near_radius_km == radius %}selected{% endif %}>{{ radius }} km</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <input type="hidden" name="near_lat" id="nearLatitude" value="{{ near_lat }}">
+                        <input type="hidden" name="near_lon" id="nearLongitude" value="{{ near_lon }}">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Property Type</label>
+                        <select name="property_type"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="All">All Types</option>
+                            <option value="House" {% if property_type == 'House' %}selected{% endif %}>House</option>
+                            <option value="Apartment" {% if property_type == 'Apartment' %}selected{% endif %}>Apartment</option>
+                            <option value="Villa" {% if property_type == 'Villa' %}selected{% endif %}>Villa</option>
+                            <option value="Guest House" {% if property_type == 'Guest House' %}selected{% endif %}>Guest House</option>
+                            <option value="Hotel" {% if property_type == 'Hotel' %}selected{% endif %}>Hotel</option>
+                            <option value="Hostel" {% if property_type == 'Hostel' %}selected{% endif %}>Hostel</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label for="powerBackupFilter" class="block text-sm font-bold text-gray-700 mb-2">Power backup</label>
+                            <select id="powerBackupFilter" name="power_backup"
+                                class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                                <option value="">Any power backup</option>
+                                {% for value, label in power_backup_options.items() %}
+                                <option value="{{ value }}" {% if power_backup == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="waterSupplyFilter" class="block text-sm font-bold text-gray-700 mb-2">Water supply</label>
+                            <select id="waterSupplyFilter" name="water_supply"
+                                class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                                <option value="">Any water supply</option>
+                                {% for value, label in water_supply_options.items() %}
+                                <option value="{{ value }}" {% if water_supply == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Price Range (ZMW)</label>
+                        <div class="flex gap-2">
+                            <input type="number" name="min_price" placeholder="Min" value="{{ min_price or '' }}"
+                                class="w-full border rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <input type="number" name="max_price" placeholder="Max" value="{{ max_price or '' }}"
+                                class="w-full border rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-3">Amenities</label>
+                        <div class="space-y-2">
+                            {% set amenity_list = [
+                            ('has_solar', '☀️ Solar Power'),
+                            ('has_borehole', '💧 Borehole Water'),
+                            ('has_wifi', '📶 Wi-Fi'),
+                            ('has_pool', '🏊 Swimming Pool'),
+                            ('has_ac', '❄️ Air Conditioning'),
+                            ] %}
+                            {% for key, label in amenity_list %}
+                            <label class="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" name="{{ key }}" value="1"
+                                    class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                                <span class="text-sm text-gray-700 group-hover:text-primary transition">{{ label }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="sortBy" class="block text-sm font-bold text-gray-700 mb-2">Sort By</label>
+                        <select id="sortBy" name="sort"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest Listings</option>
+                            <option value="price_asc" {% if sort == 'price_asc' %}selected{% endif %}>Price: Low to High</option>
+                            <option value="price_desc" {% if sort == 'price_desc' %}selected{% endif %}>Price: High to Low</option>
+                            <option value="top_rated" {% if sort == 'top_rated' %}selected{% endif %}>Top Rated</option>
+                            <option value="most_viewed" {% if sort == 'most_viewed' %}selected{% endif %}>Most Viewed</option>
+                            <option value="distance" {% if sort == 'distance' %}selected{% endif %}>Nearest first</option>
+                        </select>
+                    </div>
+
+                    <button type="submit"
+                        class="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-red-600 transition shadow-md shadow-red-200">
+                        Apply Filters
+                    </button>
+                    <button type="submit" formmethod="POST" formaction="{{ url_for('save_search') }}"
+                        class="w-full border border-primary text-primary py-3 rounded-xl font-bold hover:bg-red-50 transition">
+                        <i class="fa-regular fa-bell mr-1"></i> Save this search
+                    </button>
+                    <a href="{{ url_for('browse_stays') }}"
+                        class="block text-center text-sm text-gray-400 hover:text-primary transition mt-2">
+                        Clear all
+                    </a>
+                </form>
+            </div>
+        </aside>
+
+        <!-- Listings Grid -->
+        <div class="flex-grow">
+            {% if not low_data_mode %}
+            <section class="mb-6 overflow-hidden rounded-2xl border bg-white">
+                <div class="flex flex-wrap items-center justify-between gap-3 p-4">
+                    <div>
+                        <h2 class="font-bold text-gray-900">Explore on the map</h2>
+                        <p class="text-xs text-gray-500">Only listings with an exact map pin appear here.</p>
+                    </div>
+                    <button id="toggleSearchMap" type="button" aria-expanded="false"
+                        class="rounded-lg border px-3 py-2 text-sm font-bold text-primary hover:bg-red-50">
+                        Show map
+                    </button>
+                </div>
+                <div id="searchMap" class="hidden h-80 w-full bg-gray-100" aria-label="Map of matching stays"></div>
+            </section>
+            {% endif %}
+
+            {% if search_q %}
+            <div class="mb-5 flex items-center gap-2 text-sm">
+                <span class="text-gray-500">Search results for:</span>
+                <span class="bg-primary/10 text-primary font-bold px-3 py-1 rounded-full">"{{ search_q }}"</span>
+                <a href="{{ url_for('browse_stays') }}" class="text-gray-400 hover:text-red-500 transition ml-auto">
+                    <i class="fa-solid fa-xmark"></i> Clear
+                </a>
+            </div>
+            {% endif %}
+
+            {% if properties %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                {% for prop in properties %}
+                <article class="bg-white rounded-2xl overflow-hidden border hover:shadow-xl transition-all duration-300 group flex flex-col">
+                    <div class="relative h-52 bg-gray-100 overflow-hidden">
+                        {% if prop.images %}
+                        <img src="{{ prop.images[0]|listing_image }}" loading="lazy" decoding="async"
+                            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            alt="{{ prop.title }}"
+                            onerror="this.src='https://placehold.co/600x400/f3f4f6/9ca3af?text=No+Image'">
+                        {% else %}
+                        <div class="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                            <i class="fa-solid fa-image text-4xl"></i>
+                        </div>
+                        {% endif %}
+
+                        <div class="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
+                            <span class="bg-white/90 backdrop-blur-sm text-gray-800 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
+                                {{ prop.property_type }}
+                            </span>
+                            {% if prop.is_verified %}
+                            <span class="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1">
+                                <i class="fa-solid fa-circle-check"></i> Verified
+                            </span>
+                            {% endif %}
+                        </div>
+
+                        <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                            <i class="fa-regular fa-eye"></i> {{ prop.view_count or 0 }} views
+                        </div>
+
+                        <form action="{{ url_for('toggle_wishlist', property_id=prop.id) }}" method="POST"
+                            class="absolute top-3 right-3 no-loader">
+                            <button type="submit"
+                                class="w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm shadow-sm flex items-center justify-center text-gray-400 hover:text-primary transition">
+                                <i class="fa-solid fa-heart text-sm"></i>
+                            </button>
+                        </form>
+                    </div>
+
+                    <div class="p-4 flex-grow flex flex-col">
+                        <div class="flex justify-between items-start mb-1">
+                            <h2 class="font-bold text-gray-900 text-base leading-tight truncate">{{ prop.title }}</h2>
+                            {% if prop.rating %}
+                            <div class="flex items-center gap-1 text-sm flex-shrink-0 ml-2">
+                                <i class="fa-solid fa-star text-yellow-400 text-xs"></i>
+                                <span class="font-bold text-gray-900">{{ prop.rating }}</span>
+                                <span class="text-gray-400 text-xs">({{ prop.review_count }})</span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <p class="text-gray-500 text-sm mb-3">
+                            <i class="fa-solid fa-location-dot text-primary text-xs mr-1"></i>{{ prop.compound }}, Lusaka
+                        </p>
+                        {% if prop.distance_km is defined %}
+                        <p class="text-xs text-blue-700 mb-3">{{ prop.distance_km }} km from your selected location</p>
+                        {% endif %}
+                        {% if prop.listing_recently_confirmed %}
+                        <p class="text-xs text-green-700 mb-3">
+                            <i class="fa-solid fa-circle-check mr-1"></i>Host confirmed listing recently
+                        </p>
+                        {% endif %}
+
+                        <div class="flex flex-wrap gap-1.5 mb-4 flex-grow">
+                            {% if prop.has_solar %}
+                            <span class="text-xs bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded-full border border-yellow-100">☀️ Solar</span>
+                            {% endif %}
+                            {% if prop.has_borehole %}
+                            <span class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100">💧 Borehole</span>
+                            {% endif %}
+                            {% if prop.has_wifi %}
+                            <span class="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full border border-purple-100">📶 Wi-Fi</span>
+                            {% endif %}
+                            {% if prop.has_pool %}
+                            <span class="text-xs bg-cyan-50 text-cyan-700 px-2 py-0.5 rounded-full border border-cyan-100">🏊 Pool</span>
+                            {% endif %}
+                        </div>
+
+                        <div class="flex justify-between items-center mt-auto pt-3 border-t">
+                            <div>
+                                <span class="text-lg font-bold text-gray-900">ZMW {{ "{:,.0f}".format(prop.price_per_night) }}</span>
+                                <span class="text-gray-400 text-sm"> / {{ prop.price_period }}</span>
+                            </div>
+                            <a href="{{ url_for('property_details', property_id=prop.id) }}"
+                                class="bg-primary text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-red-600 transition shadow-sm">
+                                View
+                            </a>
+                        </div>
+                    </div>
+                </article>
+                {% endfor %}
+            </div>
+
+            {% if total_pages > 1 %}
+            <nav class="mt-10 flex justify-center items-center gap-2">
+                {% if page > 1 %}
+                <a href="{{ url_for('browse_stays', page=page-1, q=search_q, compound=selected_compound, near_lat=near_lat, near_lon=near_lon, near_radius_km=near_radius_km, sort=sort) }}"
+                    class="px-4 py-2 border rounded-xl text-sm font-medium bg-white hover:bg-gray-50 transition">
+                    <i class="fa-solid fa-chevron-left mr-1"></i> Previous
+                </a>
+                {% endif %}
+
+                {% for p in range(1, total_pages + 1) %}
+                {% if p == page %}
+                <span class="px-4 py-2 bg-primary text-white rounded-xl text-sm font-bold">{{ p }}</span>
+                {% elif p == 1 or p == total_pages or (p >= page - 2 and p <= page + 2) %}
+                <a href="{{ url_for('browse_stays', page=p, q=search_q, compound=selected_compound, near_lat=near_lat, near_lon=near_lon, near_radius_km=near_radius_km, sort=sort) }}"
+                    class="px-4 py-2 border rounded-xl text-sm font-medium bg-white hover:bg-gray-50 transition">{{ p }}</a>
+                {% elif p == page - 3 or p == page + 3 %}
+                <span class="px-2 text-gray-400">…</span>
+                {% endif %}
+                {% endfor %}
+
+                {% if page < total_pages %}
+                <a href="{{ url_for('browse_stays', page=page+1, q=search_q, compound=selected_compound, near_lat=near_lat, near_lon=near_lon, near_radius_km=near_radius_km, sort=sort) }}"
+                    class="px-4 py-2 border rounded-xl text-sm font-medium bg-white hover:bg-gray-50 transition">
+                    Next <i class="fa-solid fa-chevron-right ml-1"></i>
+                </a>
+                {% endif %}
+            </nav>
+            {% endif %}
+
+            {% else %}
+            <div class="py-16 bg-white rounded-2xl border flex flex-col items-center justify-center text-center px-4">
+                <div class="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-5">
+                    <i class="fa-solid fa-house-circle-xmark text-gray-300 text-4xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800 mb-2">
+                    {% if search_q %}No results for "{{ search_q }}"{% else %}No matching properties{% endif %}
+                </h2>
+                <p class="text-sm text-gray-500 mb-6 max-w-sm">
+                    Try adjusting or clearing your filters to see all available listings in Lusaka.
+                </p>
+                <a href="{{ url_for('browse_stays') }}"
+                    class="border border-gray-200 text-gray-700 px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-gray-50 transition">
+                    Reset filters
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const form = document.getElementById('searchFilters');
+    const landmark = document.getElementById('nearbyLandmark');
+    const latitude = document.getElementById('nearLatitude');
+    const longitude = document.getElementById('nearLongitude');
+    const locateButton = document.getElementById('useSearchLocation');
+    const toggleButton = document.getElementById('toggleSearchMap');
+    const mapElement = document.getElementById('searchMap');
+    let map;
+
+    function setSearchPoint(lat, lon) {
+        latitude.value = Number(lat).toFixed(6);
+        longitude.value = Number(lon).toFixed(6);
+        landmark.value = '';
+    }
+
+    landmark.addEventListener('change', () => {
+        if (!landmark.value) {
+            latitude.value = '';
+            longitude.value = '';
+            return;
+        }
+        const [lat, lon] = landmark.value.split(',');
+        setSearchPoint(lat, lon);
+    });
+
+    locateButton.addEventListener('click', () => {
+        if (!navigator.geolocation) {
+            window.alert('Location is not supported by this browser.');
+            return;
+        }
+        locateButton.disabled = true;
+        navigator.geolocation.getCurrentPosition(
+            position => {
+                setSearchPoint(position.coords.latitude, position.coords.longitude);
+                locateButton.disabled = false;
+                form.requestSubmit();
+            },
+            () => {
+                locateButton.disabled = false;
+                window.alert('Could not get your location. Choose a landmark or select a point on the map.');
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+        );
+    });
+
+    function showMap() {
+        if (!toggleButton || !mapElement) return;
+        mapElement.classList.remove('hidden');
+        toggleButton.textContent = 'Hide map';
+        toggleButton.setAttribute('aria-expanded', 'true');
+        if (!window.L || map) {
+            if (map) window.setTimeout(() => map.invalidateSize(), 50);
+            return;
+        }
+        const searchPoint = {{ near_point|tojson }};
+        const markers = {{ map_markers|tojson }};
+        map = L.map(mapElement, { scrollWheelZoom: false })
+            .setView(searchPoint || [-15.4167, 28.2833], searchPoint ? 13 : 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        markers.forEach(property => {
+            const marker = L.marker([property.latitude, property.longitude]).addTo(map);
+            const popup = document.createElement('a');
+            popup.href = `/property/${encodeURIComponent(property.id)}`;
+            popup.className = 'font-bold text-gray-900';
+            popup.textContent = `${property.title} · ZMW ${Number(property.price).toLocaleString()}`;
+            marker.bindPopup(popup);
+        });
+        if (searchPoint) {
+            L.circle(searchPoint, {
+                radius: Number(document.querySelector('[name="near_radius_km"]').value) * 1000,
+                color: '#ff385c',
+                fillOpacity: 0.08
+            }).addTo(map);
+        }
+        map.on('click', event => {
+            setSearchPoint(event.latlng.lat, event.latlng.lng);
+            form.requestSubmit();
+        });
+        if (markers.length > 1 && !searchPoint) {
+            map.fitBounds(markers.map(item => [item.latitude, item.longitude]), { padding: [24, 24] });
+        }
+    }
+
+    if (toggleButton) {
+        toggleButton.addEventListener('click', () => {
+            if (mapElement.classList.contains('hidden')) {
+                showMap();
+            } else {
+                mapElement.classList.add('hidden');
+                toggleButton.textContent = 'Show map';
+                toggleButton.setAttribute('aria-expanded', 'false');
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

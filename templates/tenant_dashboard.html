@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'dashboard_base.html' %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 py-8">
@@ -13,7 +13,7 @@
             </div>
             <p class="text-sm text-gray-500 mt-1">Manage your trips, saved homes, search alerts, and messages.</p>
         </div>
-        <a href="{{ url_for('index') }}"
+        <a href="{{ url_for('browse_stays') }}"
             class="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-red-600 transition shadow-sm">
             <i class="fa-solid fa-magnifying-glass mr-1.5"></i>Browse Stays
         </a>
@@ -213,7 +213,7 @@
                 <i class="fa-solid fa-suitcase text-gray-400 text-2xl"></i>
             </div>
             <p class="text-gray-500">You haven't booked any trips yet.</p>
-            <a href="{{ url_for('index') }}" class="text-primary font-bold hover:underline mt-2 inline-block">Start exploring</a>
+            <a href="{{ url_for('browse_stays') }}" class="text-primary font-bold hover:underline mt-2 inline-block">Start exploring</a>
         </div>
         {% endif %}
     </div>
@@ -298,7 +298,7 @@
                     </p>
                 </div>
                 <div class="flex items-center gap-3 flex-shrink-0">
-                    <a href="{{ url_for('index', q=search.search_query, compound=search.compound, min_price=search.min_price, max_price=search.max_price, property_type=search.property_type, power_backup=search.power_backup, water_supply=search.water_supply, near_lat=search.near_lat, near_lon=search.near_lon, near_radius_km=search.near_radius_km) }}"
+                    <a href="{{ url_for('browse_stays', q=search.search_query, compound=search.compound, min_price=search.min_price, max_price=search.max_price, property_type=search.property_type, power_backup=search.power_backup, water_supply=search.water_supply, near_lat=search.near_lat, near_lon=search.near_lon, near_radius_km=search.near_radius_km) }}"
                         class="text-primary font-bold text-sm">View</a>
                     <form action="{{ url_for('delete_saved_search', search_id=search.id) }}" method="POST">
                         <button class="text-gray-400 hover:text-red-600" aria-label="Remove saved search"><i class="fa-solid fa-trash"></i></button>

@@ -1,4 +1,4 @@
-{% extends 'base.html' %}
+{% extends 'dashboard_base.html' if g.user else 'base.html' %}
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 py-8">

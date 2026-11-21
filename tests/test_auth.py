@@ -217,6 +217,78 @@ class AuthAndRoleSeparationTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(resp.headers['Location'].endswith('/landlord/dashboard'))
 
+    def test_landing_page_is_separated_from_all_dashboards(self):
+        client = app.app.test_client()
+
+        # Logged-out visitor sees the public landing page
+        landing = client.get('/')
+        self.assertEqual(landing.status_code, 200)
+        self.assertIn(b'How KwachaStay Works', landing.data)
+
+        with app.app.app_context():
+            db = app.get_db()
+            tenant_id = db.execute(
+                '''INSERT INTO users (full_name, email, phone, password, role, is_admin)
+                   VALUES (?, ?, ?, ?, 'tenant', 0)''',
+                ('Tenant User', 't@example.com', '+260971000011', generate_password_hash('Pass1234')),
+            ).lastrowid
+            owner_id = db.execute(
+                '''INSERT INTO users (full_name, email, phone, password, role, is_admin)
+                   VALUES (?, ?, ?, ?, 'owner', 0)''',
+                ('Owner User', 'o@example.com', '+260971000012', generate_password_hash('Pass1234')),
+            ).lastrowid
+            admin_id = db.execute(
+                '''INSERT INTO users (full_name, email, phone, password, role, is_admin)
+                   VALUES (?, ?, ?, ?, 'tenant', 1)''',
+                ('Admin User', 'a@example.com', '+260971000013', generate_password_hash('Pass1234')),
+            ).lastrowid
+            db.commit()
+
+        # 1. Tenant visiting / redirects to /tenant/dashboard and uses dashboard shell (no landing nav/hero)
+        with client.session_transaction() as sess:
+            sess['user_id'] = tenant_id
+        r_tenant_root = client.get('/', follow_redirects=False)
+        self.assertEqual(r_tenant_root.status_code, 302)
+        self.assertTrue(r_tenant_root.headers['Location'].endswith('/tenant/dashboard'))
+
+        r_tenant_dash = client.get('/tenant/dashboard')
+        self.assertEqual(r_tenant_dash.status_code, 200)
+        self.assertIn(b'Tenant Portal', r_tenant_dash.data)
+        self.assertNotIn(b'Lusaka Areas', r_tenant_dash.data)
+        self.assertNotIn(b'How KwachaStay Works', r_tenant_dash.data)
+
+        r_stays = client.get('/stays')
+        self.assertEqual(r_stays.status_code, 200)
+        self.assertIn(b'Browse Stays', r_stays.data)
+        self.assertNotIn(b'How KwachaStay Works', r_stays.data)
+        self.assertNotIn(b'Lusaka Areas', r_stays.data)
+
+        # 2. Landlord visiting / redirects to /landlord/dashboard and has no landing chrome
+        with client.session_transaction() as sess:
+            sess['user_id'] = owner_id
+        r_owner_root = client.get('/', follow_redirects=False)
+        self.assertEqual(r_owner_root.status_code, 302)
+        self.assertTrue(r_owner_root.headers['Location'].endswith('/landlord/dashboard'))
+
+        r_owner_dash = client.get('/landlord/dashboard')
+        self.assertEqual(r_owner_dash.status_code, 200)
+        self.assertIn(b'Landlord Portal', r_owner_dash.data)
+        self.assertNotIn(b'Lusaka Areas', r_owner_dash.data)
+        self.assertNotIn(b'How KwachaStay Works', r_owner_dash.data)
+
+        # 3. Admin visiting / redirects to /admin and has no landing chrome
+        with client.session_transaction() as sess:
+            sess['user_id'] = admin_id
+        r_admin_root = client.get('/', follow_redirects=False)
+        self.assertEqual(r_admin_root.status_code, 302)
+        self.assertTrue(r_admin_root.headers['Location'].endswith('/admin'))
+
+        r_admin_dash = client.get('/admin')
+        self.assertEqual(r_admin_dash.status_code, 200)
+        self.assertIn(b'Admin Portal', r_admin_dash.data)
+        self.assertNotIn(b'Lusaka Areas', r_admin_dash.data)
+        self.assertNotIn(b'View Site', r_admin_dash.data)
+
 
 if __name__ == '__main__':
     unittest.main()

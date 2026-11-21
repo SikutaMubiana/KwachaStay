@@ -1487,6 +1487,14 @@ def landlord_required(view):
         return view(**kwargs)
     return wrapped_view
 
+def _home_dashboard_url(user):
+    if user['is_admin']:
+        return url_for('admin_dashboard')
+    if user['role'] == 'owner':
+        return url_for('landlord_dashboard')
+    return url_for('tenant_dashboard')
+
+
 @app.before_request
 def protect_csrf():
     if request.method not in {'POST', 'PUT', 'PATCH', 'DELETE'}:
@@ -1589,8 +1597,7 @@ def privacy_policy():
     return render_template('legal.html', page_title='Privacy Policy', sections=sections)
 
 
-@app.route('/')
-def index():
+def _query_listings_context():
     db = get_db()
 
     near_lat = request.args.get('near_lat', '').strip()
@@ -1839,7 +1846,7 @@ def index():
     total_active = db.execute("SELECT COUNT(*) FROM properties WHERE is_active = 1").fetchone()[0]
     total_compounds = db.execute("SELECT COUNT(DISTINCT compound) FROM properties WHERE is_active = 1").fetchone()[0]
 
-    return render_template('index.html',
+    return dict(
         properties=properties,
         compounds=LUSAKA_NEIGHBOURHOODS,
         selected_compound=compound,
@@ -1871,8 +1878,23 @@ def index():
         map_markers=map_markers,
     )
 
+
+@app.route('/')
+def index():
+    if g.user is not None:
+        return redirect(_home_dashboard_url(g.user))
+    return render_template('index.html', **_query_listings_context())
+
+
+@app.route('/stays')
+@tenant_required
+def browse_stays():
+    return render_template('browse_stays.html', **_query_listings_context())
+
 @app.route('/signup', methods=('GET', 'POST'))
 def signup():
+    if g.user is not None:
+        return redirect(_home_dashboard_url(g.user))
     if request.method == 'POST':
         full_name = request.form.get('full_name', '').strip()
         email = request.form.get('email', '').strip().lower()
@@ -1934,28 +1956,28 @@ def save_search():
     ).fetchone()[0]
     if existing_count >= 10:
         flash('You can save up to 10 searches. Remove one before saving another.', 'error')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(request.referrer or url_for('browse_stays'))
 
     try:
         min_price = float(request.form['min_price']) if request.form.get('min_price', '').strip() else None
         max_price = float(request.form['max_price']) if request.form.get('max_price', '').strip() else None
     except ValueError:
         flash('Price filters must be valid numbers to save this search.', 'error')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(request.referrer or url_for('browse_stays'))
     if ((min_price is not None and min_price < 0)
             or (max_price is not None and max_price < 0)
             or (min_price is not None and max_price is not None and min_price > max_price)):
         flash('Enter a valid minimum and maximum price to save this search.', 'error')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(request.referrer or url_for('browse_stays'))
 
     power_backup = request.form.get('power_backup', '').strip()
     water_supply = request.form.get('water_supply', '').strip()
     if power_backup not in ('', 'All', *POWER_BACKUP_OPTIONS):
         flash('Choose a valid power backup filter.', 'error')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(request.referrer or url_for('browse_stays'))
     if water_supply not in ('', 'All', *WATER_SUPPLY_OPTIONS):
         flash('Choose a valid water supply filter.', 'error')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(request.referrer or url_for('browse_stays'))
 
     near_lat_raw = request.form.get('near_lat', '').strip()
     near_lon_raw = request.form.get('near_lon', '').strip()
@@ -1963,17 +1985,17 @@ def save_search():
     near_lat = near_lon = None
     if bool(near_lat_raw) != bool(near_lon_raw):
         flash('Choose a complete map location before saving this search.', 'error')
-        return redirect(request.referrer or url_for('index'))
+        return redirect(request.referrer or url_for('browse_stays'))
     if near_lat_raw:
         try:
             near_lat, near_lon = float(near_lat_raw), float(near_lon_raw)
         except ValueError:
             flash('Choose a valid map location before saving this search.', 'error')
-            return redirect(request.referrer or url_for('index'))
+            return redirect(request.referrer or url_for('browse_stays'))
         if (not -90 <= near_lat <= 90 or not -180 <= near_lon <= 180
                 or near_radius_km not in {'1', '2', '5', '10', '20', '50'}):
             flash('Choose a valid map location and distance before saving this search.', 'error')
-            return redirect(request.referrer or url_for('index'))
+            return redirect(request.referrer or url_for('browse_stays'))
         near_radius_km = float(near_radius_km)
     else:
         near_radius_km = None
@@ -1993,7 +2015,7 @@ def save_search():
     )
     db.commit()
     flash('Search saved. We’ll notify you when matching listings are added, repriced, or relisted.', 'success')
-    return redirect(request.referrer or url_for('index'))
+    return redirect(request.referrer or url_for('browse_stays'))
 
 
 @app.route('/saved-searches/delete/<int:search_id>', methods=['POST'])
@@ -2244,6 +2266,8 @@ def request_refund(booking_id):
 
 @app.route('/login', methods=('GET', 'POST'))
 def login():
+    if g.user is not None:
+        return redirect(_home_dashboard_url(g.user))
     if request.method == 'POST':
         identifier = (request.form.get('identifier') or request.form.get('email') or '').strip()
         password = request.form.get('password', '')
@@ -2413,7 +2437,7 @@ def add_house():
         
         db.commit()
         flash('Property listed successfully!', 'success')
-        return redirect(url_for('index'))
+        return redirect(url_for('landlord_dashboard'))
         
     return render_template(
         'add_house.html',
@@ -2427,9 +2451,7 @@ def add_house():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    if g.user['role'] == 'owner':
-        return redirect(url_for('landlord_dashboard'))
-    return redirect(url_for('tenant_dashboard'))
+    return redirect(_home_dashboard_url(g.user))
 
 
 @app.route('/tenant/dashboard')
@@ -3688,7 +3710,7 @@ def admin_required(view):
             return redirect(url_for('login'))
         if not g.user['is_admin']:
             flash('Admin access required.', 'error')
-            return redirect(url_for('index'))
+            return redirect(_home_dashboard_url(g.user))
         return view(**kwargs)
     return wrapped_view
 

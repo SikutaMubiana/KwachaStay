@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>KwachaStay | {% if g.user and g.user['is_admin'] %}Admin Portal{% elif g.user and g.user['role'] == 'owner' %}Landlord Portal{% else %}Tenant Portal{% endif %}</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    {% if not low_data_mode and request.endpoint in ['browse_stays', 'property_details', 'add_house', 'edit_property'] %}
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    {% endif %}
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#FF385C',
+                        dark: '#222222',
+                        light: '#F7F7F7'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes slideInDown {
+            from { opacity: 0; transform: translateY(-12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; max-height: 80px; margin-bottom: 16px; padding: 16px; }
+            to { opacity: 0; max-height: 0; margin-bottom: 0; padding: 0; overflow: hidden; }
+        }
+        .flash-msg {
+            animation: slideInDown 0.3s ease-out, fadeOut 0.5s ease-in 5s forwards;
+        }
+        .slide-in-top {
+            animation: slideInDown 0.2s ease-out;
+        }
+    </style>
+</head>
+
+<body class="font-sans text-dark bg-gray-50 antialiased min-h-screen flex flex-col">
+    {% set home_url = url_for('admin_dashboard') if (g.user and g.user['is_admin']) else (url_for('landlord_dashboard') if (g.user and g.user['role'] == 'owner') else url_for('tenant_dashboard')) %}
+
+    <!-- Dedicated Dashboard Topbar (separate from public landing page) -->
+    <nav class="border-b border-gray-200 bg-white sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center gap-3">
+                    <a href="{{ home_url }}"
+                        class="flex items-center gap-2 text-primary text-xl font-bold tracking-tighter">
+                        <i class="fa-solid fa-house-chimney"></i> KwachaStay
+                    </a>
+                    {% if g.user and g.user['is_admin'] %}
+                    <span class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide bg-red-100 text-red-700">
+                        Admin Portal
+                    </span>
+                    {% elif g.user and g.user['role'] == 'owner' %}
+                    <span class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide bg-indigo-100 text-indigo-800">
+                        Landlord Portal
+                    </span>
+                    {% elif g.user %}
+                    <span class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide bg-blue-100 text-blue-800">
+                        Tenant Portal
+                    </span>
+                    {% endif %}
+                </div>
+
+                <!-- Desktop Dashboard Links -->
+                <div class="hidden md:flex items-center gap-6">
+                    {% if g.user and g.user['is_admin'] %}
+                    <a href="{{ url_for('admin_dashboard') }}"
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_dashboard' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        <i class="fa-solid fa-shield-halved mr-1"></i>Admin Dashboard
+                    </a>
+                    {% elif g.user and g.user['role'] == 'owner' %}
+                    <a href="{{ url_for('landlord_dashboard') }}"
+                        class="text-sm font-semibold {% if request.endpoint == 'landlord_dashboard' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        Landlord Dashboard
+                        {% if unread_messages > 0 %}
+                        <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full ml-0.5 -mt-1 align-top">{{ unread_messages }}</span>
+                        {% endif %}
+                    </a>
+                    <a href="{{ url_for('add_house') }}"
+                        class="text-sm font-semibold {% if request.endpoint == 'add_house' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        <i class="fa-solid fa-plus mr-1"></i>List Property
+                    </a>
+                    <a href="{{ url_for('support_center') }}"
+                        class="text-sm font-medium {% if request.endpoint == 'support_center' %}text-primary{% else %}text-gray-600 hover:text-primary{% endif %} transition">
+                        Support
+                    </a>
+                    {% elif g.user %}
+                    <a href="{{ url_for('tenant_dashboard') }}"
+                        class="text-sm font-semibold {% if request.endpoint == 'tenant_dashboard' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        Tenant Dashboard
+                        {% if unread_messages > 0 %}
+                        <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full ml-0.5 -mt-1 align-top">{{ unread_messages }}</span>
+                        {% endif %}
+                    </a>
+                    <a href="{{ url_for('browse_stays') }}"
+                        class="text-sm font-semibold {% if request.endpoint == 'browse_stays' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        <i class="fa-solid fa-magnifying-glass mr-1"></i>Browse Stays
+                    </a>
+                    <a href="{{ url_for('support_center') }}"
+                        class="text-sm font-medium {% if request.endpoint == 'support_center' %}text-primary{% else %}text-gray-600 hover:text-primary{% endif %} transition">
+                        Support
+                    </a>
+                    {% endif %}
+
+                    <form action="{{ url_for('toggle_low_data_mode') }}" method="POST" class="inline">
+                        <input type="hidden" name="enabled" value="{{ 0 if low_data_mode else 1 }}">
+                        <button class="text-xs font-medium text-gray-500 hover:text-primary transition" type="submit"
+                            aria-pressed="{{ 'true' if low_data_mode else 'false' }}">
+                            {{ 'Standard data' if low_data_mode else 'Low-data' }}
+                        </button>
+                    </form>
+
+                    {% if g.user %}
+                    <div class="flex items-center gap-4 pl-4 border-l border-gray-200">
+                        <a href="{{ url_for('notifications') }}" class="relative text-gray-600 hover:text-primary transition" title="Notifications">
+                            <i class="fa-solid fa-bell text-base"></i>
+                            {% if unread_notifications > 0 %}
+                            <span class="absolute -top-1.5 -right-1.5 w-4 h-4 text-[9px] font-bold text-white bg-primary rounded-full flex items-center justify-center">{{ unread_notifications }}</span>
+                            {% endif %}
+                        </a>
+                        <span class="text-sm font-medium text-gray-800">{{ g.user['full_name'].split()[0] }}</span>
+                        <a href="{{ url_for('logout') }}"
+                            class="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition">
+                            Logout
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <div class="md:hidden flex items-center gap-3">
+                    {% if g.user %}
+                    <a href="{{ url_for('notifications') }}" class="relative text-gray-600 hover:text-primary transition" title="Notifications">
+                        <i class="fa-solid fa-bell text-lg"></i>
+                        {% if unread_notifications > 0 %}
+                        <span class="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold text-white bg-primary rounded-full flex items-center justify-center">{{ unread_notifications }}</span>
+                        {% endif %}
+                    </a>
+                    {% endif %}
+                    <button id="mobile-menu-btn" class="text-gray-700 hover:text-primary focus:outline-none">
+                        <i class="fa-solid fa-bars text-xl"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-gray-100 pb-4 px-4 slide-in-top">
+            <div class="flex flex-col space-y-3 mt-4">
+                {% if g.user %}
+                <div class="flex items-center gap-3 py-1">
+                    <div class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                        {{ g.user['full_name'][0] }}
+                    </div>
+                    <div>
+                        <p class="font-bold text-sm text-gray-900">{{ g.user['full_name'] }}</p>
+                        <p class="text-xs text-gray-500">
+                            {% if g.user['is_admin'] %}Admin Portal{% elif g.user['role'] == 'owner' %}Landlord Portal{% else %}Tenant Portal{% endif %}
+                        </p>
+                    </div>
+                </div>
+                <hr class="border-gray-100">
+                {% if g.user['is_admin'] %}
+                <a href="{{ url_for('admin_dashboard') }}" class="text-sm font-bold text-red-600">Admin Dashboard</a>
+                {% elif g.user['role'] == 'owner' %}
+                <a href="{{ url_for('landlord_dashboard') }}" class="text-sm font-semibold text-gray-800">Landlord Dashboard</a>
+                <a href="{{ url_for('add_house') }}" class="text-sm font-medium text-gray-700">List Property</a>
+                <a href="{{ url_for('support_center') }}" class="text-sm font-medium text-gray-700">Support</a>
+                {% else %}
+                <a href="{{ url_for('tenant_dashboard') }}" class="text-sm font-semibold text-gray-800">Tenant Dashboard</a>
+                <a href="{{ url_for('browse_stays') }}" class="text-sm font-medium text-gray-700">Browse Stays</a>
+                <a href="{{ url_for('support_center') }}" class="text-sm font-medium text-gray-700">Support</a>
+                {% endif %}
+                <a href="{{ url_for('logout') }}" class="text-sm font-semibold text-red-600 pt-2 border-t border-gray-100">Logout</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="max-w-7xl w-full mx-auto px-4 mt-4">
+        {% for category, message in messages %}
+        <div class="flash-msg p-4 rounded-lg mb-4 flex items-center gap-3 shadow-sm
+            {% if category == 'error' %}bg-red-50 text-red-700 border border-red-200
+            {% elif category == 'success' %}bg-green-50 text-green-700 border border-green-200
+            {% elif category == 'info' %}bg-blue-50 text-blue-700 border border-blue-200
+            {% else %}bg-gray-50 text-gray-700 border border-gray-200{% endif %}">
+            {% if category == 'error' %}
+            <i class="fa-solid fa-circle-exclamation flex-shrink-0"></i>
+            {% elif category == 'success' %}
+            <i class="fa-solid fa-circle-check flex-shrink-0"></i>
+            {% else %}
+            <i class="fa-solid fa-circle-info flex-shrink-0"></i>
+            {% endif %}
+            <span class="flex-grow">{{ message }}</span>
+            <button onclick="this.parentElement.remove()" class="flex-shrink-0 opacity-50 hover:opacity-100">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Main Dashboard Content -->
+    <main class="flex-grow">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Minimal Dashboard Footer -->
+    <footer class="border-t border-gray-200 bg-white mt-12">
+        <div class="max-w-7xl mx-auto py-5 px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-3 text-xs text-gray-500">
+            <span>&copy; 2026 KwachaStay</span>
+            <a href="https://wa.me/{{ payment_whatsapp_number }}?text={{ 'Hello KwachaStay, I need support with my account.'|urlencode }}"
+                target="_blank" rel="noopener noreferrer"
+                class="font-semibold text-green-700 hover:text-green-800">
+                <i class="fa-brands fa-whatsapp mr-1"></i>Support: +260 764 483 750
+            </a>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-gray-900/75 flex items-center justify-center z-[100] hidden">
+        <div class="text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary mx-auto"></div>
+            <p class="text-white mt-4 text-lg font-semibold">Processing...</p>
+        </div>
+    </div>
+
+    <script>
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = (input, init = {}) => {
+            const requestMethod = (init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+            if (csrfToken && !['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(requestMethod)) {
+                const requestUrl = new URL(input instanceof Request ? input.url : input, window.location.href);
+                if (requestUrl.origin === window.location.origin) {
+                    const headers = new Headers(init.headers || (input instanceof Request ? input.headers : {}));
+                    headers.set('X-CSRF-Token', csrfToken);
+                    init = { ...init, headers };
+                }
+            }
+            return nativeFetch(input, init);
+        };
+
+        function addCsrfInput(form) {
+            if (csrfToken && form.method.toUpperCase() !== 'GET' && !form.querySelector('input[name="csrf_token"]')) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'csrf_token';
+                input.value = csrfToken;
+                form.appendChild(input);
+            }
+        }
+
+        document.addEventListener('submit', function (event) {
+            if (event.target instanceof HTMLFormElement) {
+                addCsrfInput(event.target);
+            }
+        }, true);
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const forms = document.querySelectorAll('form');
+            const overlay = document.getElementById('loadingOverlay');
+            forms.forEach(form => {
+                addCsrfInput(form);
+                form.addEventListener('submit', function () {
+                    addCsrfInput(this);
+                    if (!this.classList.contains('no-loader')) {
+                        overlay.classList.remove('hidden');
+                    }
+                });
+            });
+        });
+
+        const btn = document.getElementById('mobile-menu-btn');
+        const menu = document.getElementById('mobile-menu');
+        if (btn && menu) {
+            btn.addEventListener('click', () => {
+                menu.classList.toggle('hidden');
+            });
+        }
+    </script>
+</body>
+
+</html>
