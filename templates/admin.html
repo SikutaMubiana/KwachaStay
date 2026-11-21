@@ -115,6 +115,13 @@
                     {% endif %}
                 </button>
             </li>
+            <li class="mr-2">
+                <button type="button" onclick="showAdminTab('audit')" id="admin-tab-audit"
+                    class="admin-tab-btn inline-flex items-center gap-2 px-4 py-3 border-b-2 border-transparent text-gray-600 hover:text-gray-900">
+                    <i class="fa-solid fa-clipboard-list"></i> Security &amp; Audit
+                    <span class="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700">{{ audit_logs|length }}</span>
+                </button>
+            </li>
         </ul>
     </div>
 
@@ -740,9 +747,129 @@
             </div>
         </section>
     </div>
+
+    <!-- =========================================================
+         TAB 7: ADMIN SECURITY (2FA) & AUDIT LOG
+         ========================================================= -->
+    <div id="admin-panel-audit" class="admin-panel hidden space-y-6">
+        <!-- Admin TOTP Two-Factor Authentication Card -->
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <i class="fa-solid fa-key text-primary"></i>
+                        Administrator Two-Factor Authentication (TOTP 2FA)
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Protect your admin login with an authenticator app (Google Authenticator, Authy, Microsoft Authenticator, or 1Password).
+                    </p>
+                </div>
+                {% if admin_totp_enabled %}
+                <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                    <i class="fa-solid fa-circle-check mr-1"></i> 2FA Enabled
+                </span>
+                {% else %}
+                <span class="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                    <i class="fa-solid fa-triangle-exclamation mr-1"></i> 2FA Not Enabled
+                </span>
+                {% endif %}
+            </div>
+
+            {% if admin_totp_enabled %}
+            <form action="{{ url_for('admin_disable_2fa') }}" method="POST" class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Current Password</label>
+                    <input type="password" name="current_password" required
+                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">6-Digit Authenticator Code</label>
+                    <input type="text" name="totp_code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required
+                        placeholder="123456" class="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg">
+                </div>
+                <button type="submit" class="px-4 py-2 text-sm font-bold rounded-lg border border-red-300 text-red-700 hover:bg-red-50 transition">
+                    Disable 2FA
+                </button>
+            </form>
+            {% elif pending_totp_secret %}
+            <div class="mt-5 p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                <p class="text-sm font-semibold text-gray-800">Step 1: Add this setup key to your authenticator app (Time-based, 6 digits, 30s):</p>
+                <div class="p-3 bg-white border border-gray-200 rounded-lg font-mono text-sm break-all select-all text-gray-900">
+                    {{ pending_totp_secret }}
+                </div>
+                <p class="text-xs text-gray-500 break-all">OTPAuth URI: <code>{{ pending_totp_uri }}</code></p>
+                <form action="{{ url_for('admin_confirm_2fa') }}" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end pt-2">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Current Password</label>
+                        <input type="password" name="current_password" required
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">6-Digit Verification Code</label>
+                        <input type="text" name="totp_code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required
+                            placeholder="123456" class="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-lg">
+                    </div>
+                    <button type="submit" class="px-4 py-2 text-sm font-bold rounded-lg bg-green-700 text-white hover:bg-green-800 transition">
+                        Confirm &amp; Enable 2FA
+                    </button>
+                </form>
+            </div>
+            {% else %}
+            <form action="{{ url_for('admin_start_2fa') }}" method="POST" class="mt-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="px-4 py-2 text-sm font-bold rounded-lg bg-primary text-white hover:bg-red-600 transition">
+                    Set Up Authenticator App (2FA)
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div class="p-5 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900">Administrative Activity Audit Log</h2>
+                    <p class="text-xs text-gray-500">Records recent sensitive administrative actions (most recent 100).</p>
+                </div>
+            </div>
+            {% if audit_logs %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-gray-50 text-xs uppercase text-gray-500">
+                        <tr>
+                            <th class="px-5 py-3">Timestamp</th>
+                            <th class="px-5 py-3">Admin</th>
+                            <th class="px-5 py-3">Action</th>
+                            <th class="px-5 py-3">Target</th>
+                            <th class="px-5 py-3">Details</th>
+                            <th class="px-5 py-3">IP Address</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for entry in audit_logs %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-5 py-3 whitespace-nowrap text-xs text-gray-500">{{ entry.created_at }}</td>
+                            <td class="px-5 py-3 font-medium text-gray-900">{{ entry.admin_email or ('Admin #' ~ entry.admin_id) }}</td>
+                            <td class="px-5 py-3">
+                                <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">{{ entry.action }}</span>
+                            </td>
+                            <td class="px-5 py-3 text-gray-600">{{ entry.target_type or '—' }}{% if entry.target_id %} #{{ entry.target_id }}{% endif %}</td>
+                            <td class="px-5 py-3 text-gray-600">{{ entry.details or '—' }}</td>
+                            <td class="px-5 py-3 text-xs text-gray-500">{{ entry.ip_address or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="p-6 text-sm text-gray-500">No administrative actions have been recorded yet.</p>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
     function showAdminTab(tabName) {
         const panels = document.querySelectorAll('.admin-panel');
         const buttons = document.querySelectorAll('.admin-tab-btn');
@@ -774,7 +901,7 @@
 
     document.addEventListener('DOMContentLoaded', function () {
         const hashTab = window.location.hash.replace('#', '');
-        const validTabs = ['overview', 'properties', 'bookings', 'users', 'payments', 'moderation'];
+        const validTabs = ['overview', 'properties', 'bookings', 'users', 'payments', 'moderation', 'audit'];
         let initial = 'overview';
         if (validTabs.includes(hashTab)) {
             initial = hashTab;

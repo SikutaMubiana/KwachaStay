@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS users (
     password_reset_token TEXT, -- legacy plaintext token, cleared when hashed token is issued
     password_reset_expires REAL, -- legacy expiry paired with password_reset_token
     password_reset_token_hash TEXT,
+    session_version INTEGER NOT NULL DEFAULT 1,
+    totp_secret TEXT,
+    totp_enabled BOOLEAN NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -385,3 +388,18 @@ CREATE TABLE IF NOT EXISTS email_rate_limits (
     request_count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY(action, rate_key)
 );
+
+CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_id INTEGER,
+    admin_email TEXT,
+    action TEXT NOT NULL,
+    target_type TEXT,
+    target_id TEXT,
+    details TEXT,
+    ip_address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (admin_id) REFERENCES users (id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at
+ON admin_audit_logs(created_at DESC);

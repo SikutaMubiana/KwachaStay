@@ -349,7 +349,7 @@
                     <div id="dropPlaceholder">
                         <i class="fa-solid fa-cloud-arrow-up text-4xl text-gray-300 mb-3"></i>
                         <p class="font-semibold text-gray-700">Click or drag &amp; drop your photo here</p>
-                        <p class="text-xs text-gray-400 mt-1">JPG, PNG, WebP &bull; Max 16 MB</p>
+                        <p class="text-xs text-gray-400 mt-1">JPG, PNG, GIF, WebP &bull; Max 10 MB</p>
                     </div>
                     <div id="uploadedPreview" class="hidden">
                         <img id="previewImg" src="" class="mx-auto max-h-40 rounded-lg shadow" alt="Preview">
@@ -386,7 +386,7 @@
     </form>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
     const MAX_EXTRA = 4;
     const uploadedExtraUrls = [];
     const uploadedExtraCategories = [];
@@ -480,19 +480,29 @@
                 uploadedExtraUrls[index] = data.url;
                 uploadedExtraCategories[index] = slot.querySelector('select').value;
                 syncExtraPhotoFields();
-                slot.querySelector('div').className = 'relative rounded-xl h-24 overflow-hidden border border-gray-200';
-                slot.querySelector('div').innerHTML = `
-                    <img src="${data.url}" class="w-full h-full object-cover" alt="Uploaded property photo">
-                    <div class="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition">
-                        <button type="button" onclick="removeExtra(${index})" class="text-white text-xs bg-red-500 px-2 py-1 rounded">
-                            <i class="fa-solid fa-trash"></i> Remove
-                        </button>
-                    </div>
-                `;
+                const container = slot.querySelector('div');
+                container.className = 'relative rounded-xl h-24 overflow-hidden border border-gray-200';
+                container.textContent = '';
+                const img = document.createElement('img');
+                img.src = data.url;
+                img.className = 'w-full h-full object-cover';
+                img.alt = 'Uploaded property photo';
+                const overlay = document.createElement('div');
+                overlay.className = 'absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition';
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'text-white text-xs bg-red-500 px-2 py-1 rounded';
+                removeBtn.innerHTML = '<i class="fa-solid fa-trash"></i> Remove';
+                removeBtn.addEventListener('click', () => removeExtra(index));
+                overlay.appendChild(removeBtn);
+                container.appendChild(img);
+                container.appendChild(overlay);
             } else {
+                alert('Upload failed: ' + (data.error || 'Please choose a valid JPG, PNG, GIF, or WebP image under 10 MB.'));
                 buildSlot(index);
             }
         } catch (e) {
+            alert('Upload error: ' + (e.message || 'Could not upload photo. Please try again.'));
             buildSlot(index);
         }
     }
@@ -533,5 +543,5 @@
     toggleFields();
     buildExtraSlots();
 </script>
-<script src="{{ url_for('static', filename='js/location-picker.js') }}"></script>
+<script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/location-picker.js') }}"></script>
 {% endblock %}

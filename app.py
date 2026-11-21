@@ -17,6 +17,7 @@ import json
 import hmac
 import hashlib
 import base64
+import struct
 import re
 import urllib.parse
 import urllib.error
@@ -43,7 +44,13 @@ app.config.update(
     SESSION_COOKIE_SECURE=APP_ENV == 'production',
     SESSION_COOKIE_SAMESITE='Lax',
     PREFERRED_URL_SCHEME='https' if APP_ENV == 'production' else 'http',
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+    SESSION_REFRESH_EACH_REQUEST=True,
 )
+SESSION_IDLE_TIMEOUT_SECONDS = max(300, int(os.getenv('SESSION_IDLE_TIMEOUT_SECONDS', '7200')))
+ADMIN_SESSION_IDLE_TIMEOUT_SECONDS = max(300, int(os.getenv('ADMIN_SESSION_IDLE_TIMEOUT_SECONDS', '3600')))
+RATELIMIT_ENABLED = os.getenv('RATELIMIT_ENABLED', '1').strip().lower() not in {'0', 'false', 'no', 'off'}
+MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB per uploaded image file
 if APP_ENV == 'production':
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -276,7 +283,7 @@ SELF_CHECKIN_OPTIONS = {
 }
 # --- File Upload Config ---
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'jfif', 'gif', 'webp'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max
 if STORAGE_BACKEND == 'supabase':
@@ -289,6 +296,261 @@ app.config['UPLOADS_ENABLED'] = STORAGE_BACKEND == 'supabase' or APP_ENV != 'pro
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+_IMAGE_MIME_BY_FORMAT = {
+    'png': ('png', 'image/png'),
+    'jpeg': ('jpg', 'image/jpeg'),
+    'gif': ('gif', 'image/gif'),
+    'webp': ('webp', 'image/webp'),
+}
+_EXT_TO_IMAGE_FORMAT = {
+    'png': 'png',
+    'jpg': 'jpeg',
+    'jpeg': 'jpeg',
+    'jfif': 'jpeg',
+    'gif': 'gif',
+    'webp': 'webp',
+}
+_DISALLOWED_UPLOAD_SNIPPETS = (
+    b'<?php', b'<script', b'<svg', b'<!doctype html', b'<html', b'javascript:',
+)
+
+
+def detect_image_format(header_bytes):
+    if len(header_bytes) >= 16 and header_bytes.startswith(b'\x89PNG\r\n\x1a\n') and header_bytes[12:16] == b'IHDR':
+        return 'png'
+    if len(header_bytes) >= 3 and header_bytes.startswith(b'\xff\xd8\xff'):
+        return 'jpeg'
+    if len(header_bytes) >= 6 and header_bytes[:6] in (b'GIF87a', b'GIF89a'):
+        return 'gif'
+    if len(header_bytes) >= 12 and header_bytes[:4] == b'RIFF' and header_bytes[8:12] == b'WEBP':
+        return 'webp'
+    return None
+
+
+def validate_image_upload(file_storage, max_bytes=MAX_IMAGE_UPLOAD_BYTES):
+    """Validate uploaded image extension, size, and actual file magic bytes.
+
+    Accepts genuine PNG/JPEG/GIF/WebP files (even when a browser or phone saved
+    them under another allowed image extension like .jpg for WebP) and returns
+    the verified (canonical_ext, canonical_mime) derived from the actual bytes.
+    """
+    filename = (getattr(file_storage, 'filename', None) or '').strip()
+    if not filename or not allowed_file(filename):
+        raise ValueError('Only PNG, JPG, JPEG, GIF, and WebP images are allowed.')
+
+    stream = file_storage.stream
+    if hasattr(stream, 'seek'):
+        stream.seek(0)
+    data = stream.read(max_bytes + 1)
+    if hasattr(stream, 'seek'):
+        stream.seek(0)
+
+    if not data:
+        raise ValueError('Uploaded file is empty.')
+    if len(data) > max_bytes:
+        raise ValueError(f'Image must be smaller than {max_bytes // (1024 * 1024)} MB.')
+
+    detected_format = detect_image_format(data[:32])
+    if not detected_format:
+        raise ValueError('File content is not a valid PNG, JPEG, GIF, or WebP image.')
+
+    leading_lower = data[:512].lower()
+    if any(snippet in leading_lower for snippet in _DISALLOWED_UPLOAD_SNIPPETS):
+        raise ValueError('Uploaded file contains disallowed active content.')
+
+    return _IMAGE_MIME_BY_FORMAT[detected_format]
+
+
+def validate_password_strength(password):
+    """Enforce consistent password strength rules across signup, reset, and change."""
+    if not password or len(password) < 8:
+        return 'Password must be at least 8 characters and contain both letters and numbers.'
+    if len(password) > 128:
+        return 'Password must be 128 characters or fewer.'
+    if not (re.search(r'[a-zA-Z]', password) and re.search(r'[0-9]', password)):
+        return 'Password must be at least 8 characters and contain both letters and numbers.'
+    return None
+
+
+def validate_image_url(value, allow_empty=False):
+    """Allow only safe relative /static/uploads/ paths or https:// URLs."""
+    url = (value or '').strip()
+    if not url:
+        if allow_empty:
+            return ''
+        raise ValueError('Please provide a valid image URL.')
+    if len(url) > 2000 or any(ch in url for ch in ('"', "'", '<', '>', '\r', '\n', '\x00')):
+        raise ValueError('Invalid image URL.')
+    if url.startswith('/static/uploads/') and '..' not in url:
+        return url
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme == 'https' and parsed.hostname:
+        return url
+    raise ValueError('Image URLs must use HTTPS or an uploaded KwachaStay photo.')
+
+
+def safe_redirect_referrer(fallback_endpoint, **values):
+    referrer = request.referrer
+    if referrer:
+        parsed = urllib.parse.urlsplit(referrer)
+        if parsed.netloc == request.host and parsed.scheme in ('http', 'https'):
+            target = parsed.path or '/'
+            if parsed.query:
+                target += f'?{parsed.query}'
+            return redirect(target)
+    return redirect(url_for(fallback_endpoint, **values))
+
+
+def client_ip():
+    return (request.remote_addr or 'unknown')[:64]
+
+
+def check_rate_limit(action, rate_key, limit, window_seconds):
+    """Fixed-window DB-backed rate limiter shared across Gunicorn workers."""
+    if not RATELIMIT_ENABLED:
+        return True
+    return email_rate_limit(action, rate_key, limit, window_seconds)
+
+
+def is_rate_limited(action, rate_key, limit, window_seconds):
+    if not RATELIMIT_ENABLED:
+        return False
+    now = time.time()
+    db = get_db()
+    row = db.execute(
+        'SELECT window_started, request_count FROM email_rate_limits WHERE action = ? AND rate_key = ?',
+        (action, rate_key),
+    ).fetchone()
+    if not row or now - row['window_started'] >= window_seconds:
+        return False
+    return row['request_count'] >= limit
+
+
+def record_rate_limit_hit(action, rate_key, window_seconds):
+    if not RATELIMIT_ENABLED:
+        return
+    now = time.time()
+    db = get_db()
+    row = db.execute(
+        'SELECT window_started, request_count FROM email_rate_limits WHERE action = ? AND rate_key = ?',
+        (action, rate_key),
+    ).fetchone()
+    if not row or now - row['window_started'] >= window_seconds:
+        db.execute(
+            '''INSERT INTO email_rate_limits (action, rate_key, window_started, request_count)
+               VALUES (?, ?, ?, 1)
+               ON CONFLICT(action, rate_key) DO UPDATE SET window_started = excluded.window_started,
+               request_count = excluded.request_count''',
+            (action, rate_key, now),
+        )
+    else:
+        db.execute(
+            'UPDATE email_rate_limits SET request_count = request_count + 1 WHERE action = ? AND rate_key = ?',
+            (action, rate_key),
+        )
+    db.commit()
+
+
+def reset_rate_limit(action, rate_key):
+    db = get_db()
+    db.execute(
+        'DELETE FROM email_rate_limits WHERE action = ? AND rate_key = ?',
+        (action, rate_key),
+    )
+    db.commit()
+
+
+def log_admin_action(db, action, target_type=None, target_id=None, details=None, admin_user=None):
+    """Record an administrative action in admin_audit_logs (never logs secrets)."""
+    actor = admin_user or getattr(g, 'user', None)
+    admin_id = actor['id'] if actor else None
+    admin_email = actor['email'] if actor else None
+    ip_addr = client_ip() if request else None
+    safe_details = str(details)[:500] if details is not None else None
+    safe_target_id = str(target_id)[:64] if target_id is not None else None
+    try:
+        db.execute(
+            '''INSERT INTO admin_audit_logs
+               (admin_id, admin_email, action, target_type, target_id, details, ip_address)
+               VALUES (?, ?, ?, ?, ?, ?, ?)''',
+            (admin_id, admin_email, action[:80], target_type, safe_target_id, safe_details, ip_addr),
+        )
+    except DB_ERRORS:
+        app.logger.warning('Could not record admin audit log for action %s.', action)
+
+
+# --- RFC 6238 TOTP (Admin 2FA, zero external dependencies) ---
+def generate_totp_secret():
+    return base64.b32encode(secrets.token_bytes(20)).decode('ascii').rstrip('=')
+
+
+def _totp_code_for_counter(secret, counter, digits=6):
+    padded = secret.strip().upper().replace(' ', '')
+    padded += '=' * ((8 - len(padded) % 8) % 8)
+    key = base64.b32decode(padded, casefold=True)
+    msg = struct.pack('>Q', int(counter))
+    digest = hmac.new(key, msg, hashlib.sha1).digest()
+    offset = digest[-1] & 0x0F
+    code_int = struct.unpack('>I', digest[offset:offset + 4])[0] & 0x7FFFFFFF
+    return f'{code_int % (10 ** digits):0{digits}d}'
+
+
+def totp_code(secret, for_time=None, step=30, digits=6):
+    ts = time.time() if for_time is None else float(for_time)
+    return _totp_code_for_counter(secret, int(ts // step), digits=digits)
+
+
+def verify_totp_code(secret, code, window=1, step=30, digits=6, for_time=None):
+    cleaned = re.sub(r'\s+', '', code or '')
+    if not secret or not re.fullmatch(rf'\d{{{digits}}}', cleaned):
+        return False
+    ts = time.time() if for_time is None else float(for_time)
+    current_counter = int(ts // step)
+    try:
+        for delta in range(-window, window + 1):
+            expected = _totp_code_for_counter(secret, current_counter + delta, digits=digits)
+            if hmac.compare_digest(expected, cleaned):
+                return True
+    except (ValueError, TypeError):
+        return False
+    return False
+
+
+def build_otpauth_uri(email, secret, issuer='KwachaStay'):
+    label = urllib.parse.quote(f'{issuer}:{email}')
+    params = urllib.parse.urlencode({
+        'secret': secret,
+        'issuer': issuer,
+        'algorithm': 'SHA1',
+        'digits': 6,
+        'period': 30,
+    })
+    return f'otpauth://totp/{label}?{params}'
+
+
+def csp_nonce():
+    nonce = getattr(g, 'csp_nonce', None)
+    if not nonce:
+        nonce = secrets.token_urlsafe(16)
+        g.csp_nonce = nonce
+    return nonce
+
+
+def _user_session_version(user_row):
+    try:
+        value = user_row['session_version']
+        return int(value) if value is not None else 1
+    except (KeyError, IndexError, TypeError, ValueError):
+        return 1
+
+
+def _user_totp_enabled(user_row):
+    try:
+        return bool(user_row['totp_enabled']) and bool(user_row['totp_secret'])
+    except (KeyError, IndexError):
+        return False
 
 
 def phone_country_options():
@@ -1113,6 +1375,9 @@ def ensure_feature_schema(conn):
         'email_delivery_last_event': 'TEXT',
         'email_bounced_at': 'REAL',
         'password_reset_token_hash': 'TEXT',
+        'session_version': 'INTEGER NOT NULL DEFAULT 1',
+        'totp_secret': 'TEXT',
+        'totp_enabled': 'BOOLEAN NOT NULL DEFAULT 0',
     }.items():
         if not any(row[1] == column_name for row in conn.execute('PRAGMA table_info(users)')):
             conn.execute(f'ALTER TABLE users ADD COLUMN {column_name} {ddl}')
@@ -1248,6 +1513,20 @@ def ensure_feature_schema(conn):
             request_count INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY(action, rate_key)
         );
+        CREATE TABLE IF NOT EXISTS admin_audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER,
+            admin_email TEXT,
+            action TEXT NOT NULL,
+            target_type TEXT,
+            target_id TEXT,
+            details TEXT,
+            ip_address TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (admin_id) REFERENCES users (id) ON DELETE SET NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at
+            ON admin_audit_logs(created_at DESC);
     ''')
 
 
@@ -1527,12 +1806,57 @@ def csrf_token():
 
 
 @app.before_request
+def assign_csp_nonce():
+    g.csp_nonce = secrets.token_urlsafe(16)
+
+
+@app.before_request
+def enforce_https_in_production():
+    if (
+        APP_ENV == 'production'
+        and not app.testing
+        and request.path != '/healthz'
+        and not request.is_secure
+    ):
+        https_url = request.url.replace('http://', 'https://', 1)
+        return redirect(https_url, code=301)
+
+
+@app.before_request
 def load_logged_in_user():
     user_id = session.get('user_id')
     if user_id is None:
         g.user = None
     else:
-        g.user = get_db().execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+        user = get_db().execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+        if user is None or user['role'] == 'banned':
+            session.clear()
+            g.user = None
+            if user is not None and user['role'] == 'banned':
+                flash('This account has been suspended. Please contact support.', 'error')
+        else:
+            user_sv = _user_session_version(user)
+            stored_sv = session.get('session_version')
+            now = time.time()
+            last_active = session.get('_session_last_active')
+            timeout = (
+                ADMIN_SESSION_IDLE_TIMEOUT_SECONDS
+                if user['is_admin']
+                else SESSION_IDLE_TIMEOUT_SECONDS
+            )
+            if stored_sv is not None and int(stored_sv) != user_sv:
+                session.clear()
+                g.user = None
+                flash('Your session is no longer valid. Please log in again.', 'info')
+            elif last_active is not None and (now - float(last_active)) > timeout:
+                session.clear()
+                g.user = None
+                flash('Your session expired due to inactivity. Please log in again.', 'info')
+            else:
+                if stored_sv is None:
+                    session['session_version'] = user_sv
+                session['_session_last_active'] = now
+                g.user = user
     expire_pending_booking_requests(get_db())
 
 # --- Routes ---
@@ -1548,14 +1872,112 @@ def healthz():
     return jsonify({'status': 'ok'}), 200
 
 
+def _build_content_security_policy():
+    nonce = csp_nonce()
+    img_sources = [
+        "'self'", 'data:', 'blob:',
+        'https://images.unsplash.com',
+        'https://*.tile.openstreetmap.org',
+        'https://unpkg.com',
+        'https://*.supabase.co',
+    ]
+    supabase_url = os.getenv('SUPABASE_URL', '').strip()
+    if supabase_url:
+        parsed = urllib.parse.urlsplit(supabase_url)
+        if parsed.scheme == 'https' and parsed.netloc:
+            img_sources.append(f'https://{parsed.netloc}')
+    return '; '.join([
+        "default-src 'self'",
+        f"script-src 'self' 'nonce-{nonce}' https://cdn.tailwindcss.com https://unpkg.com",
+        f"script-src-elem 'self' 'nonce-{nonce}' https://cdn.tailwindcss.com https://unpkg.com",
+        "script-src-attr 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://unpkg.com",
+        "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
+        f"img-src {' '.join(dict.fromkeys(img_sources))}",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-ancestors 'self'",
+        "form-action 'self' https://checkout.flutterwave.com",
+    ])
+
+
 @app.after_request
-def set_production_security_headers(response):
+def set_security_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)')
+    response.headers.setdefault('Content-Security-Policy', _build_content_security_policy())
     if APP_ENV == 'production':
         response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
-        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
-        response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
-        response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+    if request.path.startswith('/admin'):
+        response.headers.setdefault('X-Robots-Tag', 'noindex, nofollow')
+    if (
+        request.path.startswith('/admin')
+        or request.path.startswith('/tenant/')
+        or request.path.startswith('/landlord/')
+        or request.path.startswith('/booking/')
+        or request.path in ('/support', '/notifications')
+    ):
+        response.headers.setdefault('Cache-Control', 'no-store, private')
     return response
+
+
+def _render_error_response(status_code, title, message):
+    if not hasattr(g, 'user'):
+        g.user = None
+    wants_json = (
+        request.is_json
+        or request.path.startswith('/webhooks/')
+        or request.path == '/upload_image'
+        or request.accept_mimetypes.best == 'application/json'
+    )
+    if wants_json:
+        return jsonify({'error': message}), status_code
+    return render_template(
+        'error.html',
+        status_code=status_code,
+        error_title=title,
+        error_message=message,
+    ), status_code
+
+
+@app.errorhandler(400)
+def handle_bad_request(error):
+    message = getattr(error, 'description', None) or 'The request could not be processed.'
+    return _render_error_response(400, 'Bad Request', message)
+
+
+@app.errorhandler(403)
+def handle_forbidden(_error):
+    return _render_error_response(403, 'Access Denied', 'You do not have permission to perform this action.')
+
+
+@app.errorhandler(404)
+def handle_not_found(_error):
+    return _render_error_response(404, 'Page Not Found', 'The page or resource you requested could not be found.')
+
+
+@app.errorhandler(413)
+def handle_request_too_large(_error):
+    return _render_error_response(413, 'Upload Too Large', 'The uploaded file exceeds the maximum permitted size.')
+
+
+@app.errorhandler(429)
+def handle_too_many_requests(error):
+    message = getattr(error, 'description', None) or 'Too many requests. Please wait a few minutes and try again.'
+    return _render_error_response(429, 'Too Many Requests', message)
+
+
+@app.errorhandler(500)
+def handle_internal_error(_error):
+    app.logger.exception('Unhandled application error on %s', request.path)
+    return _render_error_response(
+        500,
+        'Something Went Wrong',
+        'An unexpected error occurred while processing your request. Please try again later.',
+    )
 
 @app.route('/areas')
 def lusaka_areas():
@@ -1653,16 +2075,36 @@ def _query_listings_context():
                      AND distance_km(p.latitude, p.longitude, ?, ?) <= ?'''
         params.extend([near_point[0], near_point[1], float(near_radius_km)])
 
-    # Advanced filters
-    min_price = request.args.get('min_price')
-    max_price = request.args.get('max_price')
+    # Advanced filters (validated to avoid type errors on SQLite and PostgreSQL)
+    def _parse_optional_float(raw):
+        raw = (raw or '').strip()
+        if not raw:
+            return None
+        try:
+            val = float(raw)
+            return val if math.isfinite(val) and val >= 0 else None
+        except ValueError:
+            return None
+
+    def _parse_optional_int(raw):
+        raw = (raw or '').strip()
+        if not raw:
+            return None
+        try:
+            val = int(raw)
+            return val if 0 <= val <= 100 else None
+        except ValueError:
+            return None
+
+    min_price = _parse_optional_float(request.args.get('min_price'))
+    max_price = _parse_optional_float(request.args.get('max_price'))
     property_type = request.args.get('property_type')
     listing_category = request.args.get('listing_category')
     availability_status = request.args.get('availability_status')
-    min_bedrooms = request.args.get('min_bedrooms')
-    max_bedrooms = request.args.get('max_bedrooms')
-    min_bathrooms = request.args.get('min_bathrooms')
-    max_bathrooms = request.args.get('max_bathrooms')
+    min_bedrooms = _parse_optional_int(request.args.get('min_bedrooms'))
+    max_bedrooms = _parse_optional_int(request.args.get('max_bedrooms'))
+    min_bathrooms = _parse_optional_int(request.args.get('min_bathrooms'))
+    max_bathrooms = _parse_optional_int(request.args.get('max_bathrooms'))
     verified_only = request.args.get('verified_only')
     featured_only = request.args.get('featured_only')
     power_backup = request.args.get('power_backup', '')
@@ -1672,11 +2114,11 @@ def _query_listings_context():
     if water_supply not in WATER_SUPPLY_OPTIONS:
         water_supply = ''
     
-    if min_price:
+    if min_price is not None:
         query += " AND p.price_per_night >= ?"
         params.append(min_price)
 
-    if max_price:
+    if max_price is not None:
         query += " AND p.price_per_night <= ?"
         params.append(max_price)
         
@@ -1807,7 +2249,10 @@ def _query_listings_context():
     
     # --- Pagination ---
     PER_PAGE = 12
-    page = max(1, int(request.args.get('page', 1)))
+    try:
+        page = max(1, min(10000, int(request.args.get('page', 1))))
+    except (TypeError, ValueError):
+        page = 1
     
     # Total count for pagination
     count_query = f"SELECT COUNT(*) FROM ({query}) sub"
@@ -1835,10 +2280,16 @@ def _query_listings_context():
                 'longitude': prop['longitude'],
             })
         
-        # Get Images (always prioritize the main photo first)
+        # Get Images (always prioritize the main photo first, skipping missing local files)
         imgs = db.execute("SELECT image_url FROM property_images WHERE property_id = ?", (prop['id'],)).fetchall()
-        extra_img_urls = [i['image_url'] for i in imgs if i['image_url']]
-        if prop['image_main']:
+        def _listing_img_ok(u):
+            if not u:
+                return False
+            if u.startswith('/static/uploads/'):
+                return os.path.isfile(os.path.join(BASE_DIR, u.lstrip('/').replace('/', os.sep)))
+            return True
+        extra_img_urls = [i['image_url'] for i in imgs if _listing_img_ok(i['image_url'])]
+        if _listing_img_ok(prop['image_main']):
             prop_dict['images'] = [prop['image_main']] + [u for u in extra_img_urls if u != prop['image_main']]
         else:
             prop_dict['images'] = extra_img_urls
@@ -1904,6 +2355,8 @@ def signup():
     if g.user is not None:
         return redirect(_home_dashboard_url(g.user))
     if request.method == 'POST':
+        if not check_rate_limit('signup_ip', client_ip(), 10, 3600):
+            abort(429, description='Too many registration attempts. Please try again later.')
         full_name = request.form.get('full_name', '').strip()
         email = request.form.get('email', '').strip().lower()
         phone_raw = request.form.get('phone', '').strip()
@@ -1912,17 +2365,16 @@ def signup():
         password = request.form.get('password', '')
         role = request.form.get('role', 'tenant')
         db = get_db()
+        password_error = validate_password_strength(password)
 
-        if not full_name:
-            flash('Name is required.', 'error')
+        if not full_name or len(full_name) > 120:
+            flash('Enter a valid full name (up to 120 characters).', 'error')
         elif not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', email) or len(email) > 254:
             flash('Enter a valid email address.', 'error')
         elif role not in ('tenant', 'owner'):
             flash('Choose either a guest or host account.', 'error')
-        elif len(password) < 8 or not (
-            re.search(r'[a-zA-Z]', password) and re.search(r'[0-9]', password)
-        ):
-            flash('Password must be at least 8 characters and contain both letters and numbers.', 'error')
+        elif password_error:
+            flash(password_error, 'error')
         else:
             phone_input = (
                 f'{country_code}{phone_raw}'
@@ -1964,28 +2416,28 @@ def save_search():
     ).fetchone()[0]
     if existing_count >= 10:
         flash('You can save up to 10 searches. Remove one before saving another.', 'error')
-        return redirect(request.referrer or url_for('browse_stays'))
+        return safe_redirect_referrer('browse_stays')
 
     try:
         min_price = float(request.form['min_price']) if request.form.get('min_price', '').strip() else None
         max_price = float(request.form['max_price']) if request.form.get('max_price', '').strip() else None
     except ValueError:
         flash('Price filters must be valid numbers to save this search.', 'error')
-        return redirect(request.referrer or url_for('browse_stays'))
+        return safe_redirect_referrer('browse_stays')
     if ((min_price is not None and min_price < 0)
             or (max_price is not None and max_price < 0)
             or (min_price is not None and max_price is not None and min_price > max_price)):
         flash('Enter a valid minimum and maximum price to save this search.', 'error')
-        return redirect(request.referrer or url_for('browse_stays'))
+        return safe_redirect_referrer('browse_stays')
 
     power_backup = request.form.get('power_backup', '').strip()
     water_supply = request.form.get('water_supply', '').strip()
     if power_backup not in ('', 'All', *POWER_BACKUP_OPTIONS):
         flash('Choose a valid power backup filter.', 'error')
-        return redirect(request.referrer or url_for('browse_stays'))
+        return safe_redirect_referrer('browse_stays')
     if water_supply not in ('', 'All', *WATER_SUPPLY_OPTIONS):
         flash('Choose a valid water supply filter.', 'error')
-        return redirect(request.referrer or url_for('browse_stays'))
+        return safe_redirect_referrer('browse_stays')
 
     near_lat_raw = request.form.get('near_lat', '').strip()
     near_lon_raw = request.form.get('near_lon', '').strip()
@@ -1993,17 +2445,17 @@ def save_search():
     near_lat = near_lon = None
     if bool(near_lat_raw) != bool(near_lon_raw):
         flash('Choose a complete map location before saving this search.', 'error')
-        return redirect(request.referrer or url_for('browse_stays'))
+        return safe_redirect_referrer('browse_stays')
     if near_lat_raw:
         try:
             near_lat, near_lon = float(near_lat_raw), float(near_lon_raw)
         except ValueError:
             flash('Choose a valid map location before saving this search.', 'error')
-            return redirect(request.referrer or url_for('browse_stays'))
+            return safe_redirect_referrer('browse_stays')
         if (not -90 <= near_lat <= 90 or not -180 <= near_lon <= 180
                 or near_radius_km not in {'1', '2', '5', '10', '20', '50'}):
             flash('Choose a valid map location and distance before saving this search.', 'error')
-            return redirect(request.referrer or url_for('browse_stays'))
+            return safe_redirect_referrer('browse_stays')
         near_radius_km = float(near_radius_km)
     else:
         near_radius_km = None
@@ -2023,7 +2475,7 @@ def save_search():
     )
     db.commit()
     flash('Search saved. We’ll notify you when matching listings are added, repriced, or relisted.', 'success')
-    return redirect(request.referrer or url_for('browse_stays'))
+    return safe_redirect_referrer('browse_stays')
 
 
 @app.route('/saved-searches/delete/<int:search_id>', methods=['POST'])
@@ -2110,6 +2562,8 @@ def shared_trip_plan(share_token):
 @app.route('/property/<int:property_id>/report', methods=['POST'])
 @login_required
 def report_property(property_id):
+    if not check_rate_limit('report_property_user', str(g.user['id']), 10, 3600):
+        abort(429, description='Too many listing reports submitted. Please try again later.')
     db = get_db()
     property_row = db.execute(
         'SELECT id, owner_id FROM properties WHERE id = ?', (property_id,)
@@ -2176,6 +2630,8 @@ def support_center():
             return redirect(url_for('support_center'))
 
     if request.method == 'POST':
+        if not check_rate_limit('support_request_user', str(g.user['id']), 10, 3600):
+            abort(429, description='Too many support requests submitted. Please try again later.')
         category = request.form.get('category', '').strip()
         details = request.form.get('details', '').strip()
         if category not in SUPPORT_CATEGORIES:
@@ -2186,7 +2642,7 @@ def support_center():
             db.execute(
                 '''INSERT INTO support_requests (reporter_id, booking_id, category, details)
                    VALUES (?, ?, ?, ?)''',
-                (g.user['id'], booking_id, category, details),
+                (g.user['id'], booking_id or None, category, details),
             )
             request_id = db.execute('SELECT last_insert_rowid()').fetchone()[0]
             admins = db.execute('SELECT id FROM users WHERE is_admin = 1').fetchall()
@@ -2279,6 +2735,13 @@ def login():
     if request.method == 'POST':
         identifier = (request.form.get('identifier') or request.form.get('email') or '').strip()
         password = request.form.get('password', '')
+        ip_key = client_ip()
+        id_key = identifier.lower()[:128] or 'empty'
+        if (
+            is_rate_limited('login_fail_ip', ip_key, 10, 900)
+            or is_rate_limited('login_fail_id', f'{ip_key}:{id_key}', 5, 900)
+        ):
+            abort(429, description='Too many failed login attempts. Please wait 15 minutes and try again.')
         db = get_db()
         user = None
         if '@' in identifier:
@@ -2300,18 +2763,41 @@ def login():
                 ).fetchone()
 
         if user is None or not check_password_hash(user['password'], password):
+            record_rate_limit_hit('login_fail_ip', ip_key, 900)
+            record_rate_limit_hit('login_fail_id', f'{ip_key}:{id_key}', 900)
             flash('The email/phone or password is incorrect.', 'error')
         elif user['role'] == 'banned':
             flash('This account has been suspended. Please contact support.', 'error')
         else:
+            reset_rate_limit('login_fail_id', f'{ip_key}:{id_key}')
             is_admin_user = bool(user['is_admin'])
             if (user['email'] or '').strip().lower() in ADMIN_EMAILS and not is_admin_user:
                 db.execute('UPDATE users SET is_admin = 1 WHERE id = ?', (user['id'],))
+                log_admin_action(
+                    db,
+                    'admin_auto_promoted',
+                    target_type='user',
+                    target_id=user['id'],
+                    details='Promoted via ADMIN_EMAILS configuration on login',
+                    admin_user=user,
+                )
                 db.commit()
                 is_admin_user = True
+            if is_admin_user and _user_totp_enabled(user):
+                session.clear()
+                session['pending_2fa_user_id'] = user['id']
+                session['pending_2fa_expires'] = time.time() + 300
+                session['pending_2fa_remember'] = bool(request.form.get('remember_me'))
+                csrf_token()
+                return redirect(url_for('admin_verify_2fa'))
             session.clear()
+            now = time.time()
             session['user_id'] = user['id']
+            session['session_version'] = _user_session_version(user)
+            session['_session_created_at'] = now
+            session['_session_last_active'] = now
             session.permanent = bool(request.form.get('remember_me'))
+            csrf_token()
             flash(f"Welcome back, {user['full_name']}!", 'success')
             if is_admin_user:
                 return redirect(url_for('admin_dashboard'))
@@ -2321,7 +2807,51 @@ def login():
 
     return render_template('login.html', phone_countries=phone_country_options())
 
-@app.route('/logout')
+
+@app.route('/admin/verify-2fa', methods=('GET', 'POST'))
+def admin_verify_2fa():
+    pending_uid = session.get('pending_2fa_user_id')
+    pending_exp = session.get('pending_2fa_expires') or 0
+    if not pending_uid or time.time() > float(pending_exp):
+        session.pop('pending_2fa_user_id', None)
+        session.pop('pending_2fa_expires', None)
+        session.pop('pending_2fa_remember', None)
+        flash('Two-factor authentication session expired. Please log in again.', 'error')
+        return redirect(url_for('login'))
+
+    db = get_db()
+    user = db.execute('SELECT * FROM users WHERE id = ?', (pending_uid,)).fetchone()
+    if not user or not user['is_admin'] or user['role'] == 'banned' or not _user_totp_enabled(user):
+        session.clear()
+        return redirect(url_for('login'))
+
+    if request.method == 'POST':
+        rate_key = f'{client_ip()}:{pending_uid}'
+        if is_rate_limited('admin_2fa_fail', rate_key, 5, 600):
+            abort(429, description='Too many invalid authenticator codes. Please wait 10 minutes and try again.')
+        code = request.form.get('totp_code', '').strip()
+        if not verify_totp_code(user['totp_secret'], code):
+            record_rate_limit_hit('admin_2fa_fail', rate_key, 600)
+            flash('Invalid authenticator code. Please try again.', 'error')
+            return render_template('admin_verify_2fa.html')
+        reset_rate_limit('admin_2fa_fail', rate_key)
+        remember = bool(session.get('pending_2fa_remember'))
+        session.clear()
+        now = time.time()
+        session['user_id'] = user['id']
+        session['session_version'] = _user_session_version(user)
+        session['_session_created_at'] = now
+        session['_session_last_active'] = now
+        session.permanent = remember
+        csrf_token()
+        log_admin_action(db, 'admin_2fa_login_verified', 'user', user['id'], admin_user=user)
+        db.commit()
+        flash(f"Welcome back, {user['full_name']}!", 'success')
+        return redirect(url_for('admin_dashboard'))
+
+    return render_template('admin_verify_2fa.html')
+
+@app.route('/logout', methods=['GET', 'POST'])
 def logout():
     session.clear()
     flash("You have been logged out.", "info")
@@ -2339,6 +2869,9 @@ def add_house():
         property_type = request.form.get('property_type', '').strip()
         if not title or not description or not compound or not property_type:
             flash('Please fill in all required property details.', 'error')
+            return redirect(url_for('add_house'))
+        if len(title) > 160 or len(description) > 5000:
+            flash('Title must be under 160 characters and description under 5,000 characters.', 'error')
             return redirect(url_for('add_house'))
         try:
             price = parse_nonnegative_money(price_raw, 'Price')
@@ -2385,7 +2918,7 @@ def add_house():
         except ValueError:
             flash('Bedrooms and bathrooms must be whole numbers.', 'error')
             return redirect(url_for('add_house'))
-        is_featured = 1 if request.form.get('is_featured') == 'on' else 0
+        is_featured = 1 if (g.user['is_admin'] and request.form.get('is_featured') == 'on') else 0
         
         # Details
         bed_type = request.form.get('bed_type')
@@ -2404,11 +2937,22 @@ def add_house():
         has_wifi = 1 if 'has_wifi' in request.form else 0
         has_parking = 1 if 'has_parking' in request.form else 0
         
-        image_url = request.form.get('image_url', '').strip()
-        if not image_url:
+        image_url_raw = request.form.get('image_url', '').strip()
+        if not image_url_raw:
             flash('Please upload a main photo before listing your property.', 'error')
             return redirect(url_for('add_house'))
-        extra_images = request.form.get('extra_images', '')
+        try:
+            image_url = validate_image_url(image_url_raw)
+            validated_extra_images = []
+            extra_images = request.form.get('extra_images', '')
+            if extra_images.strip():
+                for img in extra_images.split(','):
+                    img = img.strip()
+                    if img:
+                        validated_extra_images.append(validate_image_url(img))
+        except ValueError as error:
+            flash(str(error), 'error')
+            return redirect(url_for('add_house'))
         extra_categories = request.form.get('extra_image_categories', '').split(',')
         owner_id = g.user['id']
         
@@ -2448,17 +2992,15 @@ def add_house():
             db.execute('SELECT * FROM properties WHERE id = ?', (prop_id,)).fetchone(),
         )
         
-        if extra_images.strip():
-            for index, img in enumerate(extra_images.split(',')):
-                img = img.strip()
-                if img:
-                    category = extra_categories[index] if index < len(extra_categories) else 'other'
-                    if category not in PHOTO_CATEGORIES:
-                        category = 'other'
-                    db.execute(
-                        'INSERT INTO property_images (property_id, image_url, category) VALUES (?, ?, ?)',
-                        (prop_id, img, category),
-                    )
+        if validated_extra_images:
+            for index, img in enumerate(validated_extra_images):
+                category = extra_categories[index] if index < len(extra_categories) else 'other'
+                if category not in PHOTO_CATEGORIES:
+                    category = 'other'
+                db.execute(
+                    'INSERT INTO property_images (property_id, image_url, category) VALUES (?, ?, ?)',
+                    (prop_id, img, category),
+                )
         
         db.commit()
         flash('Property listed successfully!', 'success')
@@ -2790,13 +3332,32 @@ def property_details(property_id):
     if property is None:
         flash('Property not found.', 'error')
         return redirect(url_for('index'))
+    if not property['is_active'] and (
+        not g.user or (g.user['id'] != property['owner_id'] and not g.user['is_admin'])
+    ):
+        flash('Property not found.', 'error')
+        return redirect(url_for('index'))
 
-    # Fetch Images
+    # Fetch Images (always include image_main first, skip missing local uploads on Supabase)
+    def _usable_image_url(url):
+        if not url:
+            return False
+        if url.startswith('/static/uploads/'):
+            local_file = os.path.join(BASE_DIR, url.lstrip('/').replace('/', os.sep))
+            return os.path.isfile(local_file)
+        return True
+
     images = db.execute(
         'SELECT image_url, category FROM property_images WHERE property_id = ?',
         (property_id,),
     ).fetchall()
-    image_list = [img['image_url'] for img in images]
+    extra_urls = [img['image_url'] for img in images if _usable_image_url(img['image_url'])]
+    image_list = []
+    if _usable_image_url(property['image_main']):
+        image_list.append(property['image_main'])
+    for url in extra_urls:
+        if url not in image_list:
+            image_list.append(url)
     photo_categories = {img['category'] for img in images if img['category']}
     if property['image_main']:
         photo_categories.add(property['main_photo_category'] or 'other')
@@ -2931,9 +3492,14 @@ def add_review(property_id):
     if len(review_photos) > 3:
         flash('You can add up to 3 photos to a review.', 'error')
         return redirect(url_for('property_details', property_id=property_id))
-    if any(not allowed_file(photo.filename) for photo in review_photos):
-        flash('Review photos must be JPG, PNG, GIF, or WebP images.', 'error')
-        return redirect(url_for('property_details', property_id=property_id))
+    validated_review_photos = []
+    for photo in review_photos:
+        try:
+            canonical_ext, canonical_mime = validate_image_upload(photo)
+        except ValueError as error:
+            flash(str(error), 'error')
+            return redirect(url_for('property_details', property_id=property_id))
+        validated_review_photos.append((photo, canonical_ext, canonical_mime))
 
     category_fields = {
         'cleanliness_rating': 'Cleanliness',
@@ -2980,13 +3546,14 @@ def add_review(property_id):
         flash('Photo uploads are disabled until durable production storage is configured.', 'error')
         return redirect(url_for('property_details', property_id=property_id))
     try:
-        for photo in review_photos:
-            extension = photo.filename.rsplit('.', 1)[1].lower()
-            filename = f'{uuid.uuid4().hex}.{extension}'
-            save_path = upload_storage.save(photo, filename)
-            saved_photo_paths.append((
-                save_path, url_for('static', filename=f'uploads/{filename}')
-            ))
+        for photo, canonical_ext, canonical_mime in validated_review_photos:
+            filename = f'{uuid.uuid4().hex}.{canonical_ext}'
+            save_path = upload_storage.save(photo, filename, content_type=canonical_mime)
+            image_url = (
+                save_path if STORAGE_BACKEND == 'supabase'
+                else url_for('static', filename=f'uploads/{filename}')
+            )
+            saved_photo_paths.append((save_path, image_url))
 
         review_cursor = db.execute(
             '''INSERT INTO reviews (
@@ -3081,8 +3648,8 @@ def cancel_booking(booking_id):
             f"Booking for '{booking['title']}' was cancelled by {g.user['full_name']}.",
             url_for('dashboard'))
         db.commit()
-    except Exception as e:
-        print(f'Notification error: {e}')
+    except Exception:
+        app.logger.error('Could not create booking cancellation notification for booking %s.', booking_id)
 
     if booking['payment_status'] == 'paid' and booking['refund_status'] == 'requested':
         flash('Booking cancelled. Your existing refund request remains under review.', 'info')
@@ -3207,7 +3774,7 @@ def property_availability(property_id):
         (property_id,),
     ).fetchone()
     if not property_row or (not property_row['is_active'] and
-                            (not g.user or g.user['id'] != property_row['owner_id'])):
+                            (not g.user or (g.user['id'] != property_row['owner_id'] and not g.user['is_admin']))):
         return jsonify({'error': 'Property not found.'}), 404
 
     statuses = {}
@@ -3743,7 +4310,12 @@ def admin_required(view):
 @admin_required
 def admin_dashboard():
     db = get_db()
-    users = db.execute('SELECT * FROM users ORDER BY created_at DESC').fetchall()
+    users = db.execute(
+        '''SELECT id, full_name, email, phone, role, profile_pic, is_admin,
+                  host_verification_status, host_verification_note,
+                  email_verified_at, phone_verified_at, created_at
+           FROM users ORDER BY created_at DESC'''
+    ).fetchall()
     properties = db.execute('''
         SELECT p.*, u.full_name AS owner_name, u.email AS owner_email
         FROM properties p
@@ -3851,13 +4423,96 @@ def admin_dashboard():
             + pending_payouts_count
         ),
     }
+    try:
+        audit_logs = db.execute(
+            '''SELECT id, admin_id, admin_email, action, target_type, target_id,
+                      details, ip_address, created_at
+               FROM admin_audit_logs
+               ORDER BY created_at DESC, id DESC LIMIT 100'''
+        ).fetchall()
+    except DB_ERRORS:
+        audit_logs = []
+    pending_totp_secret = session.get('pending_totp_setup_secret')
+    pending_totp_uri = (
+        build_otpauth_uri(g.user['email'], pending_totp_secret)
+        if pending_totp_secret else None
+    )
     return render_template('admin.html', users=users, properties=properties, bookings=bookings,
                            reports=reports, verification_requests=verification_requests,
                            refund_requests=refund_requests,
                            payment_review_bookings=payment_review_bookings,
                            support_requests=support_requests,
                            payout_ledger=payout_ledger,
+                           audit_logs=audit_logs,
+                           admin_totp_enabled=_user_totp_enabled(g.user),
+                           pending_totp_secret=pending_totp_secret,
+                           pending_totp_uri=pending_totp_uri,
                            admin_stats=admin_stats)
+
+
+@app.route('/admin/security/2fa/start', methods=['POST'])
+@admin_required
+def admin_start_2fa():
+    if _user_totp_enabled(g.user):
+        flash('Two-factor authentication is already enabled on your account.', 'info')
+        return redirect(url_for('admin_dashboard') + '#audit')
+    session['pending_totp_setup_secret'] = generate_totp_secret()
+    flash('Scan or enter the setup key in your authenticator app, then confirm with a 6-digit code.', 'info')
+    return redirect(url_for('admin_dashboard') + '#audit')
+
+
+@app.route('/admin/security/2fa/confirm', methods=['POST'])
+@admin_required
+def admin_confirm_2fa():
+    pending_secret = session.get('pending_totp_setup_secret')
+    if not pending_secret:
+        flash('Start 2FA setup first before confirming.', 'error')
+        return redirect(url_for('admin_dashboard') + '#audit')
+    current_password = request.form.get('current_password', '')
+    code = request.form.get('totp_code', '').strip()
+    if not check_password_hash(g.user['password'], current_password):
+        flash('Current password is incorrect.', 'error')
+        return redirect(url_for('admin_dashboard') + '#audit')
+    if not verify_totp_code(pending_secret, code):
+        flash('Invalid 6-digit code. Check your authenticator app time sync and try again.', 'error')
+        return redirect(url_for('admin_dashboard') + '#audit')
+    db = get_db()
+    db.execute(
+        'UPDATE users SET totp_secret = ?, totp_enabled = 1 WHERE id = ?',
+        (pending_secret, g.user['id']),
+    )
+    log_admin_action(db, 'admin_2fa_enabled', 'user', g.user['id'])
+    db.commit()
+    session.pop('pending_totp_setup_secret', None)
+    flash('Two-factor authentication is now enabled for your admin account.', 'success')
+    return redirect(url_for('admin_dashboard') + '#audit')
+
+
+@app.route('/admin/security/2fa/disable', methods=['POST'])
+@admin_required
+def admin_disable_2fa():
+    if not _user_totp_enabled(g.user):
+        flash('Two-factor authentication is not enabled.', 'info')
+        return redirect(url_for('admin_dashboard') + '#audit')
+    current_password = request.form.get('current_password', '')
+    code = request.form.get('totp_code', '').strip()
+    if not check_password_hash(g.user['password'], current_password):
+        flash('Current password is incorrect.', 'error')
+        return redirect(url_for('admin_dashboard') + '#audit')
+    if not verify_totp_code(g.user['totp_secret'], code):
+        flash('Invalid 6-digit authenticator code.', 'error')
+        return redirect(url_for('admin_dashboard') + '#audit')
+    db = get_db()
+    new_sv = _user_session_version(g.user) + 1
+    db.execute(
+        'UPDATE users SET totp_secret = NULL, totp_enabled = 0, session_version = ? WHERE id = ?',
+        (new_sv, g.user['id']),
+    )
+    log_admin_action(db, 'admin_2fa_disabled', 'user', g.user['id'])
+    db.commit()
+    session['session_version'] = new_sv
+    flash('Two-factor authentication has been disabled.', 'info')
+    return redirect(url_for('admin_dashboard') + '#audit')
 
 
 @app.route('/admin/payout/<int:ledger_id>/mark-paid', methods=['POST'])
@@ -3886,6 +4541,7 @@ def mark_payout_paid(ledger_id):
            paid_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending' ''',
         (reference, ledger_id),
     )
+    log_admin_action(db, 'payout_marked_paid', 'payout_ledger', ledger_id, f'Reference: {reference}')
     db.commit()
     flash('Payout marked complete with provider reference recorded.', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -3899,6 +4555,7 @@ def verify_property(property_id):
         flash('Property not found.', 'error')
         return redirect(url_for('admin_dashboard'))
     db.execute('UPDATE properties SET is_verified = 1 WHERE id = ?', (property_id,))
+    log_admin_action(db, 'property_verified', 'property', property_id, property['title'])
     db.commit()
     flash(f'Property "{property["title"]}" verified!', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -3913,6 +4570,7 @@ def unverify_property(property_id):
         flash('Property not found.', 'error')
         return redirect(url_for('admin_dashboard'))
     db.execute('UPDATE properties SET is_verified = 0 WHERE id = ?', (property_id,))
+    log_admin_action(db, 'property_unverified', 'property', property_id, property['title'])
     db.commit()
     flash(f'Verified badge removed from "{property["title"]}".', 'info')
     return redirect(url_for('admin_dashboard'))
@@ -3934,7 +4592,11 @@ def admin_toggle_admin(user_id):
         if admin_count <= 1:
             flash('At least one administrator account must remain active.', 'error')
             return redirect(url_for('admin_dashboard'))
-        db.execute('UPDATE users SET is_admin = 0 WHERE id = ?', (user_id,))
+        db.execute(
+            'UPDATE users SET is_admin = 0, session_version = COALESCE(session_version, 1) + 1 WHERE id = ?',
+            (user_id,),
+        )
+        log_admin_action(db, 'admin_role_revoked', 'user', user_id, user['full_name'])
         db.commit()
         flash(f'Removed admin access from "{user["full_name"]}".', 'info')
     else:
@@ -3942,6 +4604,7 @@ def admin_toggle_admin(user_id):
             flash('Unban this user before granting admin access.', 'error')
             return redirect(url_for('admin_dashboard'))
         db.execute('UPDATE users SET is_admin = 1 WHERE id = ?', (user_id,))
+        log_admin_action(db, 'admin_role_granted', 'user', user_id, user['full_name'])
         db.commit()
         flash(f'Granted admin access to "{user["full_name"]}".', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -3960,6 +4623,8 @@ def review_host_verification(user_id, action):
            WHERE id = ? AND host_verification_status = 'pending' ''',
         (status, user_id),
     )
+    if result.rowcount:
+        log_admin_action(db, f'host_verification_{status}', 'user', user_id)
     db.commit()
     if result.rowcount:
         flash(f'Host verification marked {status}. Confirm identity and phone evidence before verifying.', 'success')
@@ -3978,6 +4643,7 @@ def review_property_report(report_id, action):
     db = get_db()
     db.execute('UPDATE property_reports SET status = ? WHERE id = ?',
                (status_by_action[action], report_id))
+    log_admin_action(db, f'property_report_{status_by_action[action]}', 'property_report', report_id)
     db.commit()
     flash('Listing report updated.', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -4008,6 +4674,7 @@ def review_support_request(request_id, action):
         f'Your KwachaStay support request #{request_id} is now {status.replace("_", " ")}.',
         url_for('support_center'),
     )
+    log_admin_action(db, f'support_request_{status}', 'support_request', request_id)
     db.commit()
     flash('Support request updated.', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -4112,6 +4779,7 @@ def process_refund(booking_id, action):
                 db.rollback()
                 flash('Provider accepted the refund, but the local status changed. Check the provider before retrying.', 'error')
                 return redirect(url_for('admin_dashboard'))
+            log_admin_action(db, f'refund_{refund_status}', 'booking', booking_id, f'Flutterwave refund #{refund["id"]}')
             db.commit()
             flash(
                 'Flutterwave refund completed.' if refund_status == 'refunded'
@@ -4123,11 +4791,13 @@ def process_refund(booking_id, action):
             app.logger.exception('Could not initiate Flutterwave refund for booking %s', booking_id)
             flash('Flutterwave did not confirm the refund request. Its status remains processing to prevent duplicate refunds; reconcile it in the provider dashboard.', 'error')
     else:
+        next_status = 'refunded' if action == 'mark-refunded' else 'rejected'
         db.execute(
             '''UPDATE bookings SET refund_status = ?, refund_reference = NULL
                WHERE id = ? AND refund_status = 'requested' ''',
             (next_status, booking_id),
         )
+        log_admin_action(db, f'refund_{next_status}', 'booking', booking_id)
         db.commit()
         if action == 'mark-refunded':
             flash('Refund marked complete after manual provider-side processing.', 'success')
@@ -4171,6 +4841,7 @@ def verify_booking_payment(booking_id):
             db.rollback()
             flash('Payment status changed while you were reviewing. Refresh and try again.', 'error')
             return redirect(url_for('admin_dashboard'))
+        log_admin_action(db, 'payment_verified', 'booking', booking_id, f'{payment_method}: {payment_reference}')
         db.commit()
         flash('Payment recorded as verified. This action records your provider-side verification; it does not charge the guest.', 'success')
     except DB_INTEGRITY_ERRORS:
@@ -4209,8 +4880,9 @@ def inject_unread_counts():
         ),
         'low_data_mode': bool(session.get('low_data_mode')),
         'csrf_token': csrf_token,
+        'csp_nonce': csp_nonce,
     }
-    if g.user:
+    if getattr(g, 'user', None):
         db = get_db()
         counts['unread_messages'] = db.execute(
             'SELECT COUNT(*) FROM messages WHERE receiver_id = ? AND is_read = 0',
@@ -4501,15 +5173,12 @@ def reset_password(token):
         return redirect(url_for('forgot_password'))
 
     if request.method == 'POST':
-        import re
+        if not check_rate_limit('reset_password_ip', client_ip(), 10, 900):
+            abort(429, description='Too many password reset attempts. Please try again later.')
         password = request.form.get('password', '')
         confirm = request.form.get('confirm_password', '')
-        error = None
-        if len(password) < 8:
-            error = 'Password must be at least 8 characters.'
-        elif not (re.search(r'[a-zA-Z]', password) and re.search(r'[0-9]', password)):
-            error = 'Password must contain both letters and numbers.'
-        elif password != confirm:
+        error = validate_password_strength(password)
+        if not error and password != confirm:
             error = 'Passwords do not match.'
 
         if error:
@@ -4518,10 +5187,12 @@ def reset_password(token):
 
         db.execute(
             '''UPDATE users SET password = ?, password_reset_token = NULL,
-               password_reset_token_hash = NULL, password_reset_expires = NULL WHERE id = ?''',
+               password_reset_token_hash = NULL, password_reset_expires = NULL,
+               session_version = COALESCE(session_version, 1) + 1 WHERE id = ?''',
             (generate_password_hash(password), user['id'])
         )
         db.commit()
+        session.clear()
         flash('Password reset successful! Please log in.', 'success')
         return redirect(url_for('login'))
 
@@ -4555,64 +5226,101 @@ def mark_notifications_read():
 @app.route('/send_message', methods=['POST'])
 @login_required
 def send_message():
-    receiver_id = request.form.get('receiver_id')
-    property_id = request.form.get('property_id') # Optional context
-    content = request.form.get('content')
-    
-    if not content or not receiver_id:
+    if not check_rate_limit('send_message_user', str(g.user['id']), 20, 600):
+        abort(429, description='Too many messages sent. Please wait a few minutes and try again.')
+    receiver_raw = (request.form.get('receiver_id') or '').strip()
+    property_raw = (request.form.get('property_id') or '').strip()
+    content = (request.form.get('content') or '').strip()
+
+    if not content or not receiver_raw:
         flash('Message content required.', 'error')
-        return redirect(request.referrer)
-        
+        return safe_redirect_referrer('dashboard')
+    if len(content) > 2000:
+        flash('Message must be 2,000 characters or fewer.', 'error')
+        return safe_redirect_referrer('dashboard')
+    try:
+        receiver_id = int(receiver_raw)
+        property_id = int(property_raw) if property_raw else None
+    except ValueError:
+        flash('Invalid recipient or property.', 'error')
+        return safe_redirect_referrer('dashboard')
+    if receiver_id == g.user['id']:
+        flash('You cannot send a message to yourself.', 'error')
+        return safe_redirect_referrer('dashboard')
+
     db = get_db()
-    db.execute('INSERT INTO messages (sender_id, receiver_id, property_id, content) VALUES (?, ?, ?, ?)',
-               (g.user['id'], receiver_id, property_id, content))
+    receiver = db.execute(
+        "SELECT id, full_name FROM users WHERE id = ? AND role != 'banned'", (receiver_id,)
+    ).fetchone()
+    if not receiver:
+        flash('Recipient not found.', 'error')
+        return safe_redirect_referrer('dashboard')
+    prop_info = None
+    if property_id is not None:
+        prop_info = db.execute(
+            'SELECT id, title FROM properties WHERE id = ?', (property_id,)
+        ).fetchone()
+        if not prop_info:
+            flash('Property not found.', 'error')
+            return safe_redirect_referrer('dashboard')
+
+    db.execute(
+        'INSERT INTO messages (sender_id, receiver_id, property_id, content) VALUES (?, ?, ?, ?)',
+        (g.user['id'], receiver_id, property_id, content),
+    )
     db.commit()
-    
+
     # Create an in-app notification for the recipient
     try:
-        receiver = db.execute('SELECT full_name FROM users WHERE id = ?', (receiver_id,)).fetchone()
-        prop_info = db.execute('SELECT title FROM properties WHERE id = ?', (property_id,)).fetchone() if property_id else None
         notif_msg = f"New message from {g.user['full_name']}"
         if prop_info:
             notif_msg += f" about '{prop_info['title']}'"
-        create_notification(db, int(receiver_id), notif_msg, url_for('dashboard') + '#messages')
+        create_notification(db, receiver_id, notif_msg, url_for('dashboard') + '#messages')
         db.commit()
-    except Exception as e:
-        print(f'Notification creation error: {e}')
+    except Exception:
+        app.logger.error('Could not create message notification for user %s.', receiver_id)
 
     flash('Message sent!', 'success')
-    return redirect(request.referrer)
+    return safe_redirect_referrer('dashboard')
 
 @app.route('/message/reply/<int:message_id>', methods=['POST'])
 @login_required
 def reply_message(message_id):
+    if not check_rate_limit('send_message_user', str(g.user['id']), 20, 600):
+        abort(429, description='Too many messages sent. Please wait a few minutes and try again.')
     db = get_db()
     original = db.execute('SELECT * FROM messages WHERE id = ?', (message_id,)).fetchone()
     if not original:
         flash('Original message not found.', 'error')
         return redirect(url_for('dashboard'))
+    if g.user['id'] not in (original['sender_id'], original['receiver_id']):
+        abort(403)
 
     content = request.form.get('content', '').strip()
     if not content:
         flash('Reply cannot be empty.', 'error')
         return redirect(url_for('dashboard'))
+    if len(content) > 2000:
+        flash('Reply must be 2,000 characters or fewer.', 'error')
+        return redirect(url_for('dashboard'))
 
-    # Reply goes back to the sender of the original
+    # Reply goes back to the other participant in the original message
     receiver_id = original['sender_id'] if original['receiver_id'] == g.user['id'] else original['receiver_id']
     db.execute(
         'INSERT INTO messages (sender_id, receiver_id, property_id, content, parent_id) VALUES (?, ?, ?, ?, ?)',
         (g.user['id'], receiver_id, original['property_id'], content, message_id)
     )
-    # Mark original as read
-    db.execute('UPDATE messages SET is_read = 1 WHERE id = ?', (message_id,))
+    # Mark original as read only when the recipient replies
+    if original['receiver_id'] == g.user['id']:
+        db.execute('UPDATE messages SET is_read = 1 WHERE id = ?', (message_id,))
     db.commit()
 
     try:
         notif_msg = f"Reply from {g.user['full_name']}"
         create_notification(db, receiver_id, notif_msg, url_for('dashboard') + '#messages')
         db.commit()
-    except Exception as e:
-        print(f'Reply notification error: {e}')
+    except Exception:
+        app.logger.error('Could not create reply notification for user %s.', receiver_id)
 
     flash('Reply sent!', 'success')
     return redirect(url_for('dashboard'))
@@ -4631,13 +5339,20 @@ def mark_messages_read():
 @login_required
 def edit_profile():
     full_name = request.form.get('full_name', '').strip()
-    phone = request.form.get('phone', '').strip()
-    profile_pic = request.form.get('profile_pic', '').strip()
-    
-    if not full_name:
-        flash('Name is required.', 'error')
+    phone_raw = request.form.get('phone', '').strip()
+    profile_pic_raw = request.form.get('profile_pic', '').strip()
+    country_region = request.form.get('country_region', 'ZM').upper()
+
+    if not full_name or len(full_name) > 120:
+        flash('Enter a valid name (up to 120 characters).', 'error')
         return redirect(url_for('dashboard'))
-    
+    try:
+        phone = normalize_phone_number(phone_raw, country_region) if phone_raw else g.user['phone']
+        profile_pic = validate_image_url(profile_pic_raw, allow_empty=True)
+    except ValueError as error:
+        flash(str(error), 'error')
+        return redirect(url_for('dashboard'))
+
     db = get_db()
     phone_changed = phone != g.user['phone']
     if phone_changed:
@@ -4853,6 +5568,8 @@ def checkout(property_id):
         return redirect(url_for('property_details', property_id=property_id))
     
     if request.method == 'POST':
+        if not check_rate_limit('checkout_user', str(g.user['id']), 10, 900):
+            abort(429, description='Too many booking requests submitted. Please wait a few minutes and try again.')
         tenant_name = request.form.get('tenant_name', '').strip()
         tenant_phone = request.form.get('tenant_phone', '').strip()
         if request.form.get('accept_policies') != 'on':
@@ -4966,8 +5683,10 @@ def checkout(property_id):
 
 # --- Image Upload Route ---
 @app.route('/upload_image', methods=['POST'])
-@login_required
+@landlord_required
 def upload_image():
+    if not check_rate_limit('upload_image_user', str(g.user['id']), 30, 600):
+        return jsonify({'error': 'Upload rate limit exceeded. Please wait a few minutes.'}), 429
     if not app.config['UPLOADS_ENABLED']:
         return jsonify({'error': 'Photo uploads are disabled until durable production storage is configured.'}), 503
     if 'image' not in request.files:
@@ -4975,20 +5694,21 @@ def upload_image():
     file = request.files['image']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
-    if file and allowed_file(file.filename):
-        ext = file.filename.rsplit('.', 1)[1].lower()
-        filename = f"{uuid.uuid4().hex}.{ext}"
-        try:
-            stored_path = upload_storage.save(file, filename)
-        except (RuntimeError, ValueError, OSError) as error:
-            app.logger.exception('Image upload failed.')
-            return jsonify({'error': str(error)}), 502
-        url = (
-            stored_path if STORAGE_BACKEND == 'supabase'
-            else url_for('static', filename=f'uploads/{filename}')
-        )
-        return jsonify({'url': url})
-    return jsonify({'error': 'File type not allowed'}), 400
+    try:
+        canonical_ext, canonical_mime = validate_image_upload(file)
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
+    filename = f"{uuid.uuid4().hex}.{canonical_ext}"
+    try:
+        stored_path = upload_storage.save(file, filename, content_type=canonical_mime)
+    except (RuntimeError, ValueError, OSError):
+        app.logger.exception('Image upload failed.')
+        return jsonify({'error': 'Could not store the uploaded image. Please try again.'}), 502
+    url = (
+        stored_path if STORAGE_BACKEND == 'supabase'
+        else url_for('static', filename=f'uploads/{filename}')
+    )
+    return jsonify({'url': url})
 
 
 @app.route('/booking/<int:booking_id>/pay/mobile-money', methods=['POST'])
@@ -5274,8 +5994,8 @@ def approve_booking(booking_id):
                 f"Your booking for '{booking['title']}' has been confirmed!",
                 url_for('dashboard'))
             db.commit()
-    except Exception as e:
-        print(f'Notification error: {e}')
+    except Exception:
+        app.logger.error('Could not create booking cancellation notification for booking %s.', booking_id)
 
     # Notify tenant by email
     try:
@@ -5334,8 +6054,8 @@ def decline_booking(booking_id):
                 f"Unfortunately, your booking request for '{booking['title']}' was declined.",
                 url_for('dashboard'))
             db.commit()
-    except Exception as e:
-        print(f'Notification error: {e}')
+    except Exception:
+        app.logger.error('Could not create booking cancellation notification for booking %s.', booking_id)
 
     # Notify tenant
     try:
@@ -5371,12 +6091,25 @@ def edit_property(property_id):
 
     if request.method == 'POST':
         previous_price = float(property['price_per_night'])
-        title = request.form['title']
-        description = request.form['description']
-        price = request.form['price']
-        price_period = request.form['price_period']
-        compound = request.form['compound']
-        property_type = request.form['property_type']
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        price_raw = request.form.get('price', '').strip()
+        price_period = request.form.get('price_period', 'night').strip() or 'night'
+        compound = request.form.get('compound', '').strip()
+        property_type = request.form.get('property_type', '').strip()
+        if not title or not description or not compound or not property_type:
+            flash('Please fill in all required property details.', 'error')
+            return redirect(url_for('edit_property', property_id=property_id))
+        if len(title) > 160 or len(description) > 5000:
+            flash('Title must be under 160 characters and description under 5,000 characters.', 'error')
+            return redirect(url_for('edit_property', property_id=property_id))
+        try:
+            price = parse_nonnegative_money(price_raw, 'Price')
+            if price <= 0:
+                raise ValueError('Price must be greater than zero.')
+        except ValueError as error:
+            flash(str(error), 'error')
+            return redirect(url_for('edit_property', property_id=property_id))
         try:
             latitude, longitude = parse_location_coordinates(
                 request.form.get('latitude'), request.form.get('longitude')
@@ -5420,7 +6153,19 @@ def edit_property(property_id):
         has_parking  = 1 if 'has_parking'  in request.form else 0
 
         # Handle main image: new upload takes priority, then existing URL, then keep old
-        new_main_image = request.form.get('new_main_image_url', '').strip()
+        new_main_image_raw = request.form.get('new_main_image_url', '').strip()
+        extra_images_raw = request.form.get('extra_images', '').strip()
+        try:
+            new_main_image = validate_image_url(new_main_image_raw, allow_empty=True)
+            validated_extra_images = []
+            if extra_images_raw:
+                for img in extra_images_raw.split(','):
+                    img = img.strip()
+                    if img:
+                        validated_extra_images.append(validate_image_url(img))
+        except ValueError as error:
+            flash(str(error), 'error')
+            return redirect(url_for('edit_property', property_id=property_id))
         image_main = new_main_image if new_main_image else property['image_main']
 
         db.execute('''
@@ -5462,22 +6207,19 @@ def edit_property(property_id):
             )
 
         # Handle extra images if provided
-        extra_images_raw = request.form.get('extra_images', '').strip()
         extra_image_category = request.form.get('extra_image_category', 'other')
         if extra_image_category not in PHOTO_CATEGORIES:
             extra_image_category = 'other'
-        if extra_images_raw:
+        if validated_extra_images:
             # Add new images (don't delete existing to be safe)
-            for img in extra_images_raw.split(','):
-                img = img.strip()
-                if img:
-                    try:
-                        db.execute(
-                            'INSERT INTO property_images (property_id, image_url, category) VALUES (?, ?, ?)',
-                            (property_id, img, extra_image_category),
-                        )
-                    except DB_ERRORS:
-                        app.logger.exception('Could not add gallery photo to property %s', property_id)
+            for img in validated_extra_images:
+                try:
+                    db.execute(
+                        'INSERT INTO property_images (property_id, image_url, category) VALUES (?, ?, ?)',
+                        (property_id, img, extra_image_category),
+                    )
+                except DB_ERRORS:
+                    app.logger.exception('Could not add gallery photo to property %s', property_id)
 
         db.commit()
         flash('Property updated successfully!', 'success')
@@ -5552,7 +6294,8 @@ def host_profile(user_id):
 @app.route('/profile/change_password', methods=['POST'])
 @login_required
 def change_password():
-    import re
+    if not check_rate_limit('change_password_user', str(g.user['id']), 10, 900):
+        abort(429, description='Too many password change attempts. Please wait and try again.')
     current = request.form.get('current_password', '')
     new_pw = request.form.get('new_password', '')
     confirm = request.form.get('confirm_password', '')
@@ -5560,20 +6303,32 @@ def change_password():
     if not check_password_hash(g.user['password'], current):
         flash('Current password is incorrect.', 'error')
         return redirect(url_for('dashboard'))
-    if len(new_pw) < 6:
-        flash('New password must be at least 6 characters.', 'error')
-        return redirect(url_for('dashboard'))
-    if not (re.search(r'[a-zA-Z]', new_pw) and re.search(r'[0-9]', new_pw)):
-        flash('Password must contain both letters and numbers.', 'error')
+    password_error = validate_password_strength(new_pw)
+    if password_error:
+        flash(password_error, 'error')
         return redirect(url_for('dashboard'))
     if new_pw != confirm:
         flash('Passwords do not match.', 'error')
         return redirect(url_for('dashboard'))
 
     db = get_db()
-    db.execute('UPDATE users SET password = ? WHERE id = ?',
-               (generate_password_hash(new_pw), g.user['id']))
+    user_id = g.user['id']
+    new_sv = _user_session_version(g.user) + 1
+    db.execute(
+        'UPDATE users SET password = ?, session_version = ? WHERE id = ?',
+        (generate_password_hash(new_pw), new_sv, user_id),
+    )
     db.commit()
+    # Regenerate session state and invalidate all other active devices
+    was_permanent = session.permanent
+    session.clear()
+    now = time.time()
+    session['user_id'] = user_id
+    session['session_version'] = new_sv
+    session['_session_created_at'] = now
+    session['_session_last_active'] = now
+    session.permanent = was_permanent
+    csrf_token()
     flash('Password changed successfully!', 'success')
     return redirect(url_for('dashboard'))
 
@@ -5625,14 +6380,26 @@ def booking_receipt(booking_id):
 @app.route('/payout/add', methods=['POST'])
 @landlord_required
 def add_payout_method():
-    provider = request.form.get('provider', '')
-    account_name = request.form.get('account_name', '')
-    account_number = request.form.get('account_number', '')
-    bank_name = request.form.get('bank_name', '')
-    branch_code = request.form.get('branch_code', '')
+    provider = request.form.get('provider', '').strip()
+    account_name = request.form.get('account_name', '').strip()
+    account_number = request.form.get('account_number', '').strip()
+    bank_name = request.form.get('bank_name', '').strip()
+    branch_code = request.form.get('branch_code', '').strip()
 
+    allowed_providers = {'Bank Transfer', 'Mobile Money', 'Airtel Money', 'MTN Money', 'Zamtel Kwacha'}
     if not provider or not account_name or not account_number:
         flash('Provider, account name and account number are required.', 'error')
+        return redirect(url_for('dashboard'))
+    if provider not in allowed_providers:
+        flash('Choose a valid payout provider.', 'error')
+        return redirect(url_for('dashboard'))
+    if (
+        len(account_name) > 120
+        or len(account_number) > 60
+        or len(bank_name) > 120
+        or len(branch_code) > 40
+    ):
+        flash('Payout details are too long.', 'error')
         return redirect(url_for('dashboard'))
 
     db = get_db()
@@ -5671,9 +6438,13 @@ def admin_ban_user(user_id):
     if user['is_admin']:
         flash('Cannot ban an admin.', 'error')
         return redirect(url_for('admin_dashboard'))
-    # Deactivate all their properties
+    # Deactivate all their properties and invalidate all active sessions
     db.execute('UPDATE properties SET is_active = 0 WHERE owner_id = ?', (user_id,))
-    db.execute('UPDATE users SET role = ? WHERE id = ?', ('banned', user_id))
+    db.execute(
+        'UPDATE users SET role = ?, session_version = COALESCE(session_version, 1) + 1 WHERE id = ?',
+        ('banned', user_id),
+    )
+    log_admin_action(db, 'user_banned', 'user', user_id, user['email'])
     db.commit()
     flash(f'User "{user["full_name"]}" has been banned.', 'info')
     return redirect(url_for('admin_dashboard'))
@@ -5683,7 +6454,9 @@ def admin_ban_user(user_id):
 @admin_required
 def admin_unban_user(user_id):
     db = get_db()
-    db.execute("UPDATE users SET role = 'tenant' WHERE id = ? AND role = 'banned'", (user_id,))
+    result = db.execute("UPDATE users SET role = 'tenant' WHERE id = ? AND role = 'banned'", (user_id,))
+    if result.rowcount:
+        log_admin_action(db, 'user_unbanned', 'user', user_id)
     db.commit()
     flash('User unbanned.', 'success')
     return redirect(url_for('admin_dashboard'))
@@ -5694,6 +6467,7 @@ def admin_unban_user(user_id):
 def admin_force_delist(property_id):
     db = get_db()
     db.execute('UPDATE properties SET is_active = 0 WHERE id = ?', (property_id,))
+    log_admin_action(db, 'property_force_delisted', 'property', property_id)
     db.commit()
     flash('Property force-delisted by admin.', 'info')
     return redirect(url_for('admin_dashboard'))
@@ -5712,6 +6486,7 @@ def admin_force_relist(property_id):
             'SELECT * FROM properties WHERE id = ?', (property_id,)
         ).fetchone()
         notify_matching_searches(db, property_row, event='available')
+        log_admin_action(db, 'property_force_relisted', 'property', property_id)
     db.commit()
     flash('Property re-listed by admin.', 'success')
     return redirect(url_for('admin_dashboard'))

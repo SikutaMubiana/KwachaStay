@@ -47,7 +47,7 @@
             <div class="flex gap-4 items-start">
                 {% if booking.image_main %}
                 <img src="{{ booking.image_main }}" alt="{{ booking.title }}" class="w-20 h-20 rounded-xl object-cover flex-shrink-0"
-                    onerror="this.src='https://placehold.co/80x80/f3f4f6/9ca3af?text=N/A'">
+                    onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/no-photo.svg') }}'">
                 {% endif %}
                 <div>
                     <h2 class="text-lg font-bold text-gray-900">{{ booking.title }}</h2>

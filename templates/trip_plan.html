@@ -65,7 +65,7 @@
                     {% for prop in properties %}
                     <td class="p-4">
                         {% if prop.last_confirmed_at %}
-                        Confirmed {{ prop.last_confirmed_at[:10] }}
+                        Confirmed {{ (prop.last_confirmed_at|string)[:10] }}
                         {% else %}Not recently confirmed{% endif %}
                     </td>
                     {% endfor %}

@@ -36,7 +36,7 @@ class SupabaseUploadStorage:
         except urllib.error.URLError as error:
             raise RuntimeError('Supabase Storage could not be reached.') from error
 
-    def save(self, uploaded_file, filename):
+    def save(self, uploaded_file, filename, content_type=None):
         safe_name = secure_filename(filename)
         if not safe_name:
             raise ValueError('A safe upload filename is required.')
@@ -45,11 +45,16 @@ class SupabaseUploadStorage:
             uploaded_file.seek(0)
         encoded_bucket = urllib.parse.quote(self.bucket, safe='')
         encoded_name = urllib.parse.quote(safe_name, safe='/')
+        resolved_content_type = (
+            content_type
+            or getattr(uploaded_file, 'mimetype', None)
+            or 'application/octet-stream'
+        )
         self._request(
             'POST',
             f'/storage/v1/object/{encoded_bucket}/{encoded_name}',
             data=data,
-            content_type=getattr(uploaded_file, 'mimetype', None) or 'application/octet-stream',
+            content_type=resolved_content_type,
         )
         return f'{self.url}/storage/v1/object/public/{encoded_bucket}/{encoded_name}'
 

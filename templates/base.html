@@ -9,15 +9,15 @@
     <meta name="description"
         content="Find and book premium accommodation in Lusaka, Zambia. From cozy guest houses to luxury villas in Kabulonga, Rhodes Park, and more.">
     <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script nonce="{{ csp_nonce() }}" src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Google Fonts for Premium Feel -->
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     {% if not low_data_mode and request.endpoint in ['index', 'property_details', 'add_house', 'edit_property'] %}
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script nonce="{{ csp_nonce() }}" src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     {% endif %}
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         tailwind.config = {
             theme: {
                 extend: {
@@ -120,20 +120,28 @@
                             class="text-sm font-medium text-gray-700 hover:text-primary transition">
                             {{ 'Landlord Dashboard' if g.user['role'] == 'owner' else 'Tenant Dashboard' }}
                             {% if unread_messages > 0 %}
-                            <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full ml-0.5 -mt-1 align-top">{{ unread_messages }}</span>
+                            <span
+                                class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full ml-0.5 -mt-1 align-top">{{
+                                unread_messages }}</span>
                             {% endif %}
                         </a>
                         <a href="{{ url_for('support_center') }}"
                             class="text-sm font-medium text-gray-700 hover:text-primary transition">Support</a>
                         <!-- Notifications Bell -->
-                        <a href="{{ url_for('notifications') }}" class="relative text-gray-600 hover:text-primary transition" title="Notifications">
+                        <a href="{{ url_for('notifications') }}"
+                            class="relative text-gray-600 hover:text-primary transition" title="Notifications">
                             <i class="fa-solid fa-bell text-lg"></i>
                             {% if unread_notifications > 0 %}
-                            <span class="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold text-white bg-primary rounded-full flex items-center justify-center">{{ unread_notifications }}</span>
+                            <span
+                                class="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold text-white bg-primary rounded-full flex items-center justify-center">{{
+                                unread_notifications }}</span>
                             {% endif %}
                         </a>
-                        <a href="{{ url_for('logout') }}"
-                            class="text-sm font-medium text-gray-500 hover:text-red-600 transition">Logout</a>
+                        <form action="{{ url_for('logout') }}" method="POST" class="inline no-loader">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit"
+                                class="text-sm font-medium text-gray-500 hover:text-red-600 transition">Logout</button>
+                        </form>
                     </div>
                     {% else %}
                     <a href="{{ url_for('login') }}"
@@ -196,8 +204,11 @@
                 </a>
                 <a href="{{ url_for('support_center') }}"
                     class="text-base font-medium text-gray-700 hover:text-primary transition">Support</a>
-                <a href="{{ url_for('logout') }}"
-                    class="text-base font-medium text-gray-500 hover:text-red-600 transition">Logout</a>
+                <form action="{{ url_for('logout') }}" method="POST" class="no-loader">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit"
+                        class="text-base font-medium text-gray-500 hover:text-red-600 transition">Logout</button>
+                </form>
                 {% else %}
                 <hr class="border-gray-100">
                 <a href="{{ url_for('login') }}"
@@ -247,21 +258,23 @@
             class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
             <p class="text-base text-gray-500">&copy; 2026 KwachaStay. Made for Lusaka.</p>
             <div class="flex flex-wrap items-center gap-5 mt-4 md:mt-0">
-                <a href="{{ url_for('about') }}" class="text-sm font-medium text-gray-600 hover:text-primary">About KwachaStay</a>
-                <a href="{{ url_for('terms_of_service') }}" class="text-sm font-medium text-gray-600 hover:text-primary">Terms</a>
-                <a href="{{ url_for('privacy_policy') }}" class="text-sm font-medium text-gray-600 hover:text-primary">Privacy</a>
+                <a href="{{ url_for('about') }}" class="text-sm font-medium text-gray-600 hover:text-primary">About
+                    KwachaStay</a>
+                <a href="{{ url_for('terms_of_service') }}"
+                    class="text-sm font-medium text-gray-600 hover:text-primary">Terms</a>
+                <a href="{{ url_for('privacy_policy') }}"
+                    class="text-sm font-medium text-gray-600 hover:text-primary">Privacy</a>
                 <a href="https://wa.me/{{ payment_whatsapp_number }}?text={{ 'Hello KwachaStay, I need help with a booking or property listing.'|urlencode }}"
                     target="_blank" rel="noopener noreferrer"
                     class="text-sm font-semibold text-green-700 hover:text-green-800">
                     <i class="fa-brands fa-whatsapp mr-1"></i>+260 764 483 750
                 </a>
-                <a href="https://www.facebook.com/share/1QGWyvp4dq/?mibextid=wwXIfr"
-                    target="_blank" rel="noopener noreferrer"
-                    class="text-gray-500 hover:text-blue-700" aria-label="KwachaStay on Facebook">
+                <a href="https://www.facebook.com/share/1QGWyvp4dq/?mibextid=wwXIfr" target="_blank"
+                    rel="noopener noreferrer" class="text-gray-500 hover:text-blue-700"
+                    aria-label="KwachaStay on Facebook">
                     <i class="fa-brands fa-facebook text-xl" aria-hidden="true"></i>
                 </a>
-                <a href="https://www.instagram.com/_sikuta/"
-                    target="_blank" rel="noopener noreferrer"
+                <a href="https://www.instagram.com/_sikuta/" target="_blank" rel="noopener noreferrer"
                     class="text-gray-500 hover:text-pink-700" aria-label="Sikuta Mubiana on Instagram">
                     <i class="fa-brands fa-instagram text-xl" aria-hidden="true"></i>
                 </a>
@@ -277,7 +290,7 @@
         </div>
     </div>
 
-    <script>
+    <script nonce="{{ csp_nonce() }}">
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
         const nativeFetch = window.fetch.bind(window);
         window.fetch = (input, init = {}) => {

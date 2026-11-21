@@ -18,40 +18,50 @@
         <h2 class="text-lg font-semibold mb-4"><i class="fa-solid fa-images text-primary mr-2"></i>Property Photos</h2>
         {% if not uploads_enabled %}
         <p class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            Photo uploads are disabled on this server until durable storage is configured. Existing local uploads will not survive redeployments.
+            Photo uploads are disabled on this server until durable storage is configured. Existing local uploads will
+            not survive redeployments.
         </p>
         {% endif %}
         <div class="mb-4 rounded-lg bg-gray-50 p-3">
             <p class="text-sm font-semibold text-gray-800">Recommended photo checklist</p>
             <div class="mt-2 flex flex-wrap gap-2">
-                {% for key, label in [('bedroom', 'Bedroom'), ('bathroom', 'Bathroom'), ('kitchen', 'Kitchen'), ('entrance', 'Entrance'), ('parking', 'Parking')] %}
-                <span class="rounded-full px-2 py-1 text-xs {% if key in photo_categories_present %}bg-green-100 text-green-800{% else %}bg-amber-100 text-amber-800{% endif %}">
-                    <i class="fa-solid {% if key in photo_categories_present %}fa-check{% else %}fa-circle-exclamation{% endif %} mr-1"></i>{{ label }}
+                {% for key, label in [('bedroom', 'Bedroom'), ('bathroom', 'Bathroom'), ('kitchen', 'Kitchen'),
+                ('entrance', 'Entrance'), ('parking', 'Parking')] %}
+                <span
+                    class="rounded-full px-2 py-1 text-xs {% if key in photo_categories_present %}bg-green-100 text-green-800{% else %}bg-amber-100 text-amber-800{% endif %}">
+                    <i
+                        class="fa-solid {% if key in photo_categories_present %}fa-check{% else %}fa-circle-exclamation{% endif %} mr-1"></i>{{
+                    label }}
                 </span>
                 {% endfor %}
             </div>
-            <p class="mt-2 text-xs text-gray-500">Select the category that matches each photo. Existing unlabelled photos are marked as “Other”.</p>
+            <p class="mt-2 text-xs text-gray-500">Select the category that matches each photo. Existing unlabelled
+                photos are marked as “Other”.</p>
         </div>
         <label class="mb-3 block text-xs text-gray-600">Main photo category
             <select name="main_photo_category" form="propertyForm" class="ml-2 rounded-lg border p-2">
                 {% for key, label in photo_categories.items() %}
-                <option value="{{ key }}" {% if property.main_photo_category == key %}selected{% endif %}>{{ label }}</option>
+                <option value="{{ key }}" {% if property.main_photo_category==key %}selected{% endif %}>{{ label }}
+                </option>
                 {% endfor %}
             </select>
         </label>
-        
+
         <!-- Current main image preview -->
         <div class="mb-4">
             <p class="text-sm font-medium text-gray-700 mb-2">Current Main Photo</p>
             <div class="relative w-full h-48 rounded-xl overflow-hidden bg-gray-100 border">
                 {% if property.image_main %}
-                <img id="mainImagePreview" src="{{ property.image_main }}" class="w-full h-full object-cover" alt="Main photo">
+                <img id="mainImagePreview" src="{{ property.image_main }}" class="w-full h-full object-cover"
+                    onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/no-photo.svg') }}'"
+                    alt="Main photo">
                 {% else %}
                 <div id="mainImagePreview" class="w-full h-full flex items-center justify-center text-gray-400">
                     <i class="fa-solid fa-image text-4xl"></i>
                 </div>
                 {% endif %}
-                <div class="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 flex items-center justify-center transition {% if uploads_enabled %}cursor-pointer{% else %}cursor-not-allowed{% endif %}" {% if uploads_enabled %}onclick="document.getElementById('mainImageInput').click()"{% endif %}>
+                <div class="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 flex items-center justify-center transition {% if uploads_enabled %}cursor-pointer{% else %}cursor-not-allowed{% endif %}"
+                    {% if uploads_enabled %}onclick="document.getElementById('mainImageInput').click()" {% endif %}>
                     <span class="text-white font-bold text-sm bg-black/50 px-3 py-1 rounded-full">
                         <i class="fa-solid fa-pen-to-square mr-1"></i> Change Photo
                     </span>
@@ -60,7 +70,8 @@
         </div>
 
         <!-- Upload / URL input for main image -->
-        <input type="file" id="mainImageInput" accept="image/*" class="hidden" onchange="uploadMainImage(this)" {% if not uploads_enabled %}disabled{% endif %}>
+        <input type="file" id="mainImageInput" accept="image/*" class="hidden" onchange="uploadMainImage(this)" {% if
+            not uploads_enabled %}disabled{% endif %}>
         <input type="hidden" name="new_main_image_url" id="newMainImageUrl" form="propertyForm">
 
         <div class="flex gap-2 mb-2">
@@ -70,7 +81,8 @@
                 <span id="uploadBtnText">Upload New Photo</span>
             </button>
         </div>
-        <p class="text-xs text-gray-400 text-center">JPG, PNG, WebP &bull; Max 16 MB &bull; Your current photo stays if you don't upload a new one</p>
+        <p class="text-xs text-gray-400 text-center">JPG, PNG, GIF, WebP &bull; Max 10 MB &bull; Your current photo stays if
+            you don't upload a new one</p>
 
         <!-- Upload progress -->
         <div id="uploadProgress" class="hidden mt-2">
@@ -89,11 +101,12 @@
                 <label class="block text-sm font-medium text-gray-700 mb-1">What kind of place is it?</label>
                 <select name="property_type" id="propertyType" required onchange="toggleFields()"
                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
-                    <option value="House"      {% if property.property_type == 'House'      %}selected{% endif %}>House</option>
-                    <option value="Villa"      {% if property.property_type == 'Villa'      %}selected{% endif %}>Villa</option>
-                    <option value="Guest House"{% if property.property_type == 'Guest House'%}selected{% endif %}>Guest House</option>
-                    <option value="Hotel"      {% if property.property_type == 'Hotel'      %}selected{% endif %}>Hotel</option>
-                    <option value="Hostel"     {% if property.property_type == 'Hostel'     %}selected{% endif %}>Hostel</option>
+                    <option value="House" {% if property.property_type=='House' %}selected{% endif %}>House</option>
+                    <option value="Villa" {% if property.property_type=='Villa' %}selected{% endif %}>Villa</option>
+                    <option value="Guest House" {% if property.property_type=='Guest House' %}selected{% endif %}>Guest
+                        House</option>
+                    <option value="Hotel" {% if property.property_type=='Hotel' %}selected{% endif %}>Hotel</option>
+                    <option value="Hostel" {% if property.property_type=='Hostel' %}selected{% endif %}>Hostel</option>
                 </select>
             </div>
         </div>
@@ -124,10 +137,12 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Bed Type</label>
                     <select name="bed_type"
                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
-                        <option value="Double" {% if property.bed_type == 'Double' %}selected{% endif %}>Double Bed</option>
-                        <option value="Single" {% if property.bed_type == 'Single' %}selected{% endif %}>Single Bed</option>
-                        <option value="Bunk"   {% if property.bed_type == 'Bunk'   %}selected{% endif %}>Bunk Bed</option>
-                        <option value="King"   {% if property.bed_type == 'King'   %}selected{% endif %}>King Size</option>
+                        <option value="Double" {% if property.bed_type=='Double' %}selected{% endif %}>Double Bed
+                        </option>
+                        <option value="Single" {% if property.bed_type=='Single' %}selected{% endif %}>Single Bed
+                        </option>
+                        <option value="Bunk" {% if property.bed_type=='Bunk' %}selected{% endif %}>Bunk Bed</option>
+                        <option value="King" {% if property.bed_type=='King' %}selected{% endif %}>King Size</option>
                     </select>
                 </div>
 
@@ -141,16 +156,19 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Kitchen Type</label>
                     <select name="kitchen_type"
                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
-                        <option value="Private" {% if property.kitchen_type == 'Private' %}selected{% endif %}>Private Kitchen</option>
-                        <option value="Shared"  {% if property.kitchen_type == 'Shared'  %}selected{% endif %}>Shared Kitchen</option>
-                        <option value="None"    {% if property.kitchen_type == 'None'    %}selected{% endif %}>No Kitchen</option>
+                        <option value="Private" {% if property.kitchen_type=='Private' %}selected{% endif %}>Private
+                            Kitchen</option>
+                        <option value="Shared" {% if property.kitchen_type=='Shared' %}selected{% endif %}>Shared
+                            Kitchen</option>
+                        <option value="None" {% if property.kitchen_type=='None' %}selected{% endif %}>No Kitchen
+                        </option>
                     </select>
                 </div>
 
                 <div id="sittingRoomField" class="flex items-center pt-6">
                     <label class="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" name="has_sitting_room" {% if property.has_sitting_room %}checked{% endif %}
-                            class="rounded text-primary focus:ring-primary w-5 h-5">
+                        <input type="checkbox" name="has_sitting_room" {% if property.has_sitting_room %}checked{% endif
+                            %} class="rounded text-primary focus:ring-primary w-5 h-5">
                         <span class="text-sm font-medium text-gray-700">Has Sitting Room</span>
                     </label>
                 </div>
@@ -166,7 +184,8 @@
                     <select name="compound" required
                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
                         {% for comp in compounds %}
-                        <option value="{{ comp }}" {% if property.compound == comp %}selected{% endif %}>{{ comp }}</option>
+                        <option value="{{ comp }}" {% if property.compound==comp %}selected{% endif %}>{{ comp }}
+                        </option>
                         {% endfor %}
                     </select>
                 </div>
@@ -184,18 +203,20 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">One-time cleaning fee (ZMW)</label>
-                    <input type="number" name="cleaning_fee" min="0" step="0.01" value="{{ property.cleaning_fee or 0 }}"
-                        class="w-full rounded-lg border-gray-300 p-3 border">
+                    <input type="number" name="cleaning_fee" min="0" step="0.01"
+                        value="{{ property.cleaning_fee or 0 }}" class="w-full rounded-lg border-gray-300 p-3 border">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Refundable security deposit (ZMW)</label>
-                    <input type="number" name="refundable_deposit" min="0" step="0.01" value="{{ property.refundable_deposit or 0 }}"
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Refundable security deposit
+                        (ZMW)</label>
+                    <input type="number" name="refundable_deposit" min="0" step="0.01"
+                        value="{{ property.refundable_deposit or 0 }}"
                         class="w-full rounded-lg border-gray-300 p-3 border">
                     <p class="text-xs text-gray-500 mt-1">Shown separately; it is not included in the booking total.</p>
                 </div>
                 <label class="flex items-center gap-2 text-sm text-gray-700 md:col-span-2">
-                    <input type="checkbox" name="utilities_included" {% if property.utilities_included %}checked{% endif %}
-                        class="rounded text-primary">
+                    <input type="checkbox" name="utilities_included" {% if property.utilities_included %}checked{% endif
+                        %} class="rounded text-primary">
                     Utilities are included in the displayed price
                 </label>
             </div>
@@ -203,19 +224,23 @@
                 <label class="block text-sm font-medium text-gray-700">Power and backup
                     <select name="power_backup" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
                         <option value="">Not specified</option>
-                        {% for value, label in power_backup_options.items() %}<option value="{{ value }}" {% if property.power_backup == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                        {% for value, label in power_backup_options.items() %}<option value="{{ value }}" {% if
+                            property.power_backup==value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                     </select>
                 </label>
                 <label class="block text-sm font-medium text-gray-700">Water supply
                     <select name="water_supply" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
                         <option value="">Not specified</option>
-                        {% for value, label in water_supply_options.items() %}<option value="{{ value }}" {% if property.water_supply == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                        {% for value, label in water_supply_options.items() %}<option value="{{ value }}" {% if
+                            property.water_supply==value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                     </select>
                 </label>
                 <label class="block text-sm font-medium text-gray-700">Internet
-                    <select name="internet_availability" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                    <select name="internet_availability"
+                        class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
                         <option value="">Not specified</option>
-                        {% for value, label in internet_options.items() %}<option value="{{ value }}" {% if property.internet_availability == value %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                        {% for value, label in internet_options.items() %}<option value="{{ value }}" {% if
+                            property.internet_availability==value %}selected{% endif %}>{{ label }}</option>{% endfor %}
                     </select>
                 </label>
                 <label class="block text-sm font-medium text-gray-700">Internet speed (optional, Mbps)
@@ -228,12 +253,14 @@
 
         <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
             <h2 class="text-lg font-semibold text-gray-900">Map location</h2>
-            <p class="mt-1 text-sm text-gray-600">Click the map, enter coordinates, or use your device's current location while at the property. Location access requires your permission.</p>
+            <p class="mt-1 text-sm text-gray-600">Click the map, enter coordinates, or use your device's current
+                location while at the property. Location access requires your permission.</p>
             <button type="button" id="useCurrentLocation"
                 class="mt-3 rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
                 <i class="fa-solid fa-location-crosshairs mr-1"></i>Use my current location
             </button>
-            <p id="locationPickerStatus" role="status" class="mt-2 text-xs text-gray-500">Without a pin, guests will see the neighbourhood only.</p>
+            <p id="locationPickerStatus" role="status" class="mt-2 text-xs text-gray-500">Without a pin, guests will see
+                the neighbourhood only.</p>
             <div id="locationPickerMap" class="mt-3 h-72 w-full rounded-xl border bg-gray-100"></div>
             <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label class="text-xs font-semibold text-gray-600">Latitude
@@ -256,9 +283,13 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Cancellation policy</label>
                     <select name="cancellation_policy" class="w-full rounded-lg border-gray-300 p-3 border bg-white">
-                        <option value="flexible" {% if property.cancellation_policy == 'flexible' %}selected{% endif %}>Flexible — full refund up to 24 hours before check-in</option>
-                        <option value="moderate" {% if not property.cancellation_policy or property.cancellation_policy == 'moderate' %}selected{% endif %}>Moderate — full refund up to 5 days before check-in</option>
-                        <option value="strict" {% if property.cancellation_policy == 'strict' %}selected{% endif %}>Strict — cancellation terms agreed with host</option>
+                        <option value="flexible" {% if property.cancellation_policy=='flexible' %}selected{% endif %}>
+                            Flexible — full refund up to 24 hours before check-in</option>
+                        <option value="moderate" {% if not property.cancellation_policy or
+                            property.cancellation_policy=='moderate' %}selected{% endif %}>Moderate — full refund up to
+                            5 days before check-in</option>
+                        <option value="strict" {% if property.cancellation_policy=='strict' %}selected{% endif %}>Strict
+                            — cancellation terms agreed with host</option>
                     </select>
                 </div>
                 <div>
@@ -284,10 +315,12 @@
                             class="mt-1 w-full rounded-lg border-gray-300 p-3 border">
                     </label>
                     <label class="block text-sm font-medium text-gray-700">Check-in method
-                        <select name="self_checkin_method" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                        <select name="self_checkin_method"
+                            class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
                             <option value="">Not specified</option>
                             {% for value, label in self_checkin_options.items() %}
-                            <option value="{{ value }}" {% if property.self_checkin_method == value %}selected{% endif %}>{{ label }}</option>
+                            <option value="{{ value }}" {% if property.self_checkin_method==value %}selected{% endif %}>
+                                {{ label }}</option>
                             {% endfor %}
                         </select>
                     </label>
@@ -318,7 +351,8 @@
                             value="{{ property.emergency_contact_phone or '' }}"
                             class="mt-1 w-full rounded-lg border-gray-300 p-3 border">
                     </label>
-                    <p class="text-xs text-gray-500 sm:col-span-2">Shared only with guests whose booking is confirmed. Enter both fields or leave both blank.</p>
+                    <p class="text-xs text-gray-500 sm:col-span-2">Shared only with guests whose booking is confirmed.
+                        Enter both fields or leave both blank.</p>
                 </div>
             </div>
         </div>
@@ -330,19 +364,23 @@
             <div class="mb-6">
                 <span class="block text-sm font-medium text-gray-700 mb-3">Lusaka Essentials (Critical)</span>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                    <label
+                        class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
                         <input type="checkbox" name="has_solar" {% if property.has_solar %}checked{% endif %}
                             class="rounded text-primary focus:ring-primary w-5 h-5">
                         <div class="text-sm">
-                            <span class="font-bold block text-gray-900"><i class="fa-solid fa-solar-panel text-orange-500 mr-2"></i>Solar / Inverter</span>
+                            <span class="font-bold block text-gray-900"><i
+                                    class="fa-solid fa-solar-panel text-orange-500 mr-2"></i>Solar / Inverter</span>
                             <span class="text-gray-500 text-xs">Backup power available</span>
                         </div>
                     </label>
-                    <label class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
+                    <label
+                        class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
                         <input type="checkbox" name="has_borehole" {% if property.has_borehole %}checked{% endif %}
                             class="rounded text-primary focus:ring-primary w-5 h-5">
                         <div class="text-sm">
-                            <span class="font-bold block text-gray-900"><i class="fa-solid fa-faucet-drip text-blue-500 mr-2"></i>Borehole Water</span>
+                            <span class="font-bold block text-gray-900"><i
+                                    class="fa-solid fa-faucet-drip text-blue-500 mr-2"></i>Borehole Water</span>
                             <span class="text-gray-500 text-xs">Consistent water supply</span>
                         </div>
                     </label>
@@ -353,39 +391,53 @@
                 <span class="block text-sm font-medium text-gray-700 mb-3">Comfort &amp; Leisure</span>
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="has_wifi" {% if property.has_wifi %}checked{% endif %} class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <input type="checkbox" name="has_wifi" {% if property.has_wifi %}checked{% endif %}
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
                         <span class="text-sm text-gray-700"><i class="fa-solid fa-wifi w-5 text-center"></i> WiFi</span>
                     </label>
                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="has_ac" {% if property.has_ac %}checked{% endif %} class="rounded text-primary focus:ring-primary w-4 h-4">
-                        <span class="text-sm text-gray-700"><i class="fa-solid fa-snowflake w-5 text-center"></i> AC</span>
+                        <input type="checkbox" name="has_ac" {% if property.has_ac %}checked{% endif %}
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-snowflake w-5 text-center"></i>
+                            AC</span>
                     </label>
                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="has_pool" {% if property.has_pool %}checked{% endif %} class="rounded text-primary focus:ring-primary w-4 h-4">
-                        <span class="text-sm text-gray-700"><i class="fa-solid fa-water-ladder w-5 text-center"></i> Pool</span>
+                        <input type="checkbox" name="has_pool" {% if property.has_pool %}checked{% endif %}
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-water-ladder w-5 text-center"></i>
+                            Pool</span>
                     </label>
                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="has_garden" {% if property.has_garden %}checked{% endif %} class="rounded text-primary focus:ring-primary w-4 h-4">
-                        <span class="text-sm text-gray-700"><i class="fa-solid fa-tree w-5 text-center"></i> Garden</span>
+                        <input type="checkbox" name="has_garden" {% if property.has_garden %}checked{% endif %}
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-tree w-5 text-center"></i>
+                            Garden</span>
                     </label>
                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="has_bbq" {% if property.has_bbq %}checked{% endif %} class="rounded text-primary focus:ring-primary w-4 h-4">
-                        <span class="text-sm text-gray-700"><i class="fa-solid fa-fire-burner w-5 text-center"></i> BBQ Area</span>
+                        <input type="checkbox" name="has_bbq" {% if property.has_bbq %}checked{% endif %}
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-fire-burner w-5 text-center"></i> BBQ
+                            Area</span>
                     </label>
                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="has_balcony" {% if property.has_balcony %}checked{% endif %} class="rounded text-primary focus:ring-primary w-4 h-4">
-                        <span class="text-sm text-gray-700"><i class="fa-solid fa-cloud-sun w-5 text-center"></i> Balcony</span>
+                        <input type="checkbox" name="has_balcony" {% if property.has_balcony %}checked{% endif %}
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-cloud-sun w-5 text-center"></i>
+                            Balcony</span>
                     </label>
                     <label class="flex items-center gap-2">
-                        <input type="checkbox" name="has_parking" {% if property.has_parking %}checked{% endif %} class="rounded text-primary focus:ring-primary w-4 h-4">
-                        <span class="text-sm text-gray-700"><i class="fa-solid fa-car w-5 text-center"></i> Parking</span>
+                        <input type="checkbox" name="has_parking" {% if property.has_parking %}checked{% endif %}
+                            class="rounded text-primary focus:ring-primary w-4 h-4">
+                        <span class="text-sm text-gray-700"><i class="fa-solid fa-car w-5 text-center"></i>
+                            Parking</span>
                     </label>
                 </div>
             </div>
 
             <!-- Additional image URLs to append -->
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Add More Photo URLs <span class="text-gray-400 font-normal">(optional)</span></label>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Add More Photo URLs <span
+                        class="text-gray-400 font-normal">(optional)</span></label>
                 {% if extra_images %}
                 <div class="mb-3 flex flex-wrap gap-2">
                     {% for img in extra_images %}
@@ -424,7 +476,7 @@
     </form>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
     function toggleFields() {
         const type = document.getElementById('propertyType').value;
         const bedTypeField = document.getElementById('bedTypeField');
@@ -465,9 +517,18 @@
             const data = await resp.json();
 
             if (data.url) {
-                // Update preview
+                // Update preview safely whether #mainImagePreview is an <img> or placeholder <div>
                 const preview = document.getElementById('mainImagePreview');
-                preview.innerHTML = `<img src="${data.url}" class="w-full h-full object-cover" alt="Uploaded photo">`;
+                if (preview.tagName === 'IMG') {
+                    preview.src = data.url;
+                } else {
+                    const img = document.createElement('img');
+                    img.id = 'mainImagePreview';
+                    img.src = data.url;
+                    img.className = 'w-full h-full object-cover';
+                    img.alt = 'Uploaded photo';
+                    preview.replaceWith(img);
+                }
                 // Store URL for form submission
                 document.getElementById('newMainImageUrl').value = data.url;
                 btnText.textContent = '✓ Photo Uploaded';
@@ -484,5 +545,5 @@
         }
     }
 </script>
-<script src="{{ url_for('static', filename='js/location-picker.js') }}"></script>
+<script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/location-picker.js') }}"></script>
 {% endblock %}

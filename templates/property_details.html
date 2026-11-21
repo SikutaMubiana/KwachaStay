@@ -62,12 +62,12 @@
     {% if property.listing_recently_confirmed %}
     <p class="mb-6 -mt-5 text-sm text-green-700">
         <i class="fa-solid fa-circle-check mr-1"></i>
-        Host confirmed these listing details and availability on {{ property.last_confirmed_at[:10] }}.
+        Host confirmed these listing details and availability on {{ (property.last_confirmed_at|string)[:10] }}.
     </p>
     {% elif property.last_confirmed_at %}
     <p class="mb-6 -mt-5 text-sm text-amber-700">
         <i class="fa-solid fa-clock mr-1"></i>
-        Last host confirmation was {{ property.last_confirmed_at[:10] }}. Please message the host to reconfirm details and availability.
+        Last host confirmation was {{ (property.last_confirmed_at|string)[:10] }}. Please message the host to reconfirm details and availability.
     </p>
     {% else %}
     <p class="mb-6 -mt-5 text-sm text-amber-700">
@@ -83,12 +83,12 @@
         <div class="grid grid-cols-4 grid-rows-2 gap-2 h-64 md:h-[480px] rounded-2xl overflow-hidden">
             <div class="col-span-2 row-span-2 cursor-pointer" onclick="openLightbox(0)">
                 <img src="{{ images[0]|listing_image }}" loading="lazy" decoding="async" class="w-full h-full object-cover hover:brightness-90 transition"
-                    onerror="this.src='https://placehold.co/800x600/f3f4f6/9ca3af?text=No+Image'">
+                    onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/no-photo.svg') }}'">
             </div>
             {% for img in images[1:4] %}
             <div class="cursor-pointer" onclick="openLightbox({{ loop.index }})">
                 <img src="{{ img|listing_image }}" loading="lazy" decoding="async" class="w-full h-full object-cover hover:brightness-90 transition"
-                    onerror="this.src='https://placehold.co/400x300/f3f4f6/9ca3af?text=Photo'">
+                    onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/no-photo.svg') }}'">
             </div>
             {% endfor %}
         </div>
@@ -102,7 +102,7 @@
         <div class="h-64 md:h-[480px] rounded-2xl overflow-hidden shadow-md cursor-pointer" onclick="openLightbox(0)">
             <img src="{{ property.image_main|listing_image }}" loading="lazy" decoding="async"
                 class="w-full h-full object-cover hover:scale-105 transition duration-700"
-                onerror="this.src='https://placehold.co/800x600/f3f4f6/9ca3af?text=No+Image'">
+                onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/no-photo.svg') }}'">
         </div>
         {% endif %}
     </div>
@@ -148,7 +148,7 @@
                         <a href="{{ url_for('host_profile', user_id=property.owner_id) }}"
                             class="hover:text-primary hover:underline transition">{{ property.owner_name.split()[0] }}</a>
                     </h2>
-                    <p class="text-gray-500 text-sm">Joined {{ property.owner_joined.split()[0] }}</p>
+                    <p class="text-gray-500 text-sm">Joined {{ (property.owner_joined|string)[:10] }}</p>
                     {% if property.owner_verification_status == 'verified' %}
                     <p class="mt-2 inline-flex items-center gap-2 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1">
                         <i class="fa-solid fa-shield-check"></i> Verified host
@@ -403,7 +403,7 @@
                                         <i class="fa-solid fa-circle-check mr-1"></i>Verified stay
                                     </span>
                                 </div>
-                                <p class="text-xs text-gray-500">{{ review.created_at.split()[0] }}</p>
+                                <p class="text-xs text-gray-500">{{ (review.created_at|string)[:10] }}</p>
                             </div>
                         </div>
                         <div class="flex text-xs text-black mb-1">
@@ -541,7 +541,7 @@
                     <img src="{{ (prop.images[0] if prop.images else prop.image_main)|listing_image }}" loading="lazy" decoding="async"
                         class="w-full h-full object-cover"
                         alt="{{ prop.title }}"
-                        onerror="this.src='https://placehold.co/600x400/f3f4f6/9ca3af?text=No+Image'">
+                        onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/no-photo.svg') }}'">
                     <div class="absolute top-3 left-3 flex flex-col gap-1 items-start">
                         <span class="bg-white/90 backdrop-blur-sm text-gray-800 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm">
                             {{ prop.property_type }}
@@ -608,7 +608,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
     function toggleWishlist(propId) {
         fetch(`/toggle_wishlist/${propId}`, { method: 'POST' })
             .then(r => r.json())
@@ -635,7 +635,7 @@
 </script>
 
 <!-- Lightbox JS -->
-<script>
+<script nonce="{{ csp_nonce() }}">
     const lbImages = [{% for img in images %}"{{ img|listing_image }}",{% endfor %}];
     let lbCurrent = 0;
 
@@ -675,7 +675,7 @@
 
 {% if not low_data_mode %}
 <!-- Leaflet Map JS -->
-<script>
+<script nonce="{{ csp_nonce() }}">
     var hasExactPropertyPin = {{ has_exact_pin|tojson }};
     var map = L.map('map').setView([{{ lat|tojson }}, {{ lng|tojson }}], hasExactPropertyPin ? 16 : 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

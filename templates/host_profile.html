@@ -11,7 +11,7 @@
             {% if host['profile_pic'] %}
             <img src="{{ host['profile_pic'] }}" alt="{{ host['full_name'] }}"
                 class="w-24 h-24 rounded-full object-cover ring-4 ring-primary/10 shadow-md"
-                onerror="this.src='https://placehold.co/96x96/fee2e2/ef4444?text={{ host['full_name'][0] }}'">
+                onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/no-photo.svg') }}'">
             {% else %}
             <div
                 class="w-24 h-24 rounded-full bg-primary/10 text-primary text-4xl font-bold flex items-center justify-center shadow-md ring-4 ring-primary/10">
@@ -25,7 +25,7 @@
             <h1 class="text-3xl font-bold text-gray-900 mb-1">{{ host['full_name'] }}</h1>
             <p class="text-gray-500 mb-4">
                 <i class="fa-solid fa-calendar-days text-primary mr-1"></i>
-                Hosting on KwachaStay since {{ host['created_at'][:4] }}
+                Hosting on KwachaStay since {{ (host['created_at']|string)[:4] }}
             </p>
             {% if host_response_stats %}
             <p class="inline-flex items-center gap-2 rounded-full bg-green-50 text-green-800 text-sm font-semibold px-3 py-1.5 mb-2"
@@ -85,7 +85,7 @@
                 <img src="{{ prop.image_main|listing_image }}" loading="lazy" decoding="async"
                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     alt="{{ prop.title }}"
-                    onerror="this.src='https://placehold.co/600x400/f3f4f6/9ca3af?text=No+Image'">
+                    onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/no-photo.svg') }}'">
                 {% else %}
                 <div class="w-full h-full flex items-center justify-center text-gray-300">
                     <i class="fa-solid fa-image text-4xl"></i>

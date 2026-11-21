@@ -184,7 +184,7 @@
     </div>
 </div>
 
-<script>
+<script nonce="{{ csp_nonce() }}">
     const pricePerUnit = {{ property.price_per_night }};
     const serviceFee = {{ service_fee }};
     const cleaningFee = {{ property.cleaning_fee or 0 }};

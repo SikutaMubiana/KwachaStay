@@ -7,7 +7,7 @@ class LocalUploadStorage:
     def __init__(self, upload_folder):
         self.upload_folder = os.path.abspath(upload_folder)
 
-    def save(self, uploaded_file, filename):
+    def save(self, uploaded_file, filename, content_type=None):
         safe_name = secure_filename(filename)
         if not safe_name:
             raise ValueError('A safe upload filename is required.')

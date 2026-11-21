@@ -9,6 +9,7 @@ layer that keeps the existing ``db.execute(sql, params)`` route code working:
 - Rows support both ``row['column']`` and ``row[0]`` access like ``sqlite3.Row``.
 - Inserts expose ``cursor.lastrowid`` by appending ``RETURNING id``.
 """
+from datetime import date, datetime
 import os
 import re
 import sqlite3
@@ -25,6 +26,7 @@ TABLES_WITH_ID = {
     'payout_methods', 'saved_searches', 'property_reports', 'support_requests',
     'notifications', 'trip_plans', 'calendar_imports', 'calendar_import_events',
     'seasonal_pricing', 'payout_ledger', 'email_messages', 'email_webhook_events',
+    'admin_audit_logs',
 }
 
 INSERT_TARGET = re.compile(r'\bINSERT\s+INTO\s+"?([A-Za-z_]\w*)"?', re.IGNORECASE)
@@ -75,11 +77,19 @@ class PgRow:
         return f'PgRow({dict(self.items())!r})'
 
 
+def _normalize_value(value):
+    if isinstance(value, datetime):
+        return value.strftime('%Y-%m-%d %H:%M:%S')
+    if isinstance(value, date):
+        return value.isoformat()
+    return value
+
+
 def _row_factory(cursor):
     if not cursor.description:
         return lambda values: values
     names = [column.name for column in cursor.description]
-    return lambda values: PgRow(names, values)
+    return lambda values: PgRow(names, tuple(_normalize_value(v) for v in values))
 
 
 def translate_sql(sql):
