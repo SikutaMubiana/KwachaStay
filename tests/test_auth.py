@@ -1,3 +1,4 @@
+import io
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -5,6 +6,7 @@ from unittest.mock import patch
 from werkzeug.security import generate_password_hash
 
 import app
+from upload_storage import LocalUploadStorage
 
 
 class AuthAndRoleSeparationTests(unittest.TestCase):
@@ -288,6 +290,73 @@ class AuthAndRoleSeparationTests(unittest.TestCase):
         self.assertIn(b'Admin Portal', r_admin_dash.data)
         self.assertNotIn(b'Lusaka Areas', r_admin_dash.data)
         self.assertNotIn(b'View Site', r_admin_dash.data)
+
+    def test_landlord_can_upload_photo_and_list_property(self):
+        original_storage = app.upload_storage
+        original_backend = app.STORAGE_BACKEND
+        original_enabled = app.app.config['UPLOADS_ENABLED']
+        app.upload_storage = LocalUploadStorage(self.temp_dir.name)
+        app.STORAGE_BACKEND = 'local'
+        app.app.config['UPLOADS_ENABLED'] = True
+        try:
+            with app.app.app_context():
+                db = app.get_db()
+                owner_id = db.execute(
+                    '''INSERT INTO users (full_name, email, phone, password, role)
+                       VALUES (?, ?, ?, ?, 'owner')''',
+                    ('Lister User', 'lister@example.com', '+260971000099', generate_password_hash('Pass1234')),
+                ).lastrowid
+                db.commit()
+
+            client = app.app.test_client()
+            with client.session_transaction() as sess:
+                sess['user_id'] = owner_id
+                sess['_csrf_token'] = 'upload-csrf'
+
+            png_bytes = (
+                b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01'
+                b'\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc\xf8\xcf\xc0'
+                b'\x00\x00\x03\x01\x01\x00\x18\xdd\x8d\xb0\x00\x00\x00\x00IEND\xaeB`\x82'
+            )
+            upload_resp = client.post(
+                '/upload_image',
+                data={'image': (io.BytesIO(png_bytes), 'house.png')},
+                headers={'X-CSRF-Token': 'upload-csrf'},
+                content_type='multipart/form-data',
+            )
+            self.assertEqual(upload_resp.status_code, 200)
+            image_url = upload_resp.get_json()['url']
+
+            add_resp = client.post(
+                '/add_house',
+                data={
+                    'title': 'Ibex Hill Modern Home',
+                    'description': 'Clean 3 bedroom house in Ibex Hill with solar backup and borehole water.',
+                    'price': '2500',
+                    'price_period': 'month',
+                    'compound': 'Ibex Hill',
+                    'property_type': 'House',
+                    'bedrooms': '3',
+                    'bathrooms': '2',
+                    'image_url': image_url,
+                    'main_photo_category': 'entrance',
+                    'extra_images': image_url,
+                    'extra_image_categories': 'bedroom',
+                    'has_solar': 'on',
+                    'csrf_token': 'upload-csrf',
+                },
+                follow_redirects=False,
+            )
+            self.assertEqual(add_resp.status_code, 302)
+            self.assertTrue(add_resp.headers['Location'].endswith('/landlord/dashboard'))
+
+            dash = client.get('/landlord/dashboard')
+            self.assertEqual(dash.status_code, 200)
+            self.assertIn(b'Ibex Hill Modern Home', dash.data)
+        finally:
+            app.upload_storage = original_storage
+            app.STORAGE_BACKEND = original_backend
+            app.app.config['UPLOADS_ENABLED'] = original_enabled
 
 
 if __name__ == '__main__':

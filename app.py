@@ -2323,12 +2323,22 @@ def logout():
 @landlord_required
 def add_house():
     if request.method == 'POST':
-        title = request.form['title']
-        description = request.form['description']
-        price = request.form['price']
-        price_period = request.form['price_period']
-        compound = request.form['compound']
-        property_type = request.form['property_type']
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        price_raw = request.form.get('price', '').strip()
+        price_period = request.form.get('price_period', 'night').strip() or 'night'
+        compound = request.form.get('compound', '').strip()
+        property_type = request.form.get('property_type', '').strip()
+        if not title or not description or not compound or not property_type:
+            flash('Please fill in all required property details.', 'error')
+            return redirect(url_for('add_house'))
+        try:
+            price = parse_nonnegative_money(price_raw, 'Price')
+            if price <= 0:
+                raise ValueError('Price must be greater than zero.')
+        except ValueError as error:
+            flash(str(error), 'error')
+            return redirect(url_for('add_house'))
         try:
             latitude, longitude = parse_location_coordinates(
                 request.form.get('latitude'), request.form.get('longitude')
@@ -2361,8 +2371,12 @@ def add_house():
         location_details = request.form.get('location_details', '').strip()
         agent_name = request.form.get('agent_name', '').strip()
         agent_phone = request.form.get('agent_phone', '').strip()
-        bedrooms = request.form.get('bedrooms') or 1
-        bathrooms = request.form.get('bathrooms') or 1
+        try:
+            bedrooms = max(1, int(request.form.get('bedrooms') or 1))
+            bathrooms = max(1, int(request.form.get('bathrooms') or 1))
+        except ValueError:
+            flash('Bedrooms and bathrooms must be whole numbers.', 'error')
+            return redirect(url_for('add_house'))
         is_featured = 1 if request.form.get('is_featured') == 'on' else 0
         
         # Details
@@ -2382,7 +2396,10 @@ def add_house():
         has_wifi = 1 if 'has_wifi' in request.form else 0
         has_parking = 1 if 'has_parking' in request.form else 0
         
-        image_url = request.form['image_url']
+        image_url = request.form.get('image_url', '').strip()
+        if not image_url:
+            flash('Please upload a main photo before listing your property.', 'error')
+            return redirect(url_for('add_house'))
         extra_images = request.form.get('extra_images', '')
         extra_categories = request.form.get('extra_image_categories', '').split(',')
         owner_id = g.user['id']
@@ -2401,7 +2418,7 @@ def add_house():
                 arrival_instructions, arrival_directions, nearby_essentials,
                 checkin_time, checkout_time, self_checkin_method,
                 main_photo_category, latitude, longitude
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (owner_id, title, description, price, price_period, compound, property_type,
              listing_category, availability_status, location_details, agent_name, agent_phone,
              bedrooms, bathrooms, bed_type, room_capacity, kitchen_type, has_sitting_room,
@@ -4953,7 +4970,11 @@ def upload_image():
     if file and allowed_file(file.filename):
         ext = file.filename.rsplit('.', 1)[1].lower()
         filename = f"{uuid.uuid4().hex}.{ext}"
-        stored_path = upload_storage.save(file, filename)
+        try:
+            stored_path = upload_storage.save(file, filename)
+        except (RuntimeError, ValueError, OSError) as error:
+            app.logger.exception('Image upload failed.')
+            return jsonify({'error': str(error)}), 502
         url = (
             stored_path if STORAGE_BACKEND == 'supabase'
             else url_for('static', filename=f'uploads/{filename}')
