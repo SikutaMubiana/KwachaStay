@@ -1,0 +1,962 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-8">
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+            <div class="flex flex-wrap items-center gap-3">
+                <h1 class="text-3xl font-bold text-gray-900">Landlord Dashboard</h1>
+                <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-indigo-100 text-indigo-800">
+                    <i class="fa-solid fa-house-user mr-1"></i>Landlord / Lister Account
+                </span>
+            </div>
+            <p class="text-sm text-gray-500 mt-1">Manage your property listings, incoming bookings, availability, earnings, and guest enquiries.</p>
+        </div>
+        <a href="{{ url_for('add_house') }}"
+            class="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-red-600 transition shadow-sm">
+            <i class="fa-solid fa-plus mr-1.5"></i>List a Property
+        </a>
+    </div>
+
+    <!-- Separate Account Notice -->
+    <div class="mb-6 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-600">
+        <span>
+            <i class="fa-solid fa-circle-info text-primary mr-1.5"></i>
+            Looking to rent or book a stay? Landlord and Tenant accounts are separate — log out and create a dedicated <strong>Tenant</strong> account.
+        </span>
+        <a href="{{ url_for('logout') }}" class="font-bold text-primary hover:underline whitespace-nowrap">
+            Log out to switch account
+        </a>
+    </div>
+
+    <!-- Tabs (Scrollable on mobile) -->
+    <div class="mb-8 border-b border-gray-200 overflow-x-auto">
+        <ul class="flex flex-nowrap md:flex-wrap -mb-px text-sm font-medium text-center min-w-max" id="dashboardTabs">
+            <li class="mr-2">
+                <button onclick="showTab('listings')" id="tab-listings"
+                    class="inline-block p-4 border-b-2 border-primary text-primary rounded-t-lg active hover:text-gray-600 hover:border-gray-300">
+                    <i class="fa-solid fa-house-user"></i> My Listings
+                    <span class="ml-1 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700">{{ properties|length }}</span>
+                </button>
+            </li>
+            <li class="mr-2">
+                <button onclick="showTab('incoming')" id="tab-incoming"
+                    class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">
+                    <i class="fa-solid fa-inbox"></i> Incoming Bookings
+                    {% if incoming_bookings %}
+                    <span class="ml-1 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700">{{ incoming_bookings|length }}</span>
+                    {% endif %}
+                </button>
+            </li>
+            <li class="mr-2">
+                <button onclick="showTab('earnings')" id="tab-earnings"
+                    class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">
+                    <i class="fa-solid fa-wallet"></i> Earnings &amp; Payouts
+                </button>
+            </li>
+            <li class="mr-2">
+                <button onclick="showTab('messages')" id="tab-messages"
+                    class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">
+                    <i class="fa-solid fa-envelope"></i> Messages
+                </button>
+            </li>
+            <li class="mr-2">
+                <button onclick="showTab('profile')" id="tab-profile"
+                    class="inline-block p-4 border-b-2 border-transparent rounded-t-lg hover:text-gray-600 hover:border-gray-300">
+                    <i class="fa-solid fa-user-gear"></i> Profile &amp; Verification
+                </button>
+            </li>
+        </ul>
+    </div>
+
+    <!-- My Listings Tab (Default Active) -->
+    <div id="content-listings" class="tab-content">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold">Your Properties</h2>
+            <a href="{{ url_for('add_house') }}"
+                class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 transition">
+                <i class="fa-solid fa-plus"></i> Add New
+            </a>
+        </div>
+
+        <section class="mb-8 rounded-2xl border bg-white p-5">
+            <div class="mb-4">
+                <h3 class="font-bold text-gray-900">Landlord performance</h3>
+                <p class="text-xs text-gray-500">Views, enquiries, and confirmed bookings are all-time totals. Response time uses recent enquiries and needs at least 3 to show.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div class="rounded-xl bg-gray-50 p-4">
+                    <p class="text-xs font-semibold text-gray-500">Listing views</p>
+                    <p class="mt-1 text-2xl font-bold">{{ host_analytics.views }}</p>
+                </div>
+                <div class="rounded-xl bg-gray-50 p-4">
+                    <p class="text-xs font-semibold text-gray-500">Guest enquiries</p>
+                    <p class="mt-1 text-2xl font-bold">{{ host_analytics.inquiries }}</p>
+                </div>
+                <div class="rounded-xl bg-gray-50 p-4">
+                    <p class="text-xs font-semibold text-gray-500">Confirmed bookings</p>
+                    <p class="mt-1 text-2xl font-bold">{{ host_analytics.confirmed_bookings }}</p>
+                </div>
+                <div class="rounded-xl bg-gray-50 p-4">
+                    <p class="text-xs font-semibold text-gray-500">View-to-booking rate</p>
+                    <p class="mt-1 text-2xl font-bold">
+                        {% if host_analytics.conversion_percent is not none %}{{ host_analytics.conversion_percent }}%{% else %}—{% endif %}
+                    </p>
+                </div>
+            </div>
+            <div class="mt-3 rounded-xl border border-blue-100 bg-blue-50 p-4">
+                <p class="text-sm font-bold text-blue-900">Average response time</p>
+                {% if host_analytics.response_stats and host_analytics.response_stats.average_response_hours is not none %}
+                <p class="mt-1 text-sm text-blue-800">
+                    {{ "%.1f"|format(host_analytics.response_stats.average_response_hours) }} hours
+                    · {{ host_analytics.response_stats.reply_rate_percent }}% reply rate in the last 90 days
+                </p>
+                {% else %}
+                <p class="mt-1 text-sm text-blue-800">Not enough recent enquiries yet. Reply to guest messages to build your response history.</p>
+                {% endif %}
+            </div>
+            <div class="mt-4">
+                <p class="text-xs font-bold uppercase tracking-wide text-gray-500">Suggestions</p>
+                <ul class="mt-2 space-y-1 text-sm text-gray-700">
+                    {% for suggestion in host_analytics.suggestions %}
+                    <li><i class="fa-solid fa-lightbulb mr-2 text-amber-500"></i>{{ suggestion }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
+
+        {% if properties %}
+        <div class="space-y-4">
+            {% for prop in properties %}
+            <div class="p-4 border rounded-xl bg-white hover:shadow-md transition">
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <img src="{{ prop.image_main|listing_image }}" loading="lazy" decoding="async" class="w-full sm:w-32 h-32 sm:h-24 object-cover rounded-lg">
+                    <div class="flex-grow">
+                        <div class="flex justify-between items-start gap-2">
+                            <div>
+                                <h3 class="font-bold text-lg">{{ prop.title }}</h3>
+                                <p class="text-gray-500 text-sm">{{ prop.compound }}</p>
+                            </div>
+                            <div class="flex gap-2">
+                                <span class="px-2 py-1 bg-gray-100 text-xs rounded font-medium">{{ prop.property_type }}</span>
+                                {% if prop.is_verified %}
+                                <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded font-medium">Verified</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="mt-2 text-sm text-gray-600">
+                            <span class="font-semibold">ZMW {{ "{:,.0f}".format(prop.price_per_night) }}</span> / {{ prop.price_period }}
+                        </div>
+                        <div class="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                            <p class="text-xs font-bold text-blue-900">Private listing quality guide · {{ listing_quality[prop.id].score }}/6</p>
+                            {% if listing_quality[prop.id].tips %}
+                            <ul class="mt-1 list-inside list-disc text-xs text-blue-800">
+                                {% for tip in listing_quality[prop.id].tips %}<li>{{ tip }}</li>{% endfor %}
+                            </ul>
+                            {% else %}
+                            <p class="mt-1 text-xs text-blue-800">Strong listing completeness. Keep photos and availability current.</p>
+                            {% endif %}
+                        </div>
+                        {% if host_reminders[prop.id] %}
+                        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                            <p class="text-xs font-bold text-amber-900">Landlord reminders</p>
+                            <ul class="mt-1 list-inside list-disc text-xs text-amber-800">
+                                {% for reminder in host_reminders[prop.id] %}<li>{{ reminder }}</li>{% endfor %}
+                            </ul>
+                            <a href="{{ url_for('edit_property', property_id=prop.id) }}" class="mt-2 inline-block text-xs font-bold text-amber-900 underline">Update listing</a>
+                        </div>
+                        {% endif %}
+                        <p class="mt-1 text-xs {% if prop.last_confirmed_at and prop.confirmation_age_days <= 30 %}text-green-700{% else %}text-amber-700{% endif %}">
+                            {% if not prop.last_confirmed_at %}Not yet confirmed by landlord
+                            {% elif prop.confirmation_age_days <= 30 %}Confirmed {{ prop.last_confirmed_at[:10] }}
+                            {% else %}Needs a fresh landlord confirmation{% endif %}
+                        </p>
+                        <div class="mt-2">
+                            <p class="text-xs font-semibold text-gray-600">Photo checklist</p>
+                            <div class="mt-1 flex flex-wrap gap-1">
+                                {% for key, label in [('bedroom', 'Bedroom'), ('bathroom', 'Bathroom'), ('kitchen', 'Kitchen'), ('entrance', 'Entrance'), ('parking', 'Parking')] %}
+                                <span class="rounded-full px-2 py-1 text-[10px] {% if key in photo_checklists[prop.id] %}bg-green-50 text-green-700{% else %}bg-amber-50 text-amber-800{% endif %}">
+                                    <i class="fa-solid {% if key in photo_checklists[prop.id] %}fa-check{% else %}fa-circle-exclamation{% endif %} mr-1"></i>{{ label }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex flex-row sm:flex-col gap-2 justify-between items-end">
+                        {% if prop.is_active %}
+                        <span class="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs font-bold rounded text-center">Active</span>
+                        {% else %}
+                        <span class="inline-block px-2 py-1 bg-gray-100 text-gray-800 text-xs font-bold rounded text-center">Inactive</span>
+                        {% endif %}
+
+                        <div class="flex gap-2 flex-wrap justify-end">
+                            <a href="{{ url_for('edit_property', property_id=prop.id) }}"
+                                class="text-sm border border-blue-200 text-blue-600 rounded-lg px-3 py-1 hover:bg-blue-50 transition">
+                                <i class="fa-solid fa-pen-to-square"></i> Edit
+                            </a>
+                            <a href="{{ url_for('export_property_calendar', property_id=prop.id) }}"
+                                class="text-sm border border-green-200 text-green-700 rounded-lg px-3 py-1 hover:bg-green-50 transition">
+                                <i class="fa-solid fa-calendar-arrow-down"></i> Export calendar
+                            </a>
+                            <button
+                                onclick="openManageModal('{{ prop.id }}', '{{ prop.title|e }}', {{ 1 if prop.is_active else 0 }})"
+                                class="text-sm border border-gray-300 rounded-lg px-3 py-1 hover:bg-gray-50">
+                                Manage
+                            </button>
+                            <button
+                                onclick="openDeleteModal('{{ prop.id }}', '{{ prop.title|e }}')"
+                                class="text-sm border border-red-200 text-red-500 rounded-lg px-3 py-1 hover:bg-red-50 transition">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Calendar sync & seasonal pricing for this listing -->
+                <details class="mt-4 rounded-lg border bg-gray-50 p-4">
+                    <summary class="cursor-pointer text-sm font-bold text-gray-800">Calendar sync and seasonal pricing</summary>
+                    <div class="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
+                        <section>
+                            <h4 class="text-sm font-bold">Calendar sync</h4>
+                            <p class="mt-1 text-xs text-gray-600">Subscribe to KwachaStay dates in another calendar, or upload an .ics export. Imported bookings block guest requests until you remove or replace that import.</p>
+                            <form action="{{ url_for('create_calendar_feed', property_id=prop.id) }}" method="POST" class="mt-3">
+                                <button class="rounded-lg border border-green-300 bg-white px-3 py-2 text-xs font-bold text-green-800">Generate private subscription link</button>
+                            </form>
+                            {% if calendar_feed_urls.get(prop.id) %}
+                            <label class="mt-2 block text-xs font-medium text-gray-600">Copy into Google Calendar, Apple Calendar, or Outlook
+                                <input readonly value="{{ calendar_feed_urls[prop.id] }}" onclick="this.select()"
+                                    class="mt-1 w-full rounded border bg-white p-2 font-mono text-xs">
+                            </label>
+                            {% endif %}
+                            <form action="{{ url_for('import_property_calendar', property_id=prop.id) }}" method="POST" enctype="multipart/form-data" class="mt-3 flex flex-wrap gap-2">
+                                <input type="file" name="calendar_file" accept=".ics,text/calendar" required class="min-w-0 flex-grow rounded border bg-white p-2 text-xs">
+                                <button class="rounded-lg bg-gray-800 px-3 py-2 text-xs font-bold text-white">Import .ics file</button>
+                            </form>
+                            {% if calendar_imports[prop.id] %}
+                            <ul class="mt-3 space-y-2">
+                                {% for imported in calendar_imports[prop.id] %}
+                                <li class="flex items-center justify-between gap-2 text-xs">
+                                    <span>{{ imported.source_name }} · {{ imported.event_count }} blocked stays</span>
+                                    <form action="{{ url_for('delete_calendar_import', import_id=imported.id) }}" method="POST">
+                                        <button class="font-bold text-red-700 underline">Remove</button>
+                                    </form>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                        </section>
+                        <section>
+                            <h4 class="text-sm font-bold">Date-based rates and minimum stays</h4>
+                            <p class="mt-1 text-xs text-gray-600">Dates use a start-inclusive, end-exclusive range. Guests see date-specific totals before requesting a stay.</p>
+                            {% if seasonal_pricing[prop.id] %}
+                            <ul class="mt-3 space-y-2">
+                                {% for rule in seasonal_pricing[prop.id] %}
+                                <li class="flex items-center justify-between gap-2 rounded border bg-white p-2 text-xs">
+                                    <span>{{ rule.start_date }} to {{ rule.end_date }} · ZMW {{ "{:,.2f}".format(rule.price) }}/{{ prop.price_period }} · min {{ rule.minimum_stay }}</span>
+                                    <form action="{{ url_for('delete_seasonal_pricing', property_id=prop.id, rule_id=rule.id) }}" method="POST">
+                                        <button class="font-bold text-red-700 underline">Remove</button>
+                                    </form>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                            <form action="{{ url_for('add_seasonal_pricing', property_id=prop.id) }}" method="POST" class="mt-3 grid grid-cols-2 gap-2">
+                                <label class="text-xs">Start date<input type="date" name="start_date" required class="mt-1 w-full rounded border bg-white p-2"></label>
+                                <label class="text-xs">End date (not included)<input type="date" name="end_date" required class="mt-1 w-full rounded border bg-white p-2"></label>
+                                <label class="text-xs">ZMW per {{ prop.price_period }}<input type="number" name="price" min="0" step="0.01" value="{{ prop.price_per_night }}" required class="mt-1 w-full rounded border bg-white p-2"></label>
+                                <label class="text-xs">Minimum {{ prop.price_period }}s<input type="number" name="minimum_stay" min="1" max="{{ 24 if prop.price_period == 'month' else 365 }}" value="1" required class="mt-1 w-full rounded border bg-white p-2"></label>
+                                <button class="col-span-2 rounded-lg bg-blue-700 px-3 py-2 text-xs font-bold text-white">Save seasonal pricing</button>
+                            </form>
+                        </section>
+                    </div>
+                </details>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-12 bg-gray-50 rounded-xl">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white mb-4 shadow-sm">
+                <i class="fa-solid fa-house-chimney text-gray-400 text-2xl"></i>
+            </div>
+            <p class="text-gray-500">You have no properties listed yet.</p>
+            <a href="{{ url_for('add_house') }}" class="text-primary font-bold hover:underline mt-2 inline-block">List your first property</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Incoming Bookings Tab -->
+    <div id="content-incoming" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-6">Incoming Booking Requests</h2>
+        {% if incoming_bookings %}
+        <div class="overflow-x-auto bg-white border rounded-xl">
+            <table class="w-full text-sm text-left text-gray-500">
+                <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3">Property</th>
+                        <th class="px-6 py-3">Tenant</th>
+                        <th class="px-6 py-3">Dates</th>
+                        <th class="px-6 py-3">Amount</th>
+                        <th class="px-6 py-3">Status</th>
+                        <th class="px-6 py-3">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for booking in incoming_bookings %}
+                    <tr class="bg-white border-b hover:bg-gray-50">
+                        <td class="px-6 py-4 font-medium text-gray-900">{{ booking.title }}</td>
+                        <td class="px-6 py-4">
+                            <div class="font-bold text-gray-900">{{ booking.tenant_name }}</div>
+                            <div class="text-xs">{{ booking.tenant_phone }}</div>
+                            {% if booking.guest_completed_stays or booking.guest_cancellations %}
+                            <div class="mt-1 text-xs text-gray-600">
+                                KwachaStay history: {{ booking.guest_completed_stays }} completed stay{% if booking.guest_completed_stays != 1 %}s{% endif %}
+                                · {{ booking.guest_cancellations }} cancellation{% if booking.guest_cancellations != 1 %}s{% endif %}
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {{ booking.check_in }} <br>
+                            <span class="text-xs text-gray-400">({{ booking.duration }} {{ booking.duration_unit }}s)</span>
+                        </td>
+                        <td class="px-6 py-4 font-bold text-gray-900">ZMW {{ "{:,.0f}".format(booking.total_price) }}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded text-xs font-bold uppercase
+                                {% if booking.booking_status == 'confirmed' %}bg-blue-100 text-blue-700
+                                {% elif booking.booking_status == 'declined' %}bg-red-100 text-red-700
+                                {% elif booking.booking_status == 'expired' %}bg-orange-100 text-orange-800
+                                {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+                                {% if booking.booking_status == 'confirmed' %}<i class="fa-solid fa-circle-check"></i> Confirmed
+                                {% elif booking.booking_status == 'declined' %}<i class="fa-solid fa-circle-xmark"></i> Declined
+                                {% elif booking.booking_status == 'expired' %}<i class="fa-solid fa-hourglass-end"></i> Expired
+                                {% else %}<i class="fa-solid fa-clock"></i> Pending
+                                {% endif %}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="flex gap-2 flex-wrap">
+                                {% if booking.booking_status == 'pending' %}
+                                <form action="{{ url_for('approve_booking', booking_id=booking.id) }}" method="POST" class="inline">
+                                    <button type="submit"
+                                        class="text-sm bg-green-600 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-700 transition">
+                                        <i class="fa-solid fa-check mr-1"></i> Approve
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('decline_booking', booking_id=booking.id) }}" method="POST" class="inline">
+                                    <button type="submit"
+                                        class="text-sm border border-red-200 text-red-600 px-3 py-1.5 rounded-lg font-bold hover:bg-red-50 transition">
+                                        <i class="fa-solid fa-xmark mr-1"></i> Decline
+                                    </button>
+                                </form>
+                                {% endif %}
+                                <button onclick='openBookingDetails({{ booking|tojson|safe }})'
+                                    class="text-primary hover:text-red-700 font-bold text-sm">
+                                    Details
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-12 bg-gray-50 rounded-xl">
+            <p class="text-gray-500">No incoming bookings yet.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Earnings & Payouts Tab -->
+    <div id="content-earnings" class="tab-content hidden">
+        <h2 class="text-xl font-bold mb-5">Earnings and payout ledger</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+            <div class="rounded-xl border bg-white p-4">
+                <p class="text-xs font-semibold uppercase text-gray-500">Confirmed &amp; Paid</p>
+                <p class="mt-1 text-2xl font-bold text-green-700">ZMW {{ "{:,.0f}".format(earnings.confirmed) }}</p>
+            </div>
+            <div class="rounded-xl border bg-white p-4">
+                <p class="text-xs font-semibold uppercase text-gray-500">Pending Requests</p>
+                <p class="mt-1 text-2xl font-bold text-amber-700">ZMW {{ "{:,.0f}".format(earnings.pending) }}</p>
+            </div>
+            <div class="rounded-xl border bg-white p-4">
+                <p class="text-xs font-semibold uppercase text-gray-500">Paid Stays</p>
+                <p class="mt-1 text-2xl font-bold text-gray-900">{{ earnings.count }}</p>
+            </div>
+        </div>
+        <p class="mb-5 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Paid and confirmed stays create a landlord earnings record. Payouts are handled outside KwachaStay; this ledger changes to paid only after an administrator records the provider reference.</p>
+        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <section class="rounded-xl border bg-white p-5 lg:col-span-2">
+                <h3 class="font-bold">Booking earnings</h3>
+                {% if payout_ledger %}
+                <div class="mt-4 overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="text-xs uppercase text-gray-500"><tr><th class="py-2">Listing / stay</th><th class="py-2">Host amount</th><th class="py-2">Status</th><th class="py-2">Reference</th></tr></thead>
+                        <tbody class="divide-y">
+                            {% for payout in payout_ledger %}
+                            <tr>
+                                <td class="py-3"><strong>{{ payout.title }}</strong><br><span class="text-xs text-gray-500">{{ payout.check_in }} to {{ payout.check_out }} · {{ payout.tx_ref }}</span></td>
+                                <td class="py-3 font-semibold">ZMW {{ "{:,.2f}".format(payout.amount) }}</td>
+                                <td class="py-3">{{ payout.status|replace('_', ' ')|capitalize }}</td>
+                                <td class="py-3 text-xs">{{ payout.reference or 'Not paid yet' }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="mt-3 text-sm text-gray-500">Confirmed, paid stays will appear here when eligible for settlement.</p>
+                {% endif %}
+            </section>
+            <section class="rounded-xl border bg-white p-5">
+                <h3 class="font-bold">Payout methods</h3>
+                {% if payout_methods %}
+                <ul class="mt-3 space-y-3">
+                    {% for method in payout_methods %}
+                    <li class="flex items-start justify-between gap-2 text-sm">
+                        <span>{{ method.provider }} · {{ method.account_name }}<br><span class="text-xs text-gray-500">••••{{ method.account_number[-4:] }}</span>{% if method.is_primary %}<span class="ml-1 text-xs text-green-700">Primary</span>{% endif %}</span>
+                        <form action="{{ url_for('delete_payout_method', payout_id=method.id) }}" method="POST"><button class="text-xs font-bold text-red-700 underline">Remove</button></form>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                <form action="{{ url_for('add_payout_method') }}" method="POST" class="mt-4 space-y-2 border-t pt-4">
+                    <label class="block text-xs">Payout provider
+                        <select name="provider" required class="mt-1 w-full rounded border p-2 text-sm">
+                            <option value="">Choose provider</option><option>MTN Money</option><option>Airtel Money</option><option>Mobile Money</option><option>Bank Transfer</option>
+                        </select>
+                    </label>
+                    <input name="account_name" required maxlength="120" placeholder="Account name" class="w-full rounded border p-2 text-sm">
+                    <input name="account_number" required maxlength="80" placeholder="Account number or mobile number" class="w-full rounded border p-2 text-sm">
+                    <input name="bank_name" maxlength="120" placeholder="Bank name (if applicable)" class="w-full rounded border p-2 text-sm">
+                    <button class="w-full rounded-lg bg-gray-900 px-3 py-2 text-sm font-bold text-white">Add payout method</button>
+                </form>
+            </section>
+        </div>
+    </div>
+
+    <!-- Messages Tab -->
+    <div id="content-messages" class="tab-content hidden">
+        {% if messages %}
+        <div class="space-y-4">
+            {% for msg in messages %}
+            <div class="p-4 border rounded-xl bg-white transition
+                {% if not msg.is_read %}border-red-200 bg-red-50/30{% else %}hover:shadow-md{% endif %}">
+                <div class="flex items-start gap-4">
+                    <div
+                        class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold flex-shrink-0 text-sm">
+                        {{ msg.sender_name[0] }}
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <div class="flex justify-between mb-1">
+                            <h4 class="font-bold text-gray-900">{{ msg.sender_name }}
+                                {% if not msg.is_read %}<span class="ml-2 text-xs font-normal text-primary">● New</span>{% endif %}
+                            </h4>
+                            <span class="text-xs text-gray-500">{{ msg.created_at }}</span>
+                        </div>
+                        {% if msg.property_title %}
+                        <p class="text-xs text-gray-500 mb-2">Re: {{ msg.property_title }}</p>
+                        {% endif %}
+                        <p class="text-gray-700 text-sm">{{ msg.content }}</p>
+
+                        <div class="mt-3">
+                            <button onclick="toggleReply('reply-{{ msg.id }}')"
+                                class="text-xs text-primary font-bold hover:underline">
+                                <i class="fa-solid fa-reply mr-1"></i>Reply
+                            </button>
+                            <div id="reply-{{ msg.id }}" class="hidden mt-2">
+                                <form action="{{ url_for('reply_message', message_id=msg.id) }}" method="POST" class="flex gap-2">
+                                    <input type="text" name="content" required
+                                        placeholder="Write a reply..."
+                                        class="flex-grow text-sm p-2 border rounded-lg focus:outline-none focus:border-primary">
+                                    <button type="submit"
+                                        class="bg-primary text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-red-600 transition flex-shrink-0">
+                                        Send
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="mt-4 text-right">
+            <button onclick="markAllMsgsRead()" class="text-xs text-gray-400 hover:text-primary transition">
+                <i class="fa-solid fa-check-double mr-1"></i>Mark all as read
+            </button>
+        </div>
+        {% else %}
+        <div class="text-center py-12 bg-gray-50 rounded-xl">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white mb-4 shadow-sm">
+                <i class="fa-solid fa-envelope text-gray-400 text-2xl"></i>
+            </div>
+            <p class="text-gray-500">No messages yet.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Profile & Verification Tab -->
+    <div id="content-profile" class="tab-content hidden">
+        <div class="max-w-xl">
+            <h2 class="text-xl font-bold mb-6">Edit Landlord Profile</h2>
+            <form action="{{ url_for('edit_profile') }}" method="POST" class="space-y-6">
+                <div class="flex items-center gap-6 mb-6">
+                    <div class="w-20 h-20 rounded-full bg-gray-200 overflow-hidden flex-shrink-0">
+                        {% if g.user['profile_pic'] %}
+                        <img src="{{ g.user['profile_pic'] }}" class="w-full h-full object-cover">
+                        {% else %}
+                        <div class="w-full h-full flex items-center justify-center text-gray-400 bg-primary/10">
+                            <span class="text-3xl font-bold text-primary">{{ g.user['full_name'][0] }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Profile Picture URL</label>
+                        <input type="url" name="profile_pic" value="{{ g.user['profile_pic'] or '' }}"
+                            placeholder="https://example.com/photo.jpg"
+                            class="w-full p-3 border rounded-lg focus:ring-primary focus:border-primary outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                    <input type="text" name="full_name" value="{{ g.user['full_name'] }}" required
+                        class="w-full p-3 border rounded-lg focus:ring-primary focus:border-primary outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <input type="tel" name="phone" value="{{ g.user['phone'] }}" required
+                        class="w-full p-3 border rounded-lg focus:ring-primary focus:border-primary outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" value="{{ g.user['email'] }}" disabled
+                        class="w-full p-3 border rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed">
+                    <p class="text-xs text-gray-400 mt-1">Email cannot be changed.</p>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
+                    <p class="p-3 bg-gray-50 border rounded-lg text-gray-700 font-medium">Landlord / Lister</p>
+                    <p class="text-xs text-gray-500 mt-1">To rent or book properties, register a separate Tenant account with another email.</p>
+                </div>
+
+                <button type="submit"
+                    class="w-full bg-primary text-white py-3 rounded-lg font-bold hover:bg-red-600 transition shadow-md shadow-red-200">
+                    Save Changes
+                </button>
+            </form>
+
+            <!-- Landlord / Host verification -->
+            <div class="mt-10 pt-8 border-t">
+                <h2 class="text-xl font-bold mb-2">Landlord verification</h2>
+                <p class="text-sm text-gray-600 mb-4">A team member reviews your landlord details before the verified badge is shown. Do not submit passwords or payment details.</p>
+                <p class="text-sm font-semibold mb-3">Status:
+                    <span class="{% if g.user['host_verification_status'] == 'verified' %}text-green-700{% elif g.user['host_verification_status'] == 'pending' %}text-amber-700{% else %}text-gray-600{% endif %}">
+                        {{ (g.user['host_verification_status'] or 'unverified')|capitalize }}
+                    </span>
+                </p>
+                {% if g.user['host_verification_status'] != 'verified' and g.user['host_verification_status'] != 'pending' %}
+                <form action="{{ url_for('request_host_verification') }}" method="POST" class="space-y-3">
+                    <textarea name="verification_note" maxlength="1000" rows="3"
+                        placeholder="Optional note for the review team (e.g. best time to call)"
+                        class="w-full p-3 border rounded-lg"></textarea>
+                    <button class="bg-blue-700 text-white px-4 py-2 rounded-lg font-bold">Request review</button>
+                </form>
+                {% endif %}
+            </div>
+
+            <!-- Change Password -->
+            <div class="mt-10 pt-8 border-t">
+                <h2 class="text-xl font-bold mb-6">Change Password</h2>
+                <form action="{{ url_for('change_password') }}" method="POST" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                        <input type="password" name="current_password" required
+                            class="w-full p-3 border rounded-lg focus:ring-primary focus:border-primary outline-none"
+                            placeholder="Enter current password">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                        <input type="password" name="new_password" required minlength="6"
+                            class="w-full p-3 border rounded-lg focus:ring-primary focus:border-primary outline-none"
+                            placeholder="Min 6 chars, letters + numbers">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                        <input type="password" name="confirm_password" required
+                            class="w-full p-3 border rounded-lg focus:ring-primary focus:border-primary outline-none"
+                            placeholder="Re-enter new password">
+                    </div>
+                    <button type="submit"
+                        class="w-full bg-gray-900 text-white py-3 rounded-lg font-bold hover:bg-black transition">
+                        <i class="fa-solid fa-lock mr-2"></i>Update Password
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Property Modal -->
+<div id="manageModal" class="fixed inset-0 bg-black z-[60] hidden flex items-center justify-center p-4 bg-opacity-50">
+    <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative">
+        <button onclick="document.getElementById('manageModal').classList.add('hidden')"
+            title="Close modal"
+            class="absolute top-4 right-4 text-gray-400 hover:text-black">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+        <h3 class="text-xl font-bold mb-1" id="manageTitle">Manage Property</h3>
+        <p class="text-gray-500 text-sm mb-6">Monthly availability &amp; listing status</p>
+
+        <div class="mb-6 border-b pb-6">
+            <div class="flex items-center justify-between mb-4">
+                <button type="button" id="calendarPrevious" class="rounded-lg border px-3 py-2 hover:bg-gray-50" aria-label="Previous month">
+                    <i class="fa-solid fa-chevron-left"></i>
+                </button>
+                <h4 id="hostCalendarMonth" class="font-bold text-lg"></h4>
+                <button type="button" id="calendarNext" class="rounded-lg border px-3 py-2 hover:bg-gray-50" aria-label="Next month">
+                    <i class="fa-solid fa-chevron-right"></i>
+                </button>
+            </div>
+            <div class="flex flex-wrap gap-3 text-xs mb-3">
+                <span><i class="fa-solid fa-circle text-gray-300"></i> Available</span>
+                <span><i class="fa-solid fa-circle text-red-500"></i> Blocked</span>
+                <span><i class="fa-solid fa-circle text-amber-500"></i> Request pending</span>
+                <span><i class="fa-solid fa-circle text-blue-600"></i> Confirmed</span>
+            </div>
+            <div id="hostCalendarError" role="status" class="hidden rounded-lg bg-red-50 text-red-700 text-sm p-3 mb-3"></div>
+            <div class="grid grid-cols-7 gap-1 text-center text-xs text-gray-500 mb-1">
+                <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div id="hostCalendarGrid" class="grid grid-cols-7 gap-1"></div>
+            <p id="hostCalendarSelection" class="text-sm text-gray-600 mt-3">Select a start and end date on the calendar.</p>
+            <div class="flex flex-wrap gap-2 mt-3">
+                <button type="button" id="calendarBlockMode" class="bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2 text-sm font-bold">
+                    Block selected range
+                </button>
+                <button type="button" id="calendarUnblockMode" class="border rounded-lg px-3 py-2 text-sm font-bold hover:bg-gray-50">
+                    Release blocked dates
+                </button>
+            </div>
+            <form id="blockDateForm" method="POST" class="hidden">
+                <input type="hidden" name="start_date">
+                <input type="hidden" name="end_date">
+            </form>
+            <form id="unblockDateForm" method="POST" class="hidden">
+                <input type="hidden" name="start_date">
+                <input type="hidden" name="end_date">
+            </form>
+            <p class="text-xs text-gray-400 mt-3">Pending requests and confirmed stays are shown as unavailable. Block dates only when they are not booked.</p>
+        </div>
+
+        <div class="mb-6 border-b pb-6">
+            <h4 class="font-bold text-sm mb-2">Listing freshness</h4>
+            <p class="text-sm text-gray-600 mb-3">Confirm that your listing details, price, and availability are still accurate. Guests will see the confirmation date.</p>
+            <form id="confirmListingForm" method="POST">
+                <button type="submit"
+                    class="w-full bg-green-700 text-white py-2 rounded-lg text-sm font-bold hover:bg-green-800">
+                    <i class="fa-solid fa-circle-check mr-1"></i>Confirm listing is up to date
+                </button>
+            </form>
+        </div>
+
+        <div>
+            <h4 class="font-bold text-sm mb-2">Listing Status</h4>
+            <div id="activeControls" class="hidden">
+                <p class="text-sm text-green-600 mb-2">● Currently Active</p>
+                <form id="delistForm" method="POST">
+                    <button type="submit"
+                        class="w-full border border-red-200 text-red-600 py-2 rounded-lg text-sm font-bold hover:bg-red-50">
+                        Delist (Hide)
+                    </button>
+                </form>
+            </div>
+            <div id="inactiveControls" class="hidden">
+                <p class="text-sm text-gray-500 mb-2">● Currently Inactive</p>
+                <form id="relistForm" method="POST">
+                    <button type="submit"
+                        class="w-full bg-green-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-green-700">
+                        Relist (Show)
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Booking Details Modal -->
+<div id="bookingDetailsModal"
+    class="fixed inset-0 bg-black z-[70] hidden flex items-center justify-center p-4 bg-opacity-50">
+    <div class="bg-white rounded-2xl w-full max-w-lg p-6 relative shadow-2xl">
+        <button onclick="document.getElementById('bookingDetailsModal').classList.add('hidden')"
+            class="absolute top-4 right-4 text-gray-400 hover:text-black">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+
+        <h3 class="text-2xl font-bold mb-6 border-b pb-2">Booking Details</h3>
+
+        <div class="space-y-4">
+            <div class="bg-gray-50 p-4 rounded-lg">
+                <p class="text-xs font-bold text-gray-500 uppercase mb-1">Property</p>
+                <p class="font-bold text-lg" id="bd-property">Villa</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-xs font-bold text-gray-500 uppercase mb-1">Check-in</p>
+                    <p class="font-medium" id="bd-checkin">2023-01-01</p>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-gray-500 uppercase mb-1">Check-out</p>
+                    <p class="font-medium" id="bd-checkout">2023-01-05</p>
+                </div>
+            </div>
+
+            <div class="border-t pt-4">
+                <h4 class="font-bold text-lg mb-3">Tenant Information</h4>
+                <div class="grid grid-cols-1 gap-2">
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-user text-gray-400 w-5"></i>
+                        <span id="bd-name" class="font-medium">John Doe</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-envelope text-gray-400 w-5"></i>
+                        <a href="#" id="bd-email" class="text-primary hover:underline">john@example.com</a>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <i class="fa-solid fa-phone text-gray-400 w-5"></i>
+                        <span id="bd-phone">0970000000</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="border-t pt-4 bg-green-50 p-4 rounded-lg -mx-2">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-bold text-gray-600">Total Amount</span>
+                    <span class="text-xl font-bold text-green-700" id="bd-price">ZMW 5,000</span>
+                </div>
+                <div class="flex justify-between text-xs text-gray-500">
+                    <span>Reference: <span id="bd-ref" class="font-mono">TX-123</span></span>
+                    <span>Payment: <span id="bd-status" class="uppercase font-bold">PAID</span></span>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">Approval: <span id="bd-booking-status" class="uppercase font-bold">PENDING</span></div>
+                <div class="text-xs text-gray-400 mt-1">Booked on: <span id="bd-created">2023-01-01</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Property Confirmation Modal -->
+<div id="deleteModal" class="fixed inset-0 bg-black items-center justify-center p-4 bg-opacity-60 z-[80]" style="display:none">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-6 relative shadow-2xl mx-auto mt-32">
+        <div class="text-center">
+            <div class="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+                <i class="fa-solid fa-trash text-red-500 text-xl"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mb-2">Delete Property?</h3>
+            <p class="text-gray-500 text-sm mb-1">You are about to permanently delete:</p>
+            <p class="font-bold text-gray-800 mb-4" id="deletePropTitle"></p>
+            <p class="text-xs text-red-500 bg-red-50 p-3 rounded-lg mb-6">&#9888; This cannot be undone. All images, reviews, and history will be removed.</p>
+            <div class="flex gap-3">
+                <button onclick="document.getElementById('deleteModal').style.display='none'"
+                    class="flex-1 border border-gray-200 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition">
+                    Cancel
+                </button>
+                <form id="deletePropertyForm" method="POST" class="flex-1">
+                    <button type="submit"
+                        class="w-full bg-red-500 text-white py-2.5 rounded-xl font-bold hover:bg-red-600 transition">
+                        Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let managedPropertyId = null;
+    let calendarMonth = new Date();
+    let calendarStart = null;
+    let calendarEnd = null;
+    let hostCalendarRequest = 0;
+
+    function formatLocalDate(year, month, day) {
+        return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    }
+
+    function changeCalendarMonth(amount) {
+        calendarMonth = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + amount, 1);
+        loadHostCalendar();
+    }
+
+    async function loadHostCalendar() {
+        if (!managedPropertyId) return;
+        const requestId = ++hostCalendarRequest;
+        const propertyId = managedPropertyId;
+        const year = calendarMonth.getFullYear();
+        const month = calendarMonth.getMonth();
+        const monthKey = year + '-' + String(month + 1).padStart(2, '0');
+        const grid = document.getElementById('hostCalendarGrid');
+        const error = document.getElementById('hostCalendarError');
+        document.getElementById('hostCalendarMonth').innerText =
+            calendarMonth.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+        error.classList.add('hidden');
+        grid.innerHTML = '';
+        try {
+            const response = await fetch('/property/' + propertyId + '/availability?month=' + monthKey);
+            const data = await response.json();
+            if (requestId !== hostCalendarRequest) return;
+            if (!response.ok) throw new Error(data.error || 'Could not load availability.');
+            const firstWeekday = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            for (let blank = 0; blank < firstWeekday; blank++) {
+                grid.appendChild(document.createElement('span'));
+            }
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateValue = formatLocalDate(year, month, day);
+                const status = (data.dates || {})[dateValue] || 'available';
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = String(day);
+                button.setAttribute('aria-label', dateValue + ': ' + status);
+                button.title = dateValue + ' — ' + status.replace('_', ' ');
+                button.className = 'h-10 rounded-lg text-sm border transition ';
+                if (status === 'blocked') button.className += 'bg-red-100 border-red-300 text-red-800';
+                else if (status === 'pending') button.className += 'bg-amber-100 border-amber-300 text-amber-900';
+                else if (status === 'confirmed') button.className += 'bg-blue-100 border-blue-300 text-blue-900';
+                else button.className += 'bg-white border-gray-200 hover:border-primary hover:bg-red-50';
+                if (status === 'pending' || status === 'confirmed') {
+                    button.disabled = true;
+                    button.className += ' opacity-70 cursor-not-allowed';
+                } else {
+                    button.addEventListener('click', function () { selectCalendarDate(dateValue); });
+                }
+                if (dateValue === calendarStart || dateValue === calendarEnd ||
+                    (calendarStart && calendarEnd && dateValue > calendarStart && dateValue < calendarEnd)) {
+                    button.className += ' ring-2 ring-primary';
+                }
+                grid.appendChild(button);
+            }
+            updateCalendarSelection();
+        } catch (requestError) {
+            if (requestId !== hostCalendarRequest) return;
+            error.textContent = requestError.message;
+            error.classList.remove('hidden');
+        }
+    }
+
+    function selectCalendarDate(value) {
+        if (!calendarStart || calendarEnd || value < calendarStart) {
+            calendarStart = value;
+            calendarEnd = null;
+        } else {
+            calendarEnd = value;
+        }
+        updateCalendarSelection();
+        loadHostCalendar();
+    }
+
+    function updateCalendarSelection() {
+        const label = document.getElementById('hostCalendarSelection');
+        if (!calendarStart) label.innerText = 'Select a start and end date on the calendar.';
+        else if (!calendarEnd) label.innerText = 'Start: ' + calendarStart + '. Choose an end date, or submit for one day.';
+        else label.innerText = 'Selected: ' + calendarStart + ' to ' + calendarEnd;
+    }
+
+    function submitAvailabilityRange(action) {
+        if (!calendarStart) {
+            document.getElementById('hostCalendarError').textContent = 'Select at least one date on the calendar.';
+            document.getElementById('hostCalendarError').classList.remove('hidden');
+            return;
+        }
+        const endDate = calendarEnd || calendarStart;
+        if (action === 'block' && !confirm('Block ' + calendarStart + ' through ' + endDate + '?')) return;
+        if (action === 'unblock' && !confirm('Release blocked dates from ' + calendarStart + ' through ' + endDate + '?')) return;
+        const form = document.getElementById(action === 'block' ? 'blockDateForm' : 'unblockDateForm');
+        form.action = '/availability/' + managedPropertyId + '/' + (action === 'block' ? 'block-range' : 'unblock-range');
+        form.elements.start_date.value = calendarStart;
+        form.elements.end_date.value = endDate;
+        form.submit();
+    }
+
+    document.getElementById('calendarPrevious').addEventListener('click', function () { changeCalendarMonth(-1); });
+    document.getElementById('calendarNext').addEventListener('click', function () { changeCalendarMonth(1); });
+    document.getElementById('calendarBlockMode').addEventListener('click', function () { submitAvailabilityRange('block'); });
+    document.getElementById('calendarUnblockMode').addEventListener('click', function () { submitAvailabilityRange('unblock'); });
+
+    function showTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        const content = document.getElementById('content-' + tabName);
+        if (content) content.classList.remove('hidden');
+
+        document.querySelectorAll('#dashboardTabs button').forEach(btn => {
+            btn.classList.remove('border-primary', 'text-primary');
+            btn.classList.add('border-transparent');
+        });
+        const activeBtn = document.getElementById('tab-' + tabName);
+        if (activeBtn) {
+            activeBtn.classList.remove('border-transparent');
+            activeBtn.classList.add('border-primary', 'text-primary');
+        }
+    }
+
+    function openManageModal(id, title, isActive) {
+        managedPropertyId = id;
+        hostCalendarRequest++;
+        calendarMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        calendarStart = null;
+        calendarEnd = null;
+        document.getElementById('manageModal').classList.remove('hidden');
+        document.getElementById('manageTitle').innerText = title;
+
+        document.getElementById('delistForm').action = "/delist_property/" + id;
+        document.getElementById('relistForm').action = "/relist_property/" + id;
+        document.getElementById('confirmListingForm').action = "/property/" + id + "/confirm-details";
+        loadHostCalendar();
+
+        if (isActive) {
+            document.getElementById('activeControls').classList.remove('hidden');
+            document.getElementById('inactiveControls').classList.add('hidden');
+        } else {
+            document.getElementById('activeControls').classList.add('hidden');
+            document.getElementById('inactiveControls').classList.remove('hidden');
+        }
+    }
+
+    function openBookingDetails(booking) {
+        document.getElementById('bookingDetailsModal').classList.remove('hidden');
+        document.getElementById('bd-property').innerText = booking.title;
+        document.getElementById('bd-checkin').innerText = booking.check_in;
+        document.getElementById('bd-checkout').innerText = booking.check_out;
+        document.getElementById('bd-name').innerText = booking.tenant_name;
+        document.getElementById('bd-email').innerText = booking.tenant_email || 'Not provided';
+        document.getElementById('bd-email').href = "mailto:" + (booking.tenant_email || '');
+        document.getElementById('bd-phone').innerText = booking.tenant_phone;
+        document.getElementById('bd-price').innerText = "ZMW " + parseInt(booking.total_price).toLocaleString();
+        document.getElementById('bd-ref').innerText = booking.tx_ref || 'N/A';
+        document.getElementById('bd-status').innerText = booking.payment_status;
+        document.getElementById('bd-booking-status').innerText = booking.booking_status || 'pending';
+        document.getElementById('bd-created').innerText = booking.created_at;
+    }
+
+    function openDeleteModal(id, title) {
+        document.getElementById('deletePropTitle').innerText = title;
+        document.getElementById('deletePropertyForm').action = '/property/' + id + '/delete';
+        document.getElementById('deleteModal').style.display = 'flex';
+    }
+
+    function toggleReply(id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden');
+    }
+
+    function markAllMsgsRead() {
+        fetch('/messages/mark_read', { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+            .then(function () { location.reload(); });
+    }
+</script>
+{% endblock %}

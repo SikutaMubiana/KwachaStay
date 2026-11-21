@@ -133,8 +133,13 @@ class AdminDashboardTests(unittest.TestCase):
         client = app.app.test_client()
         with client.session_transaction() as sess:
             sess['_csrf_token'] = 'login-csrf'
-        resp = client.post('/login', data={'email': 'boss@example.com', 'password': 'Pass1234', 'csrf_token': 'login-csrf'})
+        resp = client.post(
+            '/login',
+            data={'email': 'boss@example.com', 'password': 'Pass1234', 'csrf_token': 'login-csrf'},
+            follow_redirects=False,
+        )
         self.assertEqual(resp.status_code, 302)
+        self.assertTrue(resp.headers['Location'].endswith('/admin'))
         with app.app.app_context():
             is_admin = app.get_db().execute('SELECT is_admin FROM users WHERE id = ?', (user_id,)).fetchone()[0]
             self.assertEqual(is_admin, 1)

@@ -7,7 +7,7 @@ from werkzeug.security import generate_password_hash
 import app
 
 
-class AuthAndNoBrevoTests(unittest.TestCase):
+class AuthAndRoleSeparationTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.original_database = app.DATABASE
@@ -42,7 +42,7 @@ class AuthAndNoBrevoTests(unittest.TestCase):
         self.assertEqual(client.post('/webhooks/brevo', data={'csrf_token': csrf}).status_code, 404)
         self.assertEqual(client.get('/verify-contact').status_code, 404)
 
-    def test_tenant_can_register_and_login_without_verification(self):
+    def test_tenant_can_register_and_login_to_tenant_dashboard_only(self):
         client = app.app.test_client()
         csrf = self.csrf(client)
         with patch.object(app, 'send_email') as send_email_mock, patch.object(
@@ -77,15 +77,31 @@ class AuthAndNoBrevoTests(unittest.TestCase):
                 follow_redirects=False,
             )
             self.assertEqual(login_resp.status_code, 302)
-            self.assertTrue(login_resp.headers['Location'].endswith('/'))
+            self.assertTrue(login_resp.headers['Location'].endswith('/tenant/dashboard'))
             send_email_mock.assert_not_called()
             send_sms_mock.assert_not_called()
 
-        dashboard_resp = client.get('/dashboard')
-        self.assertEqual(dashboard_resp.status_code, 200)
-        self.assertIn(b'My Trips', dashboard_resp.data)
+        # /dashboard dispatches to /tenant/dashboard
+        dispatch_resp = client.get('/dashboard', follow_redirects=False)
+        self.assertEqual(dispatch_resp.status_code, 302)
+        self.assertTrue(dispatch_resp.headers['Location'].endswith('/tenant/dashboard'))
 
-    def test_owner_can_register_and_login_without_verification(self):
+        dashboard_resp = client.get('/tenant/dashboard')
+        self.assertEqual(dashboard_resp.status_code, 200)
+        self.assertIn(b'Tenant Dashboard', dashboard_resp.data)
+        self.assertIn(b'My Trips', dashboard_resp.data)
+        self.assertNotIn(b'Incoming Bookings', dashboard_resp.data)
+
+        # Tenant cannot access Landlord Dashboard or Add House (must create separate landlord account)
+        landlord_dash_resp = client.get('/landlord/dashboard', follow_redirects=False)
+        self.assertEqual(landlord_dash_resp.status_code, 302)
+        self.assertTrue(landlord_dash_resp.headers['Location'].endswith('/tenant/dashboard'))
+
+        add_house_resp = client.get('/add_house', follow_redirects=False)
+        self.assertEqual(add_house_resp.status_code, 302)
+        self.assertTrue(add_house_resp.headers['Location'].endswith('/tenant/dashboard'))
+
+    def test_owner_can_register_and_login_to_landlord_dashboard_only(self):
         client = app.app.test_client()
         csrf = self.csrf(client)
         with patch.object(app, 'send_email') as send_email_mock, patch.object(
@@ -109,7 +125,6 @@ class AuthAndNoBrevoTests(unittest.TestCase):
             send_email_mock.assert_not_called()
             send_sms_mock.assert_not_called()
 
-            # Log in using email
             csrf = self.csrf(client)
             login_resp = client.post(
                 '/login',
@@ -121,16 +136,51 @@ class AuthAndNoBrevoTests(unittest.TestCase):
                 follow_redirects=False,
             )
             self.assertEqual(login_resp.status_code, 302)
-            self.assertTrue(login_resp.headers['Location'].endswith('/'))
+            self.assertTrue(login_resp.headers['Location'].endswith('/landlord/dashboard'))
             send_email_mock.assert_not_called()
             send_sms_mock.assert_not_called()
 
-        dashboard_resp = client.get('/dashboard')
+        # /dashboard dispatches to /landlord/dashboard
+        dispatch_resp = client.get('/dashboard', follow_redirects=False)
+        self.assertEqual(dispatch_resp.status_code, 302)
+        self.assertTrue(dispatch_resp.headers['Location'].endswith('/landlord/dashboard'))
+
+        dashboard_resp = client.get('/landlord/dashboard')
         self.assertEqual(dashboard_resp.status_code, 200)
+        self.assertIn(b'Landlord Dashboard', dashboard_resp.data)
         self.assertIn(b'My Listings', dashboard_resp.data)
+        self.assertIn(b'Incoming Bookings', dashboard_resp.data)
+        self.assertNotIn(b'My Trips', dashboard_resp.data)
 
         add_house_resp = client.get('/add_house')
         self.assertEqual(add_house_resp.status_code, 200)
+
+        # Landlord cannot access Tenant Dashboard or Tenant Checkout / Wishlist
+        tenant_dash_resp = client.get('/tenant/dashboard', follow_redirects=False)
+        self.assertEqual(tenant_dash_resp.status_code, 302)
+        self.assertTrue(tenant_dash_resp.headers['Location'].endswith('/landlord/dashboard'))
+
+        with app.app.app_context():
+            db = app.get_db()
+            owner_id = db.execute("SELECT id FROM users WHERE email = 'host@example.com'").fetchone()[0]
+            prop_id = db.execute(
+                '''INSERT INTO properties (owner_id, title, description, price_per_night, compound, property_type)
+                   VALUES (?, ?, ?, ?, ?, ?)''',
+                (owner_id, 'Test Home', 'Nice house', 500, 'Kabulonga', 'House'),
+            ).lastrowid
+            db.commit()
+
+        checkout_resp = client.get(f'/checkout/{prop_id}', follow_redirects=False)
+        self.assertEqual(checkout_resp.status_code, 302)
+        self.assertTrue(checkout_resp.headers['Location'].endswith('/landlord/dashboard'))
+
+        csrf = self.csrf(client)
+        wishlist_resp = client.post(
+            f'/toggle_wishlist/{prop_id}',
+            headers={'X-CSRF-Token': csrf},
+            follow_redirects=False,
+        )
+        self.assertEqual(wishlist_resp.status_code, 403)
 
         # Log out and log back in with phone number
         client.get('/logout')
@@ -145,7 +195,7 @@ class AuthAndNoBrevoTests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertEqual(phone_login.status_code, 302)
-        self.assertTrue(phone_login.headers['Location'].endswith('/'))
+        self.assertTrue(phone_login.headers['Location'].endswith('/landlord/dashboard'))
 
     def test_existing_unverified_user_can_login_directly(self):
         with app.app.app_context():
@@ -165,7 +215,7 @@ class AuthAndNoBrevoTests(unittest.TestCase):
             follow_redirects=False,
         )
         self.assertEqual(resp.status_code, 302)
-        self.assertTrue(resp.headers['Location'].endswith('/'))
+        self.assertTrue(resp.headers['Location'].endswith('/landlord/dashboard'))
 
 
 if __name__ == '__main__':

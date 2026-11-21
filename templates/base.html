@@ -101,8 +101,13 @@
                             {{ 'Standard data' if low_data_mode else 'Low-data mode' }}
                         </button>
                     </form>
+                    {% if g.user and g.user['role'] == 'owner' %}
                     <a href="{{ url_for('add_house') }}"
-                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Become a Host</a>
+                        class="text-sm font-medium text-gray-700 hover:text-primary transition">List Property</a>
+                    {% elif not g.user %}
+                    <a href="{{ url_for('signup', role='owner') }}"
+                        class="text-sm font-medium text-gray-700 hover:text-primary transition">List a Property</a>
+                    {% endif %}
 
                     {% if g.user %}
                     <div class="flex items-center gap-4">
@@ -111,8 +116,9 @@
                             class="text-sm font-bold text-red-600 hover:text-red-800 transition uppercase">Admin</a>
                         {% endif %}
                         <span class="text-sm font-medium text-gray-900">Hi, {{ g.user['full_name'].split()[0] }}</span>
-                        <a href="{{ url_for('dashboard') }}"
-                            class="text-sm font-medium text-gray-700 hover:text-primary transition">Dashboard
+                        <a href="{{ url_for('landlord_dashboard') if g.user['role'] == 'owner' else url_for('tenant_dashboard') }}"
+                            class="text-sm font-medium text-gray-700 hover:text-primary transition">
+                            {{ 'Landlord Dashboard' if g.user['role'] == 'owner' else 'Tenant Dashboard' }}
                             {% if unread_messages > 0 %}
                             <span class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full ml-0.5 -mt-1 align-top">{{ unread_messages }}</span>
                             {% endif %}
@@ -163,8 +169,13 @@
                         {{ 'Standard data mode' if low_data_mode else 'Enable low-data mode' }}
                     </button>
                 </form>
+                {% if g.user and g.user['role'] == 'owner' %}
                 <a href="{{ url_for('add_house') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">Become a Host</a>
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">List Property</a>
+                {% elif not g.user %}
+                <a href="{{ url_for('signup', role='owner') }}"
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">List a Property</a>
+                {% endif %}
 
                 {% if g.user %}
                 <hr class="border-gray-100">
@@ -179,8 +190,10 @@
                 <a href="{{ url_for('admin_dashboard') }}" class="text-base font-bold text-red-600 uppercase">Admin
                     Dashboard</a>
                 {% endif %}
-                <a href="{{ url_for('dashboard') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">Dashboard</a>
+                <a href="{{ url_for('landlord_dashboard') if g.user['role'] == 'owner' else url_for('tenant_dashboard') }}"
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">
+                    {{ 'Landlord Dashboard' if g.user['role'] == 'owner' else 'Tenant Dashboard' }}
+                </a>
                 <a href="{{ url_for('support_center') }}"
                     class="text-base font-medium text-gray-700 hover:text-primary transition">Support</a>
                 <a href="{{ url_for('logout') }}"

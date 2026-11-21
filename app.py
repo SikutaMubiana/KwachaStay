@@ -1438,12 +1438,52 @@ def ensure_db_schema():
 if not DATABASE_URL:
     ensure_db_schema()
 
-# --- Auth Decorator ---
+# --- Auth Decorators ---
 def login_required(view):
     @functools.wraps(view)
     def wrapped_view(**kwargs):
         if g.user is None:
             return redirect(url_for('login'))
+        return view(**kwargs)
+    return wrapped_view
+
+
+def tenant_required(view):
+    @functools.wraps(view)
+    def wrapped_view(**kwargs):
+        if g.user is None:
+            return redirect(url_for('login'))
+        if g.user['role'] != 'tenant':
+            message = (
+                'This section is for Tenant accounts only. '
+                'To rent or book a place, please log out and sign in or register with a separate Tenant account.'
+            )
+            if request.is_json or request.headers.get('X-CSRF-Token'):
+                return jsonify({'error': message}), 403
+            flash(message, 'info')
+            if g.user['role'] == 'owner':
+                return redirect(url_for('landlord_dashboard'))
+            return redirect(url_for('index'))
+        return view(**kwargs)
+    return wrapped_view
+
+
+def landlord_required(view):
+    @functools.wraps(view)
+    def wrapped_view(**kwargs):
+        if g.user is None:
+            return redirect(url_for('login'))
+        if g.user['role'] != 'owner':
+            message = (
+                'This section is for Landlord / Lister accounts only. '
+                'To list or manage properties, please log out and sign in or register with a separate Landlord account.'
+            )
+            if request.is_json or request.headers.get('X-CSRF-Token'):
+                return jsonify({'error': message}), 403
+            flash(message, 'info')
+            if g.user['role'] == 'tenant':
+                return redirect(url_for('tenant_dashboard'))
+            return redirect(url_for('index'))
         return view(**kwargs)
     return wrapped_view
 
@@ -1879,11 +1919,14 @@ def signup():
                     flash('Account created successfully! Please log in with your email or phone and password.', 'success')
                     return redirect(url_for('login'))
 
-    return render_template('signup.html', phone_countries=phone_country_options())
+    default_role = request.args.get('role', 'tenant')
+    if default_role not in ('tenant', 'owner'):
+        default_role = 'tenant'
+    return render_template('signup.html', phone_countries=phone_country_options(), default_role=default_role)
 
 
 @app.route('/saved-searches/save', methods=['POST'])
-@login_required
+@tenant_required
 def save_search():
     db = get_db()
     existing_count = db.execute(
@@ -1954,7 +1997,7 @@ def save_search():
 
 
 @app.route('/saved-searches/delete/<int:search_id>', methods=['POST'])
-@login_required
+@tenant_required
 def delete_saved_search(search_id):
     db = get_db()
     db.execute('DELETE FROM saved_searches WHERE id = ? AND user_id = ?',
@@ -1965,7 +2008,7 @@ def delete_saved_search(search_id):
 
 
 @app.route('/trip-plans/create', methods=['POST'])
-@login_required
+@tenant_required
 def create_trip_plan():
     selected_ids = request.form.getlist('property_ids')
     try:
@@ -2152,7 +2195,7 @@ def support_center():
 
 
 @app.route('/host/verification/request', methods=['POST'])
-@login_required
+@landlord_required
 def request_host_verification():
     if g.user['role'] != 'owner':
         flash('Only host accounts can request host verification.', 'error')
@@ -2179,7 +2222,7 @@ def request_host_verification():
 
 
 @app.route('/booking/<int:booking_id>/refund-request', methods=['POST'])
-@login_required
+@tenant_required
 def request_refund(booking_id):
     db = get_db()
     booking = db.execute(
@@ -2229,14 +2272,20 @@ def login():
         elif user['role'] == 'banned':
             flash('This account has been suspended. Please contact support.', 'error')
         else:
-            if (user['email'] or '').strip().lower() in ADMIN_EMAILS and not user['is_admin']:
+            is_admin_user = bool(user['is_admin'])
+            if (user['email'] or '').strip().lower() in ADMIN_EMAILS and not is_admin_user:
                 db.execute('UPDATE users SET is_admin = 1 WHERE id = ?', (user['id'],))
                 db.commit()
+                is_admin_user = True
             session.clear()
             session['user_id'] = user['id']
             session.permanent = bool(request.form.get('remember_me'))
             flash(f"Welcome back, {user['full_name']}!", 'success')
-            return redirect(url_for('index'))
+            if is_admin_user:
+                return redirect(url_for('admin_dashboard'))
+            if user['role'] == 'owner':
+                return redirect(url_for('landlord_dashboard'))
+            return redirect(url_for('tenant_dashboard'))
 
     return render_template('login.html', phone_countries=phone_country_options())
 
@@ -2247,7 +2296,7 @@ def logout():
     return redirect(url_for('index'))
 
 @app.route('/add_house', methods=('GET', 'POST'))
-@login_required
+@landlord_required
 def add_house():
     if request.method == 'POST':
         title = request.form['title']
@@ -2378,10 +2427,18 @@ def add_house():
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    if g.user['role'] == 'owner':
+        return redirect(url_for('landlord_dashboard'))
+    return redirect(url_for('tenant_dashboard'))
+
+
+@app.route('/tenant/dashboard')
+@tenant_required
+def tenant_dashboard():
     db = get_db()
     expire_pending_booking_requests(db, force=True)
-    
-    # 1. Fetch My Bookings (as Tenant)
+
+    # 1. Fetch My Bookings (Tenant)
     bookings = db.execute('''
         SELECT b.*, p.title, p.compound, p.image_main,
                p.arrival_instructions, p.arrival_directions, p.nearby_essentials,
@@ -2393,8 +2450,62 @@ def dashboard():
         WHERE b.user_id = ?
         ORDER BY b.created_at DESC
     ''', (g.user['id'],)).fetchall()
-    
-    # 2. Fetch My Listings (as Owner)
+
+    # 2. Fetch Saved Wishlist
+    wishlist = db.execute('''
+        SELECT p.*
+        FROM wishlists w
+        JOIN properties p ON w.property_id = p.id
+        WHERE w.user_id = ?
+        ORDER BY w.created_at DESC
+    ''', (g.user['id'],)).fetchall()
+
+    # 3. Fetch Messages
+    messages = db.execute('''
+        SELECT m.*, u.full_name as sender_name, p.title as property_title
+        FROM messages m
+        JOIN users u ON m.sender_id = u.id
+        LEFT JOIN properties p ON m.property_id = p.id
+        WHERE m.receiver_id = ?
+        ORDER BY m.created_at DESC
+    ''', (g.user['id'],)).fetchall()
+
+    # 4. Fetch Saved Searches & Trip Plans
+    saved_searches = db.execute(
+        'SELECT * FROM saved_searches WHERE user_id = ? ORDER BY created_at DESC',
+        (g.user['id'],)
+    ).fetchall()
+    trip_plans = db.execute(
+        '''SELECT tp.*, COUNT(tpi.property_id) AS property_count
+           FROM trip_plans tp
+           LEFT JOIN trip_plan_items tpi ON tpi.trip_plan_id = tp.id
+           WHERE tp.user_id = ?
+           GROUP BY tp.id
+           ORDER BY tp.created_at DESC''',
+        (g.user['id'],),
+    ).fetchall()
+
+    return render_template(
+        'tenant_dashboard.html',
+        bookings=bookings,
+        wishlist=wishlist,
+        messages=messages,
+        saved_searches=saved_searches,
+        power_backup_options=POWER_BACKUP_OPTIONS,
+        water_supply_options=WATER_SUPPLY_OPTIONS,
+        trip_plans=trip_plans,
+        mobile_money_enabled=flutterwave_checkout_enabled(),
+        user=g.user,
+    )
+
+
+@app.route('/landlord/dashboard')
+@landlord_required
+def landlord_dashboard():
+    db = get_db()
+    expire_pending_booking_requests(db, force=True)
+
+    # 1. Fetch My Listings (Landlord / Lister)
     properties = db.execute('''
         SELECT *, CAST(julianday('now') - julianday(last_confirmed_at) AS INTEGER)
             AS confirmation_age_days
@@ -2519,14 +2630,14 @@ def dashboard():
             host_analytics['suggestions'].append(
                 'Your listings look up to date. Keep availability and guest replies current.'
             )
-    
-    # 3. Fetch Incoming Bookings (for my properties)
+
+    # 2. Fetch Incoming Bookings (for landlord properties)
     incoming_bookings = []
     earnings = {'total': 0, 'confirmed': 0, 'pending': 0, 'count': 0, 'recent': []}
     if properties:
         placeholders = ','.join('?' for _ in properties)
         property_ids = [p['id'] for p in properties]
-        
+
         query = f'''
             SELECT b.*, p.title, u.email as tenant_email,
                    u.email_verified_at AS tenant_email_verified_at,
@@ -2548,7 +2659,6 @@ def dashboard():
             dict(row) for row in db.execute(query, property_ids).fetchall()
         ]
 
-        # Compute earnings
         for b in incoming_bookings:
             if b['booking_status'] == 'confirmed' and b['payment_status'] == 'paid':
                 earnings['confirmed'] += b['total_price'] or 0
@@ -2556,7 +2666,7 @@ def dashboard():
             elif b['booking_status'] == 'pending':
                 earnings['pending'] += b['total_price'] or 0
         earnings['total'] = earnings['confirmed'] + earnings['pending']
-        earnings['recent'] = incoming_bookings[:5]  # latest 5
+        earnings['recent'] = incoming_bookings[:5]
         refresh_payout_ledger(db, g.user['id'])
         db.commit()
         payout_ledger = db.execute(
@@ -2571,16 +2681,7 @@ def dashboard():
     else:
         payout_ledger = []
 
-    # 4. Fetch Wishlist
-    wishlist = db.execute('''
-        SELECT p.*
-        FROM wishlists w
-        JOIN properties p ON w.property_id = p.id
-        WHERE w.user_id = ?
-        ORDER BY w.created_at DESC
-    ''', (g.user['id'],)).fetchall()
-
-    # 5. Fetch Messages
+    # 3. Fetch Messages
     messages = db.execute('''
         SELECT m.*, u.full_name as sender_name, p.title as property_title
         FROM messages m
@@ -2590,47 +2691,29 @@ def dashboard():
         ORDER BY m.created_at DESC
     ''', (g.user['id'],)).fetchall()
 
-    # 6. Fetch payout methods
+    # 4. Fetch Payout Methods
     payout_methods = db.execute(
         'SELECT * FROM payout_methods WHERE user_id = ? ORDER BY is_primary DESC',
         (g.user['id'],)
     ).fetchall()
-    saved_searches = db.execute(
-        'SELECT * FROM saved_searches WHERE user_id = ? ORDER BY created_at DESC',
-        (g.user['id'],)
-    ).fetchall()
-    trip_plans = db.execute(
-        '''SELECT tp.*, COUNT(tpi.property_id) AS property_count
-           FROM trip_plans tp
-           LEFT JOIN trip_plan_items tpi ON tpi.trip_plan_id = tp.id
-           WHERE tp.user_id = ?
-           GROUP BY tp.id
-           ORDER BY tp.created_at DESC''',
-        (g.user['id'],),
-    ).fetchall()
 
-    return render_template('dashboard.html', 
-                         bookings=bookings, 
-                         properties=properties, 
-                         incoming_bookings=incoming_bookings,
-                         wishlist=wishlist,
-                         messages=messages,
-                         earnings=earnings,
-                         payout_methods=payout_methods,
-                         saved_searches=saved_searches,
-                         power_backup_options=POWER_BACKUP_OPTIONS,
-                         water_supply_options=WATER_SUPPLY_OPTIONS,
-                         host_analytics=host_analytics,
-                         trip_plans=trip_plans,
-                         seasonal_pricing=seasonal_pricing,
-                         calendar_imports=calendar_imports,
-                         calendar_feed_urls=calendar_feed_urls,
-                         payout_ledger=payout_ledger,
-                         photo_checklists=photo_checklists,
-                         listing_quality=listing_quality,
-                         host_reminders=host_reminders,
-                         mobile_money_enabled=flutterwave_checkout_enabled(),
-                         user=g.user)
+    return render_template(
+        'landlord_dashboard.html',
+        properties=properties,
+        incoming_bookings=incoming_bookings,
+        messages=messages,
+        earnings=earnings,
+        payout_methods=payout_methods,
+        host_analytics=host_analytics,
+        seasonal_pricing=seasonal_pricing,
+        calendar_imports=calendar_imports,
+        calendar_feed_urls=calendar_feed_urls,
+        payout_ledger=payout_ledger,
+        photo_checklists=photo_checklists,
+        listing_quality=listing_quality,
+        host_reminders=host_reminders,
+        user=g.user,
+    )
 
 @app.route('/property/<int:property_id>')
 def property_details(property_id):
@@ -2767,7 +2850,7 @@ def property_details(property_id):
 
 
 @app.route('/property/<int:property_id>/confirm-details', methods=['POST'])
-@login_required
+@landlord_required
 def confirm_listing_details(property_id):
     db = get_db()
     try:
@@ -2790,7 +2873,7 @@ def confirm_listing_details(property_id):
     return redirect(url_for('dashboard'))
 
 @app.route('/add_review/<int:property_id>', methods=['POST'])
-@login_required
+@tenant_required
 def add_review(property_id):
     rating = request.form.get('rating')
     comment = request.form.get('comment')
@@ -2890,7 +2973,7 @@ def add_review(property_id):
     return redirect(url_for('property_details', property_id=property_id))
 
 @app.route('/toggle_wishlist/<int:property_id>', methods=['POST'])
-@login_required
+@tenant_required
 def toggle_wishlist(property_id):
     db = get_db()
     existing = db.execute('SELECT * FROM wishlists WHERE user_id = ? AND property_id = ?', 
@@ -2911,7 +2994,7 @@ def toggle_wishlist(property_id):
 
 # --- Booking Cancellation by Tenant ---
 @app.route('/booking/cancel/<int:booking_id>', methods=['POST'])
-@login_required
+@tenant_required
 def cancel_booking(booking_id):
     db = get_db()
     booking = db.execute('''
@@ -2965,7 +3048,7 @@ def cancel_booking(booking_id):
 
 # --- Delete Property ---
 @app.route('/property/<int:property_id>/delete', methods=['POST'])
-@login_required
+@landlord_required
 def delete_property(property_id):
     db = get_db()
     prop = db.execute('SELECT * FROM properties WHERE id = ? AND owner_id = ?',
@@ -2994,7 +3077,7 @@ def delete_property(property_id):
     return redirect(url_for('dashboard'))
 
 @app.route('/delist_property/<int:property_id>', methods=['POST'])
-@login_required
+@landlord_required
 def delist_property(property_id):
     db = get_db()
     db.execute('UPDATE properties SET is_active = 0 WHERE id = ? AND owner_id = ?', 
@@ -3004,7 +3087,7 @@ def delist_property(property_id):
     return redirect(url_for('dashboard'))
 
 @app.route('/relist_property/<int:property_id>', methods=['POST'])
-@login_required
+@landlord_required
 def relist_property(property_id):
     db = get_db()
     cursor = db.execute(
@@ -3022,7 +3105,7 @@ def relist_property(property_id):
 
 # --- Availability ---
 @app.route('/block_date/<int:property_id>', methods=['POST'])
-@login_required
+@landlord_required
 def block_date(property_id):
     blocked_date = parse_iso_date(request.form.get('date'))
     db = get_db()
@@ -3226,7 +3309,7 @@ def render_calendar_response(property_row, events):
 
 
 @app.route('/property/<int:property_id>/calendar.ics')
-@login_required
+@landlord_required
 def export_property_calendar(property_id):
     db = get_db()
     property_row = db.execute(
@@ -3326,7 +3409,7 @@ def public_calendar_feed(token):
 
 
 @app.route('/calendar/<int:property_id>/feed', methods=['POST'])
-@login_required
+@landlord_required
 def create_calendar_feed(property_id):
     db = get_db()
     if not db.execute(
@@ -3343,7 +3426,7 @@ def create_calendar_feed(property_id):
 
 
 @app.route('/calendar/<int:property_id>/import', methods=['POST'])
-@login_required
+@landlord_required
 def import_property_calendar(property_id):
     db = get_db()
     if not db.execute(
@@ -3393,7 +3476,7 @@ def import_property_calendar(property_id):
 
 
 @app.route('/calendar/import/<int:import_id>/delete', methods=['POST'])
-@login_required
+@landlord_required
 def delete_calendar_import(import_id):
     db = get_db()
     deleted = db.execute(
@@ -3409,7 +3492,7 @@ def delete_calendar_import(import_id):
 
 
 @app.route('/property/<int:property_id>/seasonal-pricing/add', methods=['POST'])
-@login_required
+@landlord_required
 def add_seasonal_pricing(property_id):
     db = get_db()
     property_row = db.execute(
@@ -3453,7 +3536,7 @@ def add_seasonal_pricing(property_id):
 
 
 @app.route('/property/<int:property_id>/seasonal-pricing/<int:rule_id>/delete', methods=['POST'])
-@login_required
+@landlord_required
 def delete_seasonal_pricing(property_id, rule_id):
     db = get_db()
     deleted = db.execute(
@@ -3499,7 +3582,7 @@ def property_price_quote(property_id):
 
 
 @app.route('/availability/<int:property_id>/block-range', methods=['POST'])
-@login_required
+@landlord_required
 def block_date_range(property_id):
     check_in = parse_iso_date(request.form.get('start_date'))
     check_out = parse_iso_date(request.form.get('end_date'))
@@ -3550,7 +3633,7 @@ def block_date_range(property_id):
 
 
 @app.route('/availability/<int:property_id>/unblock-range', methods=['POST'])
-@login_required
+@landlord_required
 def unblock_date_range(property_id):
     start_date = parse_iso_date(request.form.get('start_date'))
     end_date = parse_iso_date(request.form.get('end_date'))
@@ -3581,7 +3664,7 @@ def unblock_date_range(property_id):
     return redirect(url_for('dashboard'))
 
 @app.route('/unblock_date/<int:property_id>', methods=['POST'])
-@login_required
+@landlord_required
 def unblock_date(property_id):
     unblocked_date = request.form.get('date')
     db = get_db()
@@ -4707,7 +4790,7 @@ def confirm_phone_verification():
     return redirect(url_for('dashboard'))
 
 @app.route('/checkout/<int:property_id>', methods=('GET', 'POST'))
-@login_required
+@tenant_required
 def checkout(property_id):
     db = get_db()
     expire_pending_booking_requests(db, force=True)
@@ -4858,7 +4941,7 @@ def upload_image():
 
 
 @app.route('/booking/<int:booking_id>/pay/mobile-money', methods=['POST'])
-@login_required
+@tenant_required
 def start_mobile_money_payment(booking_id):
     db = get_db()
     booking = db.execute(
@@ -4958,7 +5041,7 @@ def start_mobile_money_payment(booking_id):
 
 
 @app.route('/booking/<int:booking_id>/pay/bank-transfer', methods=['GET', 'POST'])
-@login_required
+@tenant_required
 def bank_transfer_payment(booking_id):
     if not BANK_TRANSFER_ENABLED:
         flash('Bank transfer payment is not configured. Please contact support.', 'error')
@@ -5083,7 +5166,7 @@ def flutterwave_webhook():
 
 # --- Booking Approval Routes ---
 @app.route('/booking/approve/<int:booking_id>', methods=['POST'])
-@login_required
+@landlord_required
 def approve_booking(booking_id):
     db = get_db()
     expire_pending_booking_requests(db, force=True)
@@ -5165,7 +5248,7 @@ def approve_booking(booking_id):
 
 
 @app.route('/booking/decline/<int:booking_id>', methods=['POST'])
-@login_required
+@landlord_required
 def decline_booking(booking_id):
     db = get_db()
     expire_pending_booking_requests(db, force=True)
@@ -5226,7 +5309,7 @@ def decline_booking(booking_id):
 
 # --- Edit Property ---
 @app.route('/property/<int:property_id>/edit', methods=['GET', 'POST'])
-@login_required
+@landlord_required
 def edit_property(property_id):
     db = get_db()
     property = db.execute('SELECT * FROM properties WHERE id = ? AND owner_id = ?',
@@ -5489,7 +5572,7 @@ def booking_receipt(booking_id):
 
 # --- Payout Methods ---
 @app.route('/payout/add', methods=['POST'])
-@login_required
+@landlord_required
 def add_payout_method():
     provider = request.form.get('provider', '')
     account_name = request.form.get('account_name', '')
@@ -5516,7 +5599,7 @@ def add_payout_method():
 
 
 @app.route('/payout/delete/<int:payout_id>', methods=['POST'])
-@login_required
+@landlord_required
 def delete_payout_method(payout_id):
     db = get_db()
     db.execute('DELETE FROM payout_methods WHERE id = ? AND user_id = ?', (payout_id, g.user['id']))

@@ -192,7 +192,7 @@
                     class="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-red-600 transition shadow-md shadow-red-200">
                     Apply Filters
                 </button>
-                {% if g.user %}
+                {% if g.user and g.user['role'] == 'tenant' %}
                 <button type="submit" formmethod="POST" formaction="{{ url_for('save_search') }}"
                     class="w-full border border-primary text-primary py-3 rounded-xl font-bold hover:bg-red-50 transition">
                     <i class="fa-regular fa-bell mr-1"></i> Save this search
@@ -274,7 +274,7 @@
                     </div>
 
                     <!-- Wishlist Button -->
-                    {% if g.user %}
+                    {% if g.user and g.user['role'] == 'tenant' %}
                     <form action="{{ url_for('toggle_wishlist', property_id=prop.id) }}" method="POST"
                         class="absolute top-3 right-3 no-loader">
                         <button type="submit"
@@ -405,13 +405,13 @@
                     Clear search
                 </a>
                 {% endif %}
-                {% if g.user %}
+                {% if g.user and g.user['role'] == 'owner' %}
                 <a href="{{ url_for('add_house') }}"
                     class="bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-md shadow-red-200">
                     <i class="fa-solid fa-plus mr-1"></i> List a Property
                 </a>
-                {% else %}
-                <a href="{{ url_for('signup') }}"
+                {% elif not g.user %}
+                <a href="{{ url_for('signup', role='owner') }}"
                     class="bg-primary text-white px-5 py-2.5 rounded-xl font-bold hover:bg-red-600 transition shadow-md shadow-red-200">
                     Get Started
                 </a>
@@ -475,10 +475,23 @@
     <div class="max-w-3xl mx-auto text-center">
         <h2 class="text-3xl font-bold mb-3">Have a property in Lusaka?</h2>
         <p class="text-red-100 mb-8">List it on KwachaStay and start earning from guests across Zambia and beyond.</p>
+        {% if g.user and g.user['role'] == 'owner' %}
         <a href="{{ url_for('add_house') }}"
             class="inline-block bg-white text-primary font-bold px-8 py-3 rounded-xl hover:bg-red-50 transition shadow-lg">
-            Start Hosting Today
+            List a Property Now
         </a>
+        {% elif g.user %}
+        <p class="text-sm text-red-100 mb-4">You're currently signed in with a Tenant account. Log out to register a separate Landlord / Lister account.</p>
+        <a href="{{ url_for('logout') }}"
+            class="inline-block bg-white text-primary font-bold px-8 py-3 rounded-xl hover:bg-red-50 transition shadow-lg">
+            Log Out to Register as Landlord
+        </a>
+        {% else %}
+        <a href="{{ url_for('signup', role='owner') }}"
+            class="inline-block bg-white text-primary font-bold px-8 py-3 rounded-xl hover:bg-red-50 transition shadow-lg">
+            Create a Landlord Account
+        </a>
+        {% endif %}
     </div>
 </section>
 
