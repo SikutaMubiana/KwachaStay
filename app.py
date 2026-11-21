@@ -62,7 +62,13 @@ ADMIN_EMAILS = {
     for email in os.getenv('ADMIN_EMAILS', '').split(',')
     if email.strip()
 }
-STORAGE_BACKEND = os.getenv('STORAGE_BACKEND', 'local').strip().lower()
+_configured_storage = os.getenv('STORAGE_BACKEND', '').strip().lower()
+if _configured_storage:
+    STORAGE_BACKEND = _configured_storage
+elif os.getenv('SUPABASE_URL', '').strip() and os.getenv('SUPABASE_SERVICE_ROLE_KEY', '').strip():
+    STORAGE_BACKEND = 'supabase'
+else:
+    STORAGE_BACKEND = 'local'
 EMAIL_PROVIDER = os.getenv('EMAIL_PROVIDER', 'resend').strip().lower()
 RESEND_API_KEY = os.getenv('RESEND_API_KEY', '').strip()
 RESEND_FROM_EMAIL = os.getenv('RESEND_FROM_EMAIL', '').strip()
@@ -1829,11 +1835,13 @@ def _query_listings_context():
                 'longitude': prop['longitude'],
             })
         
-        # Get Images
+        # Get Images (always prioritize the main photo first)
         imgs = db.execute("SELECT image_url FROM property_images WHERE property_id = ?", (prop['id'],)).fetchall()
-        prop_dict['images'] = [i['image_url'] for i in imgs]
-        if not prop_dict['images'] and prop['image_main']:
-            prop_dict['images'] = [prop['image_main']]
+        extra_img_urls = [i['image_url'] for i in imgs if i['image_url']]
+        if prop['image_main']:
+            prop_dict['images'] = [prop['image_main']] + [u for u in extra_img_urls if u != prop['image_main']]
+        else:
+            prop_dict['images'] = extra_img_urls
              
         # Get Review Stats
         stats = db.execute("SELECT AVG(rating) as avg_rating, COUNT(id) as count FROM reviews WHERE property_id = ?", (prop['id'],)).fetchone()

@@ -131,7 +131,9 @@
             {% for prop in properties %}
             <div class="p-4 border rounded-xl bg-white hover:shadow-md transition">
                 <div class="flex flex-col sm:flex-row gap-4">
-                    <img src="{{ prop.image_main|listing_image }}" loading="lazy" decoding="async" class="w-full sm:w-32 h-32 sm:h-24 object-cover rounded-lg">
+                    <img src="{{ prop.image_main|listing_image }}" loading="lazy" decoding="async"
+                        onerror="this.src='https://placehold.co/300x200/f3f4f6/9ca3af?text=Re-upload+Photo'"
+                        class="w-full sm:w-32 h-32 sm:h-24 object-cover rounded-lg">
                     <div class="flex-grow">
                         <div class="flex justify-between items-start gap-2">
                             <div>
