@@ -1,0 +1,115 @@
+{% extends 'admin/layout.html' %}
+
+{% block admin_content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Moderation &amp; Support</h1>
+        <p class="text-sm text-gray-500 mt-0.5">Review host verification requests, listing reports, and user support tickets.</p>
+    </div>
+
+    <!-- Host Verification Requests -->
+    <section>
+        <h2 class="text-lg font-bold mb-3 text-gray-900">Host Verification Requests</h2>
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            {% if verification_requests %}
+            <div class="divide-y divide-gray-100">
+                {% for host in verification_requests %}
+                <div class="p-5 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <p class="font-bold text-gray-900">{{ host.full_name }}</p>
+                        <p class="text-sm text-gray-500">{{ host.email }} · {{ host.phone }}</p>
+                        {% if host.host_verification_note %}<p class="text-sm text-gray-600 mt-1">{{ host.host_verification_note }}</p>{% endif %}
+                        <p class="text-xs text-amber-700 mt-1">Review identity and contact evidence outside this form before approving.</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <form action="{{ url_for('review_host_verification', user_id=host.id, action='verify') }}" method="POST">
+                            <button class="bg-green-600 text-white px-3.5 py-2 rounded-lg text-sm font-bold hover:bg-green-700">Verify</button>
+                        </form>
+                        <form action="{{ url_for('review_host_verification', user_id=host.id, action='reject') }}" method="POST">
+                            <button class="border border-red-300 text-red-600 px-3.5 py-2 rounded-lg text-sm font-bold hover:bg-red-50">Reject</button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="p-6 text-sm text-gray-500">No host verification requests are waiting.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Listing Reports -->
+    <section>
+        <h2 class="text-lg font-bold mb-3 text-gray-900">Listing Reports</h2>
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            {% if reports %}
+            <div class="divide-y divide-gray-100">
+                {% for report in reports %}
+                <div class="p-5 flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                        <p class="font-bold text-gray-900">{{ report.property_title }} · <span class="text-xs uppercase text-gray-500">{{ report.status }}</span></p>
+                        <p class="text-sm text-gray-700">{{ report.reason }} · reported by {{ report.reporter_name }}</p>
+                        {% if report.details %}<p class="text-sm text-gray-500 mt-1">{{ report.details }}</p>{% endif %}
+                        <p class="text-xs text-gray-400 mt-1">{{ report.created_at }}</p>
+                    </div>
+                    {% if report.status == 'open' %}
+                    <div class="flex gap-2">
+                        <form action="{{ url_for('review_property_report', report_id=report.id, action='resolve') }}" method="POST">
+                            <button class="bg-green-600 text-white px-3.5 py-2 rounded-lg text-sm font-bold hover:bg-green-700">Resolve</button>
+                        </form>
+                        <form action="{{ url_for('review_property_report', report_id=report.id, action='dismiss') }}" method="POST">
+                            <button class="border border-gray-300 text-gray-700 px-3.5 py-2 rounded-lg text-sm font-bold hover:bg-gray-50">Dismiss</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="p-6 text-sm text-gray-500">No listing reports have been submitted.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Support Tickets -->
+    <section>
+        <h2 class="text-lg font-bold mb-3 text-gray-900">Guest &amp; Host Support Requests</h2>
+        <div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+            {% if support_requests %}
+            <div class="divide-y divide-gray-100">
+                {% for support in support_requests %}
+                <article class="flex flex-wrap items-start justify-between gap-4 p-5">
+                    <div class="min-w-0 flex-1">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p class="font-bold text-gray-900">#{{ support.id }} · {{ support.reporter_name }}</p>
+                            <span class="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-bold uppercase">{{ support.status|replace('_', ' ') }}</span>
+                        </div>
+                        <p class="mt-1 text-sm text-gray-700">{{ support.category|replace('_', ' ')|title }}{% if support.property_title %} · {{ support.property_title }}{% endif %}</p>
+                        <p class="mt-2 whitespace-pre-line text-sm text-gray-600">{{ support.details }}</p>
+                        <p class="mt-2 text-xs text-gray-400">{{ support.created_at }}{% if support.tx_ref %} · Booking ref {{ support.tx_ref }}{% endif %}</p>
+                    </div>
+                    {% if support.status in ('open', 'in_review') %}
+                    <div class="flex flex-wrap gap-2">
+                        {% if support.status == 'open' %}
+                        <form action="{{ url_for('review_support_request', request_id=support.id, action='review') }}" method="POST">
+                            <button class="rounded-lg border px-3 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50">Mark in review</button>
+                        </form>
+                        {% endif %}
+                        <form action="{{ url_for('review_support_request', request_id=support.id, action='resolve') }}" method="POST">
+                            <button class="rounded-lg bg-green-700 px-3 py-2 text-sm font-bold text-white hover:bg-green-800">Resolve</button>
+                        </form>
+                        <form action="{{ url_for('review_support_request', request_id=support.id, action='close') }}" method="POST">
+                            <button class="rounded-lg border px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50">Close</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </article>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="p-6 text-sm text-gray-500">No support requests have been submitted.</p>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

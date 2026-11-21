@@ -83,7 +83,11 @@
             {% if can_show_arrival %}
             <section class="rounded-2xl border border-green-200 bg-green-50 p-5 space-y-3">
                 <h3 class="font-bold text-green-900"><i class="fa-solid fa-door-open mr-2"></i>Arrival guide</h3>
-                <p class="text-sm text-gray-700"><strong>Check-in:</strong> {{ booking.checkin_time or '15:00' }} · <strong>Check-out:</strong> {{ booking.checkout_time or '10:00' }}</p>
+                {% if booking.duration_unit != 'month' and booking.checkin_time and booking.checkout_time %}
+                <p class="text-sm text-gray-700"><strong>Check-in:</strong> {{ booking.checkin_time }} · <strong>Check-out:</strong> {{ booking.checkout_time }}</p>
+                {% elif booking.duration_unit == 'month' %}
+                <p class="text-sm text-gray-700"><strong>Move-in / Key handover:</strong> Coordinated directly with your host (long-term stay)</p>
+                {% endif %}
                 {% if booking.self_checkin_method %}<p class="text-sm text-gray-700"><strong>Method:</strong> {{ self_checkin_options.get(booking.self_checkin_method, 'Contact host') }}</p>{% endif %}
                 {% if booking.arrival_instructions %}<p class="whitespace-pre-line text-sm text-gray-700"><strong>Check-in instructions</strong><br>{{ booking.arrival_instructions }}</p>{% endif %}
                 {% if booking.arrival_directions %}<p class="whitespace-pre-line text-sm text-gray-700"><strong>Directions / meeting point</strong><br>{{ booking.arrival_directions }}</p>{% endif %}

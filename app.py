@@ -668,11 +668,23 @@ def parse_property_utility_fields(form):
     }
 
 
-def parse_checkin_fields(form):
-    checkin_time = form.get('checkin_time', '15:00').strip()
-    checkout_time = form.get('checkout_time', '10:00').strip()
+def default_price_period_for_type(property_type):
+    if (property_type or '').strip() in ('House', 'Hostel'):
+        return 'month'
+    return 'night'
+
+
+def parse_checkin_fields(form, is_long_term=False):
+    if is_long_term:
+        checkin_time = form.get('checkin_time', '').strip()
+        checkout_time = form.get('checkout_time', '').strip()
+    else:
+        checkin_time = form.get('checkin_time', '').strip() or '15:00'
+        checkout_time = form.get('checkout_time', '').strip() or '10:00'
     self_checkin_method = form.get('self_checkin_method', '').strip()
     for label, value in (('Check-in', checkin_time), ('Check-out', checkout_time)):
+        if is_long_term and not value:
+            continue
         if not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', value):
             raise ValueError(f'{label} time must use 24-hour HH:MM format.')
     if self_checkin_method and self_checkin_method not in SELF_CHECKIN_OPTIONS:
@@ -2864,9 +2876,10 @@ def add_house():
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         price_raw = request.form.get('price', '').strip()
-        price_period = request.form.get('price_period', 'night').strip() or 'night'
         compound = request.form.get('compound', '').strip()
         property_type = request.form.get('property_type', '').strip()
+        price_period_raw = request.form.get('price_period', '').strip().lower()
+        price_period = price_period_raw if price_period_raw in ('night', 'month') else default_price_period_for_type(property_type)
         if not title or not description or not compound or not property_type:
             flash('Please fill in all required property details.', 'error')
             return redirect(url_for('add_house'))
@@ -2885,7 +2898,7 @@ def add_house():
                 request.form.get('latitude'), request.form.get('longitude')
             )
             utility_fields = parse_property_utility_fields(request.form)
-            checkin_fields = parse_checkin_fields(request.form)
+            checkin_fields = parse_checkin_fields(request.form, is_long_term=(price_period == 'month'))
         except ValueError as error:
             flash(str(error), 'error')
             return redirect(url_for('add_house'))
@@ -4177,7 +4190,7 @@ def property_price_quote(property_id):
         duration = int(request.args.get('duration', ''))
     except (TypeError, ValueError):
         duration = 0
-    max_duration = 24 if property_row and property_row['price_period'] == 'month' else 365
+    max_duration = 60 if property_row and property_row['price_period'] == 'month' else 365
     if (not property_row or not check_in or check_in < date.today()
             or not 1 <= duration <= max_duration):
         return jsonify({'error': 'Choose a valid future date and stay duration.'}), 400
@@ -4306,72 +4319,7 @@ def admin_required(view):
         return view(**kwargs)
     return wrapped_view
 
-@app.route('/admin')
-@admin_required
-def admin_dashboard():
-    db = get_db()
-    users = db.execute(
-        '''SELECT id, full_name, email, phone, role, profile_pic, is_admin,
-                  host_verification_status, host_verification_note,
-                  email_verified_at, phone_verified_at, created_at
-           FROM users ORDER BY created_at DESC'''
-    ).fetchall()
-    properties = db.execute('''
-        SELECT p.*, u.full_name AS owner_name, u.email AS owner_email
-        FROM properties p
-        LEFT JOIN users u ON u.id = p.owner_id
-        ORDER BY p.created_at DESC
-    ''').fetchall()
-    bookings = db.execute('''
-        SELECT b.*, p.title AS property_title, u.full_name AS tenant_name, u.email AS tenant_email
-        FROM bookings b
-        LEFT JOIN properties p ON p.id = b.property_id
-        LEFT JOIN users u ON u.id = b.user_id
-        ORDER BY b.created_at DESC
-    ''').fetchall()
-    reports = db.execute('''
-        SELECT r.*, p.title AS property_title, u.full_name AS reporter_name
-        FROM property_reports r
-        JOIN properties p ON p.id = r.property_id
-        JOIN users u ON u.id = r.reporter_id
-        ORDER BY CASE r.status WHEN 'open' THEN 0 ELSE 1 END, r.created_at DESC
-    ''').fetchall()
-    verification_requests = db.execute(
-        '''SELECT id, full_name, email, phone, host_verification_note
-           FROM users WHERE host_verification_status = 'pending'
-           ORDER BY created_at'''
-    ).fetchall()
-    refund_requests = db.execute('''
-        SELECT b.id, b.total_price, b.tx_ref, b.refund_status, b.refund_reference,
-               b.payment_reference, b.check_in, b.check_out, b.payment_method, p.cancellation_policy,
-               u.full_name AS tenant_name, p.title AS property_title
-        FROM bookings b
-        JOIN users u ON u.id = b.user_id
-        JOIN properties p ON p.id = b.property_id
-        WHERE b.refund_status IN ('requested', 'processing')
-        ORDER BY b.created_at
-    ''').fetchall()
-    payment_review_bookings = db.execute('''
-        SELECT b.id, b.total_price, b.tx_ref, b.booking_status,
-               b.payment_method, b.payment_claim_reference, b.payment_claim_submitted_at,
-               u.full_name AS tenant_name, p.title AS property_title
-        FROM bookings b
-        JOIN users u ON u.id = b.user_id
-        JOIN properties p ON p.id = b.property_id
-        WHERE b.payment_status = 'pending'
-          AND b.booking_status IN ('pending', 'confirmed')
-        ORDER BY b.created_at
-    ''').fetchall()
-    support_requests = db.execute('''
-        SELECT sr.*, reporter.full_name AS reporter_name, b.tx_ref,
-               p.title AS property_title
-        FROM support_requests sr
-        JOIN users reporter ON reporter.id = sr.reporter_id
-        LEFT JOIN bookings b ON b.id = sr.booking_id
-        LEFT JOIN properties p ON p.id = b.property_id
-        ORDER BY CASE sr.status WHEN 'open' THEN 0 WHEN 'in_review' THEN 1 ELSE 2 END,
-                 sr.created_at DESC
-    ''').fetchall()
+def _sync_admin_payout_ledger(db):
     db.execute(
         '''INSERT OR IGNORE INTO payout_ledger (booking_id, owner_id, amount, status)
            SELECT b.id, p.owner_id,
@@ -4384,45 +4332,264 @@ def admin_dashboard():
              AND b.refund_status NOT IN ('processing', 'refunded')'''
     )
     db.commit()
-    payout_ledger = db.execute(
-        '''SELECT pl.*, p.title AS property_title, host.full_name AS host_name,
-                  b.tx_ref, b.check_in
-           FROM payout_ledger pl
-           JOIN bookings b ON b.id = pl.booking_id
-           JOIN properties p ON p.id = b.property_id
-           JOIN users host ON host.id = pl.owner_id
-           ORDER BY CASE pl.status WHEN 'pending' THEN 0 ELSE 1 END, pl.created_at'''
-    ).fetchall()
 
-    open_reports_count = sum(1 for r in reports if r['status'] == 'open')
-    open_support_count = sum(1 for sr in support_requests if sr['status'] in ('open', 'in_review'))
-    pending_payouts_count = sum(1 for pl in payout_ledger if pl['status'] == 'pending')
-    admin_stats = {
-        'total_users': len(users),
-        'total_hosts': sum(1 for u in users if u['role'] == 'owner'),
-        'total_tenants': sum(1 for u in users if u['role'] == 'tenant'),
-        'banned_users': sum(1 for u in users if u['role'] == 'banned'),
-        'admin_users': sum(1 for u in users if u['is_admin']),
-        'total_properties': len(properties),
-        'active_properties': sum(1 for p in properties if p['is_active']),
-        'verified_properties': sum(1 for p in properties if p['is_verified']),
-        'total_bookings': len(bookings),
-        'confirmed_bookings': sum(1 for b in bookings if b['booking_status'] == 'confirmed'),
-        'paid_revenue': sum(float(b['total_price'] or 0) for b in bookings if b['payment_status'] == 'paid'),
-        'open_reports_count': open_reports_count,
-        'open_support_count': open_support_count,
-        'pending_payouts_count': pending_payouts_count,
-        'pending_payments_tab': len(payment_review_bookings) + len(refund_requests) + pending_payouts_count,
-        'pending_moderation_tab': len(verification_requests) + open_reports_count + open_support_count,
-        'pending_actions': (
-            len(verification_requests)
-            + open_reports_count
-            + open_support_count
-            + len(payment_review_bookings)
-            + len(refund_requests)
-            + pending_payouts_count
-        ),
+
+def _get_admin_nav_counts(db):
+    total_users = db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+    total_properties = db.execute('SELECT COUNT(*) FROM properties').fetchone()[0]
+    total_bookings = db.execute('SELECT COUNT(*) FROM bookings').fetchone()[0]
+    pending_payments = db.execute(
+        '''SELECT COUNT(*) FROM bookings
+           WHERE payment_status = 'pending' AND booking_status IN ('pending', 'confirmed')'''
+    ).fetchone()[0]
+    pending_refunds = db.execute(
+        "SELECT COUNT(*) FROM bookings WHERE refund_status IN ('requested', 'processing')"
+    ).fetchone()[0]
+    pending_payouts = db.execute(
+        "SELECT COUNT(*) FROM payout_ledger WHERE status = 'pending'"
+    ).fetchone()[0]
+    pending_verifications = db.execute(
+        "SELECT COUNT(*) FROM users WHERE host_verification_status = 'pending'"
+    ).fetchone()[0]
+    open_reports = db.execute(
+        "SELECT COUNT(*) FROM property_reports WHERE status = 'open'"
+    ).fetchone()[0]
+    open_support = db.execute(
+        "SELECT COUNT(*) FROM support_requests WHERE status IN ('open', 'in_review')"
+    ).fetchone()[0]
+    pending_payments_tab = pending_payments + pending_refunds + pending_payouts
+    pending_moderation_tab = pending_verifications + open_reports + open_support
+    return {
+        'total_users': total_users,
+        'total_properties': total_properties,
+        'total_bookings': total_bookings,
+        'pending_payments_count': pending_payments,
+        'pending_refunds_count': pending_refunds,
+        'pending_payouts_count': pending_payouts,
+        'pending_verifications_count': pending_verifications,
+        'open_reports_count': open_reports,
+        'open_support_count': open_support,
+        'pending_payments_tab': pending_payments_tab,
+        'pending_moderation_tab': pending_moderation_tab,
+        'pending_actions': pending_payments_tab + pending_moderation_tab,
     }
+
+
+@app.route('/admin')
+@admin_required
+def admin_dashboard():
+    db = get_db()
+    _sync_admin_payout_ledger(db)
+    admin_nav = _get_admin_nav_counts(db)
+
+    recent_users = db.execute(
+        '''SELECT id, full_name, email, phone, role, is_admin, created_at
+           FROM users ORDER BY created_at DESC LIMIT 6'''
+    ).fetchall()
+    recent_properties = db.execute(
+        '''SELECT p.id, p.title, p.compound, p.price_per_night, p.price_period,
+                  p.image_main, p.is_verified, p.is_active
+           FROM properties p ORDER BY p.created_at DESC LIMIT 6'''
+    ).fetchall()
+    try:
+        recent_audit_logs = db.execute(
+            '''SELECT id, admin_id, admin_email, action, target_type, target_id,
+                      details, ip_address, created_at
+               FROM admin_audit_logs
+               ORDER BY created_at DESC, id DESC LIMIT 6'''
+        ).fetchall()
+    except DB_ERRORS:
+        recent_audit_logs = []
+
+    user_breakdown = db.execute(
+        '''SELECT
+               SUM(CASE WHEN role = 'owner' THEN 1 ELSE 0 END) AS total_hosts,
+               SUM(CASE WHEN role = 'tenant' THEN 1 ELSE 0 END) AS total_tenants,
+               SUM(CASE WHEN role = 'banned' THEN 1 ELSE 0 END) AS banned_users,
+               SUM(CASE WHEN is_admin = 1 THEN 1 ELSE 0 END) AS admin_users
+           FROM users'''
+    ).fetchone()
+    prop_breakdown = db.execute(
+        '''SELECT
+               SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) AS active_properties,
+               SUM(CASE WHEN is_verified = 1 THEN 1 ELSE 0 END) AS verified_properties
+           FROM properties'''
+    ).fetchone()
+    booking_breakdown = db.execute(
+        '''SELECT
+               SUM(CASE WHEN booking_status = 'confirmed' THEN 1 ELSE 0 END) AS confirmed_bookings,
+               SUM(CASE WHEN payment_status = 'paid' THEN COALESCE(total_price, 0) ELSE 0 END) AS paid_revenue
+           FROM bookings'''
+    ).fetchone()
+
+    admin_stats = {
+        **admin_nav,
+        'total_hosts': user_breakdown['total_hosts'] or 0,
+        'total_tenants': user_breakdown['total_tenants'] or 0,
+        'banned_users': user_breakdown['banned_users'] or 0,
+        'admin_users': user_breakdown['admin_users'] or 0,
+        'active_properties': prop_breakdown['active_properties'] or 0,
+        'verified_properties': prop_breakdown['verified_properties'] or 0,
+        'confirmed_bookings': booking_breakdown['confirmed_bookings'] or 0,
+        'paid_revenue': float(booking_breakdown['paid_revenue'] or 0),
+    }
+    return render_template(
+        'admin/overview.html',
+        admin_nav=admin_nav,
+        admin_stats=admin_stats,
+        recent_users=recent_users,
+        recent_properties=recent_properties,
+        recent_audit_logs=recent_audit_logs,
+    )
+
+
+@app.route('/admin/listings')
+@admin_required
+def admin_listings():
+    db = get_db()
+    admin_nav = _get_admin_nav_counts(db)
+    properties = db.execute('''
+        SELECT p.*, u.full_name AS owner_name, u.email AS owner_email
+        FROM properties p
+        LEFT JOIN users u ON u.id = p.owner_id
+        ORDER BY p.created_at DESC
+    ''').fetchall()
+    return render_template('admin/listings.html', admin_nav=admin_nav, properties=properties)
+
+
+@app.route('/admin/bookings')
+@admin_required
+def admin_bookings():
+    db = get_db()
+    admin_nav = _get_admin_nav_counts(db)
+    bookings = db.execute('''
+        SELECT b.*, p.title AS property_title, u.full_name AS tenant_name, u.email AS tenant_email
+        FROM bookings b
+        LEFT JOIN properties p ON p.id = b.property_id
+        LEFT JOIN users u ON u.id = b.user_id
+        ORDER BY b.created_at DESC
+    ''').fetchall()
+    return render_template('admin/bookings.html', admin_nav=admin_nav, bookings=bookings)
+
+
+@app.route('/admin/accounting')
+@admin_required
+def admin_accounting():
+    db = get_db()
+    _sync_admin_payout_ledger(db)
+    admin_nav = _get_admin_nav_counts(db)
+
+    payment_review_bookings = db.execute('''
+        SELECT b.id, b.total_price, b.tx_ref, b.booking_status,
+               b.payment_method, b.payment_claim_reference, b.payment_claim_submitted_at,
+               u.full_name AS tenant_name, p.title AS property_title
+        FROM bookings b
+        JOIN users u ON u.id = b.user_id
+        JOIN properties p ON p.id = b.property_id
+        WHERE b.payment_status = 'pending'
+          AND b.booking_status IN ('pending', 'confirmed')
+        ORDER BY b.created_at
+    ''').fetchall()
+    refund_requests = db.execute('''
+        SELECT b.id, b.total_price, b.tx_ref, b.refund_status, b.refund_reference,
+               b.payment_reference, b.check_in, b.check_out, b.payment_method, p.cancellation_policy,
+               u.full_name AS tenant_name, p.title AS property_title
+        FROM bookings b
+        JOIN users u ON u.id = b.user_id
+        JOIN properties p ON p.id = b.property_id
+        WHERE b.refund_status IN ('requested', 'processing')
+        ORDER BY b.created_at
+    ''').fetchall()
+    payout_ledger = db.execute('''
+        SELECT pl.*, p.title AS property_title, host.full_name AS host_name,
+               b.tx_ref, b.check_in
+        FROM payout_ledger pl
+        JOIN bookings b ON b.id = pl.booking_id
+        JOIN properties p ON p.id = b.property_id
+        JOIN users host ON host.id = pl.owner_id
+        ORDER BY CASE pl.status WHEN 'pending' THEN 0 ELSE 1 END, pl.created_at
+    ''').fetchall()
+
+    paid_totals = db.execute(
+        '''SELECT COUNT(*) AS cnt,
+                  SUM(COALESCE(total_price, 0)) AS volume,
+                  SUM(COALESCE(service_fee, 0)) AS fees
+           FROM bookings WHERE payment_status = 'paid' '''
+    ).fetchone()
+    accounting_summary = {
+        'paid_bookings_count': paid_totals['cnt'] or 0,
+        'paid_volume': float(paid_totals['volume'] or 0),
+        'service_fee_revenue': float(paid_totals['fees'] or 0),
+        'pending_payouts_count': sum(1 for pl in payout_ledger if pl['status'] == 'pending'),
+        'pending_payouts_total': sum(float(pl['amount'] or 0) for pl in payout_ledger if pl['status'] == 'pending'),
+        'paid_payouts_count': sum(1 for pl in payout_ledger if pl['status'] == 'paid'),
+        'paid_payouts_total': sum(float(pl['amount'] or 0) for pl in payout_ledger if pl['status'] == 'paid'),
+    }
+    return render_template(
+        'admin/accounting.html',
+        admin_nav=admin_nav,
+        accounting_summary=accounting_summary,
+        payment_review_bookings=payment_review_bookings,
+        refund_requests=refund_requests,
+        payout_ledger=payout_ledger,
+    )
+
+
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    db = get_db()
+    admin_nav = _get_admin_nav_counts(db)
+    users = db.execute(
+        '''SELECT id, full_name, email, phone, role, profile_pic, is_admin,
+                  host_verification_status, host_verification_note,
+                  email_verified_at, phone_verified_at, created_at
+           FROM users ORDER BY created_at DESC'''
+    ).fetchall()
+    return render_template('admin/users.html', admin_nav=admin_nav, users=users)
+
+
+@app.route('/admin/moderation')
+@admin_required
+def admin_moderation():
+    db = get_db()
+    admin_nav = _get_admin_nav_counts(db)
+    verification_requests = db.execute(
+        '''SELECT id, full_name, email, phone, host_verification_note
+           FROM users WHERE host_verification_status = 'pending'
+           ORDER BY created_at'''
+    ).fetchall()
+    reports = db.execute('''
+        SELECT r.*, p.title AS property_title, u.full_name AS reporter_name
+        FROM property_reports r
+        JOIN properties p ON p.id = r.property_id
+        JOIN users u ON u.id = r.reporter_id
+        ORDER BY CASE r.status WHEN 'open' THEN 0 ELSE 1 END, r.created_at DESC
+    ''').fetchall()
+    support_requests = db.execute('''
+        SELECT sr.*, reporter.full_name AS reporter_name, b.tx_ref,
+               p.title AS property_title
+        FROM support_requests sr
+        JOIN users reporter ON reporter.id = sr.reporter_id
+        LEFT JOIN bookings b ON b.id = sr.booking_id
+        LEFT JOIN properties p ON p.id = b.property_id
+        ORDER BY CASE sr.status WHEN 'open' THEN 0 WHEN 'in_review' THEN 1 ELSE 2 END,
+                 sr.created_at DESC
+    ''').fetchall()
+    return render_template(
+        'admin/moderation.html',
+        admin_nav=admin_nav,
+        verification_requests=verification_requests,
+        reports=reports,
+        support_requests=support_requests,
+    )
+
+
+@app.route('/admin/audit')
+@admin_required
+def admin_audit_log():
+    db = get_db()
+    admin_nav = _get_admin_nav_counts(db)
     try:
         audit_logs = db.execute(
             '''SELECT id, admin_id, admin_email, action, target_type, target_id,
@@ -4432,22 +4599,145 @@ def admin_dashboard():
         ).fetchall()
     except DB_ERRORS:
         audit_logs = []
+    return render_template('admin/audit.html', admin_nav=admin_nav, audit_logs=audit_logs)
+
+
+@app.route('/admin/settings')
+@admin_required
+def admin_settings():
+    db = get_db()
+    admin_nav = _get_admin_nav_counts(db)
     pending_totp_secret = session.get('pending_totp_setup_secret')
     pending_totp_uri = (
         build_otpauth_uri(g.user['email'], pending_totp_secret)
         if pending_totp_secret else None
     )
-    return render_template('admin.html', users=users, properties=properties, bookings=bookings,
-                           reports=reports, verification_requests=verification_requests,
-                           refund_requests=refund_requests,
-                           payment_review_bookings=payment_review_bookings,
-                           support_requests=support_requests,
-                           payout_ledger=payout_ledger,
-                           audit_logs=audit_logs,
-                           admin_totp_enabled=_user_totp_enabled(g.user),
-                           pending_totp_secret=pending_totp_secret,
-                           pending_totp_uri=pending_totp_uri,
-                           admin_stats=admin_stats)
+    return render_template(
+        'admin/settings.html',
+        admin_nav=admin_nav,
+        phone_countries=phone_country_options(),
+        admin_totp_enabled=_user_totp_enabled(g.user),
+        pending_totp_secret=pending_totp_secret,
+        pending_totp_uri=pending_totp_uri,
+    )
+
+
+@app.route('/admin/settings/profile', methods=['POST'])
+@admin_required
+def admin_update_profile():
+    if not check_rate_limit('admin_profile_update', str(g.user['id']), 15, 900):
+        abort(429, description='Too many profile update attempts. Please wait a few minutes.')
+    full_name = request.form.get('full_name', '').strip()
+    new_email = request.form.get('email', '').strip().lower()
+    phone_raw = request.form.get('phone', '').strip()
+    country_region = request.form.get('country_region', 'ZM').upper()
+    profile_pic_raw = request.form.get('profile_pic', '').strip()
+    current_password = request.form.get('current_password', '')
+
+    if not full_name or len(full_name) > 120:
+        flash('Enter a valid full name (up to 120 characters).', 'error')
+        return redirect(url_for('admin_settings'))
+    if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', new_email) or len(new_email) > 254:
+        flash('Enter a valid email address.', 'error')
+        return redirect(url_for('admin_settings'))
+    try:
+        phone = normalize_phone_number(phone_raw, country_region)
+        profile_pic = validate_image_url(profile_pic_raw, allow_empty=True)
+    except ValueError as error:
+        flash(str(error), 'error')
+        return redirect(url_for('admin_settings'))
+
+    old_email = (g.user['email'] or '').strip().lower()
+    email_changed = new_email != old_email
+    phone_changed = phone != (g.user['phone'] or '')
+
+    if email_changed and not check_password_hash(g.user['password'], current_password):
+        flash('Enter your current password to change your administrator email address.', 'error')
+        return redirect(url_for('admin_settings'))
+
+    db = get_db()
+    if email_changed:
+        existing = db.execute(
+            'SELECT id FROM users WHERE LOWER(email) = ? AND id != ?',
+            (new_email, g.user['id']),
+        ).fetchone()
+        if existing:
+            flash('Another account already uses that email address.', 'error')
+            return redirect(url_for('admin_settings'))
+
+    new_sv = _user_session_version(g.user) + (1 if email_changed else 0)
+    try:
+        db.execute(
+            '''UPDATE users
+               SET full_name = ?, email = ?, phone = ?, profile_pic = ?,
+                   email_verified_at = CASE WHEN ? THEN NULL ELSE email_verified_at END,
+                   phone_verified_at = CASE WHEN ? THEN NULL ELSE phone_verified_at END,
+                   session_version = ?
+               WHERE id = ?''',
+            (
+                full_name, new_email, phone, profile_pic or None,
+                1 if email_changed else 0,
+                1 if phone_changed else 0,
+                new_sv, g.user['id'],
+            ),
+        )
+        action = 'admin_email_changed' if email_changed else 'admin_profile_updated'
+        details = f'{old_email} -> {new_email}' if email_changed else f'Updated contact details ({phone})'
+        log_admin_action(db, action, 'user', g.user['id'], details)
+        db.commit()
+    except DB_INTEGRITY_ERRORS:
+        db.rollback()
+        flash('Another account already uses that email address.', 'error')
+        return redirect(url_for('admin_settings'))
+
+    if email_changed:
+        session['session_version'] = new_sv
+        session.pop('pending_totp_setup_secret', None)
+    flash('Administrator account details updated successfully.', 'success')
+    return redirect(url_for('admin_settings'))
+
+
+@app.route('/admin/settings/password', methods=['POST'])
+@admin_required
+def admin_change_password():
+    if not check_rate_limit('change_password_user', str(g.user['id']), 10, 900):
+        abort(429, description='Too many password change attempts. Please wait and try again.')
+    current = request.form.get('current_password', '')
+    new_pw = request.form.get('new_password', '')
+    confirm = request.form.get('confirm_password', '')
+
+    if not check_password_hash(g.user['password'], current):
+        flash('Current password is incorrect.', 'error')
+        return redirect(url_for('admin_settings'))
+    password_error = validate_password_strength(new_pw)
+    if password_error:
+        flash(password_error, 'error')
+        return redirect(url_for('admin_settings'))
+    if new_pw != confirm:
+        flash('Passwords do not match.', 'error')
+        return redirect(url_for('admin_settings'))
+
+    db = get_db()
+    user_id = g.user['id']
+    new_sv = _user_session_version(g.user) + 1
+    db.execute(
+        'UPDATE users SET password = ?, session_version = ? WHERE id = ?',
+        (generate_password_hash(new_pw), new_sv, user_id),
+    )
+    log_admin_action(db, 'admin_password_changed', 'user', user_id)
+    db.commit()
+
+    was_permanent = session.permanent
+    session.clear()
+    now = time.time()
+    session['user_id'] = user_id
+    session['session_version'] = new_sv
+    session['_session_created_at'] = now
+    session['_session_last_active'] = now
+    session.permanent = was_permanent
+    csrf_token()
+    flash('Administrator password changed successfully. Other sessions have been signed out.', 'success')
+    return redirect(url_for('admin_settings'))
 
 
 @app.route('/admin/security/2fa/start', methods=['POST'])
@@ -4455,10 +4745,10 @@ def admin_dashboard():
 def admin_start_2fa():
     if _user_totp_enabled(g.user):
         flash('Two-factor authentication is already enabled on your account.', 'info')
-        return redirect(url_for('admin_dashboard') + '#audit')
+        return redirect(url_for('admin_settings'))
     session['pending_totp_setup_secret'] = generate_totp_secret()
     flash('Scan or enter the setup key in your authenticator app, then confirm with a 6-digit code.', 'info')
-    return redirect(url_for('admin_dashboard') + '#audit')
+    return redirect(url_for('admin_settings'))
 
 
 @app.route('/admin/security/2fa/confirm', methods=['POST'])
@@ -4467,15 +4757,15 @@ def admin_confirm_2fa():
     pending_secret = session.get('pending_totp_setup_secret')
     if not pending_secret:
         flash('Start 2FA setup first before confirming.', 'error')
-        return redirect(url_for('admin_dashboard') + '#audit')
+        return redirect(url_for('admin_settings'))
     current_password = request.form.get('current_password', '')
     code = request.form.get('totp_code', '').strip()
     if not check_password_hash(g.user['password'], current_password):
         flash('Current password is incorrect.', 'error')
-        return redirect(url_for('admin_dashboard') + '#audit')
+        return redirect(url_for('admin_settings'))
     if not verify_totp_code(pending_secret, code):
         flash('Invalid 6-digit code. Check your authenticator app time sync and try again.', 'error')
-        return redirect(url_for('admin_dashboard') + '#audit')
+        return redirect(url_for('admin_settings'))
     db = get_db()
     db.execute(
         'UPDATE users SET totp_secret = ?, totp_enabled = 1 WHERE id = ?',
@@ -4485,7 +4775,7 @@ def admin_confirm_2fa():
     db.commit()
     session.pop('pending_totp_setup_secret', None)
     flash('Two-factor authentication is now enabled for your admin account.', 'success')
-    return redirect(url_for('admin_dashboard') + '#audit')
+    return redirect(url_for('admin_settings'))
 
 
 @app.route('/admin/security/2fa/disable', methods=['POST'])
@@ -4493,15 +4783,15 @@ def admin_confirm_2fa():
 def admin_disable_2fa():
     if not _user_totp_enabled(g.user):
         flash('Two-factor authentication is not enabled.', 'info')
-        return redirect(url_for('admin_dashboard') + '#audit')
+        return redirect(url_for('admin_settings'))
     current_password = request.form.get('current_password', '')
     code = request.form.get('totp_code', '').strip()
     if not check_password_hash(g.user['password'], current_password):
         flash('Current password is incorrect.', 'error')
-        return redirect(url_for('admin_dashboard') + '#audit')
+        return redirect(url_for('admin_settings'))
     if not verify_totp_code(g.user['totp_secret'], code):
         flash('Invalid 6-digit authenticator code.', 'error')
-        return redirect(url_for('admin_dashboard') + '#audit')
+        return redirect(url_for('admin_settings'))
     db = get_db()
     new_sv = _user_session_version(g.user) + 1
     db.execute(
@@ -4512,7 +4802,7 @@ def admin_disable_2fa():
     db.commit()
     session['session_version'] = new_sv
     flash('Two-factor authentication has been disabled.', 'info')
-    return redirect(url_for('admin_dashboard') + '#audit')
+    return redirect(url_for('admin_settings'))
 
 
 @app.route('/admin/payout/<int:ledger_id>/mark-paid', methods=['POST'])
@@ -4521,7 +4811,7 @@ def mark_payout_paid(ledger_id):
     reference = request.form.get('reference', '').strip()
     if not reference or len(reference) > 160:
         flash('Enter the payout provider reference (up to 160 characters).', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_accounting'))
     db = get_db()
     ledger = db.execute(
         '''SELECT pl.id, pl.status, b.payment_status, b.booking_status,
@@ -4535,7 +4825,7 @@ def mark_payout_paid(ledger_id):
             or ledger['booking_status'] != 'confirmed'
             or ledger['refund_status'] in ('processing', 'refunded')):
         flash('This payout is not eligible to be marked complete.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_accounting'))
     db.execute(
         '''UPDATE payout_ledger SET status = 'paid', reference = ?,
            paid_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending' ''',
@@ -4544,7 +4834,7 @@ def mark_payout_paid(ledger_id):
     log_admin_action(db, 'payout_marked_paid', 'payout_ledger', ledger_id, f'Reference: {reference}')
     db.commit()
     flash('Payout marked complete with provider reference recorded.', 'success')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_accounting'))
 
 @app.route('/admin/verify_property/<int:property_id>', methods=['POST'])
 @admin_required
@@ -4553,12 +4843,12 @@ def verify_property(property_id):
     property = db.execute('SELECT title FROM properties WHERE id = ?', (property_id,)).fetchone()
     if not property:
         flash('Property not found.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_listings'))
     db.execute('UPDATE properties SET is_verified = 1 WHERE id = ?', (property_id,))
     log_admin_action(db, 'property_verified', 'property', property_id, property['title'])
     db.commit()
     flash(f'Property "{property["title"]}" verified!', 'success')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_listings'))
 
 
 @app.route('/admin/unverify_property/<int:property_id>', methods=['POST'])
@@ -4568,12 +4858,12 @@ def unverify_property(property_id):
     property = db.execute('SELECT title FROM properties WHERE id = ?', (property_id,)).fetchone()
     if not property:
         flash('Property not found.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_listings'))
     db.execute('UPDATE properties SET is_verified = 0 WHERE id = ?', (property_id,))
     log_admin_action(db, 'property_unverified', 'property', property_id, property['title'])
     db.commit()
     flash(f'Verified badge removed from "{property["title"]}".', 'info')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_listings'))
 
 
 @app.route('/admin/toggle_admin/<int:user_id>', methods=['POST'])
@@ -4581,17 +4871,17 @@ def unverify_property(property_id):
 def admin_toggle_admin(user_id):
     if user_id == g.user['id']:
         flash('You cannot change your own administrator role.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_users'))
     db = get_db()
     user = db.execute('SELECT id, full_name, role, is_admin FROM users WHERE id = ?', (user_id,)).fetchone()
     if not user:
         flash('User not found.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_users'))
     if user['is_admin']:
         admin_count = db.execute('SELECT COUNT(*) FROM users WHERE is_admin = 1').fetchone()[0]
         if admin_count <= 1:
             flash('At least one administrator account must remain active.', 'error')
-            return redirect(url_for('admin_dashboard'))
+            return redirect(url_for('admin_users'))
         db.execute(
             'UPDATE users SET is_admin = 0, session_version = COALESCE(session_version, 1) + 1 WHERE id = ?',
             (user_id,),
@@ -4602,12 +4892,12 @@ def admin_toggle_admin(user_id):
     else:
         if user['role'] == 'banned':
             flash('Unban this user before granting admin access.', 'error')
-            return redirect(url_for('admin_dashboard'))
+            return redirect(url_for('admin_users'))
         db.execute('UPDATE users SET is_admin = 1 WHERE id = ?', (user_id,))
         log_admin_action(db, 'admin_role_granted', 'user', user_id, user['full_name'])
         db.commit()
         flash(f'Granted admin access to "{user["full_name"]}".', 'success')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_users'))
 
 
 @app.route('/admin/host-verification/<int:user_id>/<action>', methods=['POST'])
@@ -4615,7 +4905,7 @@ def admin_toggle_admin(user_id):
 def review_host_verification(user_id, action):
     if action not in ('verify', 'reject'):
         flash('Invalid verification action.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_moderation'))
     status = 'verified' if action == 'verify' else 'rejected'
     db = get_db()
     result = db.execute(
@@ -4630,7 +4920,7 @@ def review_host_verification(user_id, action):
         flash(f'Host verification marked {status}. Confirm identity and phone evidence before verifying.', 'success')
     else:
         flash('No pending verification request found.', 'info')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_moderation'))
 
 
 @app.route('/admin/property-report/<int:report_id>/<action>', methods=['POST'])
@@ -4639,14 +4929,14 @@ def review_property_report(report_id, action):
     status_by_action = {'resolve': 'resolved', 'dismiss': 'dismissed'}
     if action not in status_by_action:
         flash('Invalid report action.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_moderation'))
     db = get_db()
     db.execute('UPDATE property_reports SET status = ? WHERE id = ?',
                (status_by_action[action], report_id))
     log_admin_action(db, f'property_report_{status_by_action[action]}', 'property_report', report_id)
     db.commit()
     flash('Listing report updated.', 'success')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_moderation'))
 
 
 @app.route('/admin/support-request/<int:request_id>/<action>', methods=['POST'])
@@ -4655,14 +4945,14 @@ def review_support_request(request_id, action):
     status_by_action = {'review': 'in_review', 'resolve': 'resolved', 'close': 'closed'}
     if action not in status_by_action:
         flash('Invalid support request action.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_moderation'))
     db = get_db()
     support_request = db.execute(
         'SELECT id, reporter_id FROM support_requests WHERE id = ?', (request_id,)
     ).fetchone()
     if not support_request:
         flash('Support request not found.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_moderation'))
     status = status_by_action[action]
     db.execute(
         '''UPDATE support_requests SET status = ?, updated_at = CURRENT_TIMESTAMP
@@ -4677,7 +4967,7 @@ def review_support_request(request_id, action):
     log_admin_action(db, f'support_request_{status}', 'support_request', request_id)
     db.commit()
     flash('Support request updated.', 'success')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_moderation'))
 
 
 @app.route('/admin/refund/<int:booking_id>/<action>', methods=['POST'])
@@ -5567,6 +5857,15 @@ def checkout(property_id):
         flash('You cannot book your own property.', 'error')
         return redirect(url_for('property_details', property_id=property_id))
     
+    duration_unit = 'month' if property['price_period'] == 'month' else 'night'
+    max_duration = 60 if duration_unit == 'month' else 365
+    try:
+        initial_duration = int(request.args.get('duration', '1'))
+    except (TypeError, ValueError):
+        initial_duration = 1
+    if not 1 <= initial_duration <= max_duration:
+        initial_duration = 1
+
     if request.method == 'POST':
         if not check_rate_limit('checkout_user', str(g.user['id']), 10, 900):
             abort(429, description='Too many booking requests submitted. Please wait a few minutes and try again.')
@@ -5574,10 +5873,9 @@ def checkout(property_id):
         tenant_phone = request.form.get('tenant_phone', '').strip()
         if request.form.get('accept_policies') != 'on':
             flash('Please review and accept the house rules and cancellation policy.', 'error')
-            return render_template('checkout.html', property=property, user=g.user)
+            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
         check_in = parse_iso_date(request.form.get('check_in'))
         duration_value = request.form.get('duration_val', '')
-        duration_unit = 'month' if property['price_period'] == 'month' else 'night'
         try:
             duration = int(duration_value)
         except (TypeError, ValueError):
@@ -5585,20 +5883,19 @@ def checkout(property_id):
 
         if not tenant_name or not tenant_phone:
             flash('Name and phone number are required.', 'error')
-            return render_template('checkout.html', property=property, user=g.user)
+            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
         if not check_in or check_in < date.today():
             flash('Choose a valid future check-in date.', 'error')
-            return render_template('checkout.html', property=property, user=g.user)
-        max_duration = 24 if duration_unit == 'month' else 365
+            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
         if duration < 1 or duration > max_duration:
             flash(f'Duration must be between 1 and {max_duration} {duration_unit}(s).', 'error')
-            return render_template('checkout.html', property=property, user=g.user)
+            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
 
         try:
             quote = quote_property_stay(db, property, check_in, duration)
         except ValueError as error:
             flash(str(error), 'error')
-            return render_template('checkout.html', property=property, user=g.user)
+            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
         check_out = quote['check_out']
         base_amount = quote['base_amount']
         cleaning_fee = quote['cleaning_fee']
@@ -5611,7 +5908,7 @@ def checkout(property_id):
             if conflict:
                 db.rollback()
                 flash(conflict, 'error')
-                return render_template('checkout.html', property=property, user=g.user)
+                return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
 
             tx_ref = f'KS-{secrets.token_urlsafe(12)}'
             db.execute(
@@ -5631,7 +5928,7 @@ def checkout(property_id):
             db.rollback()
             app.logger.exception('Could not create booking request for property %s', property_id)
             flash('We could not submit your booking request. Please try again.', 'error')
-            return render_template('checkout.html', property=property, user=g.user)
+            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
 
         flash(f'Booking request sent for {property["title"]}. No payment has been taken.', 'success')
         
@@ -5677,7 +5974,7 @@ def checkout(property_id):
 
         return redirect(url_for('dashboard'))
 
-    return render_template('checkout.html', property=property, user=g.user)
+    return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
 
 
 
@@ -6094,9 +6391,10 @@ def edit_property(property_id):
         title = request.form.get('title', '').strip()
         description = request.form.get('description', '').strip()
         price_raw = request.form.get('price', '').strip()
-        price_period = request.form.get('price_period', 'night').strip() or 'night'
         compound = request.form.get('compound', '').strip()
         property_type = request.form.get('property_type', '').strip()
+        price_period_raw = request.form.get('price_period', '').strip().lower()
+        price_period = price_period_raw if price_period_raw in ('night', 'month') else default_price_period_for_type(property_type)
         if not title or not description or not compound or not property_type:
             flash('Please fill in all required property details.', 'error')
             return redirect(url_for('edit_property', property_id=property_id))
@@ -6115,7 +6413,7 @@ def edit_property(property_id):
                 request.form.get('latitude'), request.form.get('longitude')
             )
             utility_fields = parse_property_utility_fields(request.form)
-            checkin_fields = parse_checkin_fields(request.form)
+            checkin_fields = parse_checkin_fields(request.form, is_long_term=(price_period == 'month'))
         except ValueError as error:
             flash(str(error), 'error')
             return redirect(url_for('edit_property', property_id=property_id))
@@ -6434,10 +6732,10 @@ def admin_ban_user(user_id):
     user = db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
     if not user:
         flash('User not found.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_users'))
     if user['is_admin']:
         flash('Cannot ban an admin.', 'error')
-        return redirect(url_for('admin_dashboard'))
+        return redirect(url_for('admin_users'))
     # Deactivate all their properties and invalidate all active sessions
     db.execute('UPDATE properties SET is_active = 0 WHERE owner_id = ?', (user_id,))
     db.execute(
@@ -6447,7 +6745,7 @@ def admin_ban_user(user_id):
     log_admin_action(db, 'user_banned', 'user', user_id, user['email'])
     db.commit()
     flash(f'User "{user["full_name"]}" has been banned.', 'info')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_users'))
 
 
 @app.route('/admin/unban_user/<int:user_id>', methods=['POST'])
@@ -6459,7 +6757,7 @@ def admin_unban_user(user_id):
         log_admin_action(db, 'user_unbanned', 'user', user_id)
     db.commit()
     flash('User unbanned.', 'success')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_users'))
 
 
 @app.route('/admin/force_delist/<int:property_id>', methods=['POST'])
@@ -6470,7 +6768,7 @@ def admin_force_delist(property_id):
     log_admin_action(db, 'property_force_delisted', 'property', property_id)
     db.commit()
     flash('Property force-delisted by admin.', 'info')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_listings'))
 
 
 @app.route('/admin/force_relist/<int:property_id>', methods=['POST'])
@@ -6489,7 +6787,7 @@ def admin_force_relist(property_id):
         log_admin_action(db, 'property_force_relisted', 'property', property_id)
     db.commit()
     flash('Property re-listed by admin.', 'success')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(url_for('admin_listings'))
 
 
 if __name__ == '__main__':

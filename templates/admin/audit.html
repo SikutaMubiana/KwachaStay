@@ -1,0 +1,48 @@
+{% extends 'admin/layout.html' %}
+
+{% block admin_content %}
+<div class="space-y-5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Administrative Audit Log</h1>
+            <p class="text-sm text-gray-500 mt-0.5">Chronological record of recent sensitive administrative actions (most recent 100).</p>
+        </div>
+        <input type="search" id="adminAuditSearch" oninput="filterAdminTable('adminAuditSearch', 'adminAuditTable')"
+            placeholder="Filter by admin, action, target, IP..."
+            class="w-full sm:w-72 px-3.5 py-2 text-sm border border-gray-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-x-auto">
+        {% if audit_logs %}
+        <table class="w-full text-left text-sm" id="adminAuditTable">
+            <thead class="bg-gray-50 text-xs uppercase text-gray-600 border-b border-gray-100">
+                <tr>
+                    <th class="px-5 py-3.5">Timestamp</th>
+                    <th class="px-5 py-3.5">Admin</th>
+                    <th class="px-5 py-3.5">Action</th>
+                    <th class="px-5 py-3.5">Target</th>
+                    <th class="px-5 py-3.5">Details</th>
+                    <th class="px-5 py-3.5">IP Address</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for entry in audit_logs %}
+                <tr class="hover:bg-gray-50/70">
+                    <td class="px-5 py-3.5 whitespace-nowrap text-xs text-gray-500">{{ entry.created_at }}</td>
+                    <td class="px-5 py-3.5 font-medium text-gray-900">{{ entry.admin_email or ('Admin #' ~ entry.admin_id) }}</td>
+                    <td class="px-5 py-3.5">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">{{ entry.action }}</span>
+                    </td>
+                    <td class="px-5 py-3.5 text-gray-600">{{ entry.target_type or '—' }}{% if entry.target_id %} #{{ entry.target_id }}{% endif %}</td>
+                    <td class="px-5 py-3.5 text-gray-600">{{ entry.details or '—' }}</td>
+                    <td class="px-5 py-3.5 text-xs font-mono text-gray-500">{{ entry.ip_address or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="p-8 text-center text-sm text-gray-500">No administrative actions have been recorded yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

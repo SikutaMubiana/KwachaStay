@@ -442,6 +442,11 @@
                     </div>
                 </div>
                 <div class="mb-4 space-y-1 text-xs text-gray-600">
+                    {% if property.price_period == 'month' %}
+                    <p class="font-medium text-blue-700"><i class="fa-solid fa-calendar-days mr-1"></i>Long-term stay (months or years)</p>
+                    {% elif property.checkin_time and property.checkout_time %}
+                    <p><i class="fa-regular fa-clock mr-1"></i>Check-in {{ property.checkin_time }} · Check-out {{ property.checkout_time }}</p>
+                    {% endif %}
                     {% if property.cleaning_fee %}
                     <p>One-time cleaning fee: ZMW {{ "{:,.2f}".format(property.cleaning_fee) }}</p>
                     {% endif %}
@@ -449,7 +454,6 @@
                     <p class="text-amber-800">Refundable deposit: ZMW {{ "{:,.2f}".format(property.refundable_deposit) }} (separate)</p>
                     {% endif %}
                     <p>Utilities {% if property.utilities_included %}included{% else %}may be charged separately{% endif %}.</p>
-                    <p>Service fee and full total shown before you submit a request.</p>
                 </div>
 
                 {% if g.user and g.user['role'] == 'owner' %}
@@ -472,15 +476,65 @@
                     </div>
                 </div>
                 {% else %}
-                <div class="border rounded-lg mb-4">
-                    <!-- Simple static summary for now, pointing to checkout -->
-                    <div class="p-3 border-b">
-                        <span class="block text-xs font-bold uppercase text-gray-500 mb-1">Dates</span>
-                        <span class="text-sm text-primary font-medium">Select in Checkout</span>
+                <div class="border rounded-xl p-3.5 mb-4 bg-gray-50/70 space-y-3">
+                    <div>
+                        <label for="pdDurationSelect" class="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                            {% if property.price_period == 'month' %}Rental Duration{% else %}Stay Length{% endif %}
+                        </label>
+                        {% if property.price_period == 'month' %}
+                        <select id="pdDurationSelect" class="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm font-medium focus:border-primary focus:ring-primary">
+                            <option value="1">1 Month</option>
+                            <option value="2">2 Months</option>
+                            <option value="3">3 Months</option>
+                            <option value="6">6 Months</option>
+                            <option value="9">9 Months</option>
+                            <option value="12">1 Year (12 Months)</option>
+                            <option value="18">1 Year 6 Months (18 Months)</option>
+                            <option value="24">2 Years (24 Months)</option>
+                            <option value="36">3 Years (36 Months)</option>
+                            <option value="60">5 Years (60 Months)</option>
+                        </select>
+                        {% else %}
+                        <select id="pdDurationSelect" class="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm font-medium focus:border-primary focus:ring-primary">
+                            <option value="1">1 Day / Night</option>
+                            <option value="2">2 Days / Nights</option>
+                            <option value="3">3 Days / Nights</option>
+                            <option value="4">4 Days / Nights</option>
+                            <option value="5">5 Days / Nights</option>
+                            <option value="6">6 Days / Nights</option>
+                            <option value="7">1 Week (7 Days)</option>
+                            <option value="14">2 Weeks (14 Days)</option>
+                            <option value="30">1 Month (30 Days)</option>
+                            <option value="custom">Custom days…</option>
+                        </select>
+                        <input type="number" id="pdCustomDays" min="1" max="365" value="1"
+                            class="hidden mt-2 w-full rounded-lg border border-gray-300 bg-white p-2 text-sm"
+                            placeholder="Enter number of days">
+                        {% endif %}
+                    </div>
+                    <div class="space-y-1.5 text-xs text-gray-700 border-t border-gray-200 pt-2.5">
+                        <div class="flex justify-between">
+                            <span id="pdRateLine">ZMW {{ "{:,.0f}".format(property.price_per_night) }} &times; 1 {% if property.price_period == 'month' %}month{% else %}day{% endif %}</span>
+                            <span class="font-semibold" id="pdSubtotal">ZMW {{ "{:,.0f}".format(property.price_per_night) }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Service fee</span>
+                            <span>ZMW {{ "{:,.0f}".format(service_fee) }}</span>
+                        </div>
+                        {% if property.cleaning_fee %}
+                        <div class="flex justify-between">
+                            <span>Cleaning fee</span>
+                            <span>ZMW {{ "{:,.2f}".format(property.cleaning_fee) }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="flex justify-between text-sm font-bold text-gray-900 border-t border-gray-200 pt-2">
+                            <span>Estimated total</span>
+                            <span id="pdTotal">ZMW {{ "{:,.0f}".format(property.price_per_night + service_fee + (property.cleaning_fee or 0)) }}</span>
+                        </div>
                     </div>
                 </div>
 
-                <a href="{{ url_for('checkout', property_id=property.id) }}"
+                <a id="reservePropertyBtn" href="{{ url_for('checkout', property_id=property.id) }}"
                     class="block w-full bg-primary text-white text-center py-3 rounded-lg font-bold text-lg hover:bg-red-600 transition shadow-lg shadow-red-200">
                     Reserve
                 </a>
@@ -609,6 +663,61 @@
 </div>
 
 <script nonce="{{ csp_nonce() }}">
+    (function () {
+        const selectEl = document.getElementById('pdDurationSelect');
+        if (!selectEl) return;
+        const customInput = document.getElementById('pdCustomDays');
+        const rateLine = document.getElementById('pdRateLine');
+        const subtotalEl = document.getElementById('pdSubtotal');
+        const totalEl = document.getElementById('pdTotal');
+        const reserveBtn = document.getElementById('reservePropertyBtn');
+        const baseCheckoutUrl = "{{ url_for('checkout', property_id=property.id) }}";
+        const unitPrice = {{ property.price_per_night }};
+        const serviceFee = {{ service_fee }};
+        const cleaningFee = {{ property.cleaning_fee or 0 }};
+        const isMonthly = "{{ property.price_period }}" === "month";
+
+        function fmtMoney(amount) {
+            const rounded = Math.round(amount * 100) / 100;
+            const whole = Math.abs(rounded - Math.round(rounded)) < 0.005;
+            return 'ZMW ' + rounded.toLocaleString(undefined, {
+                minimumFractionDigits: whole ? 0 : 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        function updateEstimate() {
+            let n = 1;
+            if (!isMonthly && selectEl.value === 'custom' && customInput) {
+                customInput.classList.remove('hidden');
+                n = parseInt(customInput.value, 10) || 1;
+                if (n < 1) n = 1;
+                if (n > 365) n = 365;
+            } else {
+                if (customInput) customInput.classList.add('hidden');
+                n = parseInt(selectEl.value, 10) || 1;
+            }
+            const unitLabel = isMonthly
+                ? (n === 1 ? 'month' : 'months')
+                : (n === 1 ? 'day' : 'days');
+            const subtotal = unitPrice * n;
+            const total = subtotal + serviceFee + cleaningFee;
+            rateLine.textContent = fmtMoney(unitPrice) + ' × ' + n + ' ' + unitLabel;
+            subtotalEl.textContent = fmtMoney(subtotal);
+            totalEl.textContent = fmtMoney(total);
+            if (reserveBtn) {
+                reserveBtn.href = baseCheckoutUrl + '?duration=' + encodeURIComponent(n);
+            }
+        }
+
+        selectEl.addEventListener('change', updateEstimate);
+        if (customInput) {
+            customInput.addEventListener('input', updateEstimate);
+            customInput.addEventListener('change', updateEstimate);
+        }
+        updateEstimate();
+    })();
+
     function toggleWishlist(propId) {
         fetch(`/toggle_wishlist/${propId}`, { method: 'POST' })
             .then(r => r.json())

@@ -145,6 +145,77 @@ class AdminDashboardTests(unittest.TestCase):
             self.assertEqual(is_admin, 1)
         self.assertEqual(client.get('/admin').status_code, 200)
 
+    def test_admin_multipage_sections_and_account_settings(self):
+        admin_id = self.create_user('Chief Admin', 'chief@example.com', '+260971000010', role='owner', is_admin=1)
+        other_id = self.create_user('Other User', 'other@example.com', '+260971000011', role='tenant', is_admin=0)
+        self.create_property(admin_id, 'Roma Penthouse')
+
+        client = app.app.test_client()
+        # Non-admin blocked on every dedicated admin page
+        self.login_as(client, other_id)
+        for path in (
+            '/admin/listings', '/admin/bookings', '/admin/accounting',
+            '/admin/users', '/admin/moderation', '/admin/audit', '/admin/settings',
+        ):
+            self.assertEqual(client.get(path, follow_redirects=False).status_code, 302)
+
+        # Admin can open every dedicated page
+        csrf = self.login_as(client, admin_id)
+        expected_snippets = {
+            '/admin': b'Admin Dashboard',
+            '/admin/listings': b'Roma Penthouse',
+            '/admin/bookings': b'Bookings Management',
+            '/admin/accounting': b'Money &amp; Accounting',
+            '/admin/users': b'Other User',
+            '/admin/moderation': b'Moderation &amp; Support',
+            '/admin/audit': b'Administrative Audit Log',
+            '/admin/settings': b'Account &amp; Security Settings',
+        }
+        for path, snippet in expected_snippets.items():
+            r = client.get(path)
+            self.assertEqual(r.status_code, 200, f'Expected 200 on {path}')
+            self.assertIn(snippet, r.data)
+
+        # Changing email without correct current password must be rejected
+        client.post('/admin/settings/profile', data={
+            'full_name': 'Chief Admin',
+            'email': 'newchief@example.com',
+            'country_region': 'ZM',
+            'phone': '+260971000010',
+            'current_password': 'WrongPassword1',
+            'csrf_token': csrf,
+        })
+        with app.app.app_context():
+            email = app.get_db().execute('SELECT email FROM users WHERE id = ?', (admin_id,)).fetchone()[0]
+            self.assertEqual(email, 'chief@example.com')
+
+        # Changing name, email, and phone with correct password succeeds
+        client.post('/admin/settings/profile', data={
+            'full_name': 'Updated Admin',
+            'email': 'newchief@example.com',
+            'country_region': 'ZM',
+            'phone': '971000099',
+            'current_password': 'Pass1234',
+            'csrf_token': csrf,
+        })
+        with app.app.app_context():
+            row = app.get_db().execute('SELECT full_name, email, phone FROM users WHERE id = ?', (admin_id,)).fetchone()
+            self.assertEqual(row['full_name'], 'Updated Admin')
+            self.assertEqual(row['email'], 'newchief@example.com')
+            self.assertEqual(row['phone'], '+260971000099')
+
+        # Changing admin password via /admin/settings/password succeeds
+        client.post('/admin/settings/password', data={
+            'current_password': 'Pass1234',
+            'new_password': 'NewAdminPass9',
+            'confirm_password': 'NewAdminPass9',
+            'csrf_token': csrf,
+        })
+        from werkzeug.security import check_password_hash
+        with app.app.app_context():
+            pw_hash = app.get_db().execute('SELECT password FROM users WHERE id = ?', (admin_id,)).fetchone()[0]
+            self.assertTrue(check_password_hash(pw_hash, 'NewAdminPass9'))
+
 
 if __name__ == '__main__':
     unittest.main()

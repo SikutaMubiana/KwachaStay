@@ -1,0 +1,163 @@
+{% extends 'admin/layout.html' %}
+
+{% block admin_content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Money &amp; Accounting</h1>
+        <p class="text-sm text-gray-500 mt-0.5">Reconcile guest payments, process refunds, and track host payout obligations.</p>
+    </div>
+
+    <!-- Financial KPI Strip -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-gray-500">Gross Paid Volume</p>
+            <p class="text-2xl font-bold text-gray-900 mt-2">ZMW {{ "{:,.2f}".format(accounting_summary.paid_volume) }}</p>
+            <p class="text-xs text-gray-500 mt-1">{{ accounting_summary.paid_bookings_count }} verified paid booking(s)</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-gray-500">Platform Service Fees</p>
+            <p class="text-2xl font-bold text-green-700 mt-2">ZMW {{ "{:,.2f}".format(accounting_summary.service_fee_revenue) }}</p>
+            <p class="text-xs text-gray-500 mt-1">Collected from paid stays</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-amber-200 bg-amber-50/30 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-amber-800">Pending Host Payouts</p>
+            <p class="text-2xl font-bold text-amber-700 mt-2">ZMW {{ "{:,.2f}".format(accounting_summary.pending_payouts_total) }}</p>
+            <p class="text-xs text-amber-800/80 mt-1">{{ accounting_summary.pending_payouts_count }} payout(s) awaiting settlement</p>
+        </div>
+        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
+            <p class="text-xs font-bold uppercase tracking-wider text-gray-500">Settled Host Payouts</p>
+            <p class="text-2xl font-bold text-blue-700 mt-2">ZMW {{ "{:,.2f}".format(accounting_summary.paid_payouts_total) }}</p>
+            <p class="text-xs text-gray-500 mt-1">{{ accounting_summary.paid_payouts_count }} completed payout(s)</p>
+        </div>
+    </div>
+
+    <!-- Payment Verification Queue -->
+    <section>
+        <h2 class="text-lg font-bold mb-3 text-gray-900">Payment Verification Queue</h2>
+        {% if not bank_transfer_enabled %}
+        <div class="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            <strong>Bank transfers are disabled.</strong> Set <code>BANK_TRANSFER_BANK_NAME</code>,
+            <code>BANK_TRANSFER_ACCOUNT_NAME</code>, and <code>BANK_TRANSFER_ACCOUNT_NUMBER</code>
+            in your environment to enable manual bank transfer reconciliation.
+        </div>
+        {% endif %}
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            {% if payment_review_bookings %}
+            <div class="divide-y divide-gray-100">
+                {% for payment in payment_review_bookings %}
+                <div class="p-5">
+                    <div class="mb-3">
+                        <p class="font-bold text-gray-900">{{ payment.property_title }} · {{ payment.tenant_name }}</p>
+                        <p class="text-sm text-gray-500">ZMW {{ "{:,.2f}".format(payment.total_price) }} · booking {{ payment.booking_status }}</p>
+                        {% if payment.payment_claim_reference %}
+                        <p class="mt-2 rounded-lg bg-amber-50 p-2.5 text-sm text-amber-900">
+                            Guest-submitted bank reference: <strong class="font-mono">{{ payment.payment_claim_reference }}</strong>
+                            {% if payment.payment_claim_submitted_at %} · {{ payment.payment_claim_submitted_at }}{% endif %}
+                            <br><span class="text-xs">Not verified. Compare it against the bank statement before marking paid.</span>
+                        </p>
+                        {% endif %}
+                    </div>
+                    <form action="{{ url_for('verify_booking_payment', booking_id=payment.id) }}" method="POST" class="flex flex-wrap gap-2">
+                        <input name="payment_reference" required maxlength="160" placeholder="Provider transaction reference"
+                            class="border border-gray-300 rounded-lg px-3 py-2 text-sm flex-grow min-w-48">
+                        <select name="payment_method" required class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="">Payment method</option>
+                            <option>MTN Mobile Money</option>
+                            <option>Airtel Money</option>
+                            <option>Bank Transfer</option>
+                            <option>Card</option>
+                            <option>Other</option>
+                        </select>
+                        <button class="bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-800 transition"
+                            onclick="return confirm('Only continue after confirming the successful transaction with the payment provider.')">
+                            Record verified payment
+                        </button>
+                    </form>
+                    <p class="text-xs text-amber-700 mt-2">Manual reconciliation only; verify the provider transaction before recording.</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="p-6 text-sm text-gray-500">No payments are waiting for provider verification.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Refund Requests -->
+    <section>
+        <h2 class="text-lg font-bold mb-3 text-gray-900">Refund Requests</h2>
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            {% if refund_requests %}
+            <div class="divide-y divide-gray-100">
+                {% for refund in refund_requests %}
+                <div class="p-5 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <p class="font-bold text-gray-900">{{ refund.property_title }} · {{ refund.tenant_name }}</p>
+                        <p class="text-sm text-gray-500">ZMW {{ "{:,.2f}".format(refund.total_price) }} · {{ refund.payment_method or 'payment method not recorded' }}</p>
+                        <p class="text-sm text-gray-500">Stay: {{ refund.check_in }} to {{ refund.check_out }} · Policy: {{ refund.cancellation_policy or 'moderate' }}</p>
+                        <p class="text-xs text-gray-400">Ref: {{ refund.tx_ref or 'N/A' }}</p>
+                        <p class="mt-1 text-xs font-semibold {% if refund.refund_status == 'processing' %}text-blue-700{% else %}text-amber-700{% endif %}">
+                            Refund {{ refund.refund_status|replace('_', ' ') }}
+                            {% if refund.refund_reference %} · Provider ref {{ refund.refund_reference }}{% endif %}
+                        </p>
+                    </div>
+                    {% if refund.refund_status == 'requested' %}
+                    <div class="flex gap-2">
+                        <form action="{{ url_for('process_refund', booking_id=refund.id, action='mark-refunded') }}" method="POST">
+                            <button class="bg-green-600 text-white px-3.5 py-2 rounded-lg text-sm font-bold hover:bg-green-700">
+                                {% if refund.payment_method == 'Flutterwave Mobile Money' %}Initiate provider refund{% else %}Confirm manual refund{% endif %}
+                            </button>
+                        </form>
+                        <form action="{{ url_for('process_refund', booking_id=refund.id, action='reject') }}" method="POST">
+                            <button class="border border-red-300 text-red-600 px-3.5 py-2 rounded-lg text-sm font-bold hover:bg-red-50">Reject</button>
+                        </form>
+                    </div>
+                    {% elif refund.refund_status == 'processing' and refund.payment_method == 'Flutterwave Mobile Money' and refund.refund_reference %}
+                    <form action="{{ url_for('process_refund', booking_id=refund.id, action='refresh') }}" method="POST">
+                        <button class="rounded-lg border border-blue-200 px-3.5 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50">Refresh provider status</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="p-6 text-sm text-gray-500">No refund requests are waiting.</p>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Host Payout Ledger -->
+    <section>
+        <h2 class="text-lg font-bold mb-3 text-gray-900">Host Payout Ledger</h2>
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+            {% if payout_ledger %}
+            <div class="divide-y divide-gray-100">
+                {% for payout in payout_ledger %}
+                <div class="p-5 flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <p class="font-bold text-gray-900">{{ payout.property_title }} · {{ payout.host_name }}</p>
+                        <p class="text-sm text-gray-600">Booking {{ payout.tx_ref }} · {{ payout.check_in }}</p>
+                        <p class="text-sm font-semibold">Host amount: ZMW {{ "{:,.2f}".format(payout.amount) }} · {{ payout.status|replace('_', ' ')|capitalize }}</p>
+                        {% if payout.reference %}<p class="text-xs text-gray-500">Payout ref: {{ payout.reference }}</p>{% endif %}
+                    </div>
+                    {% if payout.status == 'pending' %}
+                    <form action="{{ url_for('mark_payout_paid', ledger_id=payout.id) }}" method="POST" class="flex flex-wrap gap-2">
+                        <input name="reference" maxlength="160" required placeholder="Actual payout reference"
+                            class="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <button class="rounded-lg bg-green-700 px-3.5 py-2 text-sm font-bold text-white hover:bg-green-800"
+                            onclick="return confirm('Only record a payout after the provider confirms it was sent.')">
+                            Record payout sent
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="p-6 text-sm text-gray-500">No paid, confirmed stays are ready for host payouts.</p>
+            {% endif %}
+            <p class="border-t bg-amber-50 p-4 text-xs text-amber-900">This is a manual reconciliation ledger, not an automatic bank or mobile-money transfer. Record a provider reference only after verifying the payout.</p>
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,193 @@
+{% extends 'admin/layout.html' %}
+
+{% block admin_content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Account &amp; Security Settings</h1>
+        <p class="text-sm text-gray-500 mt-0.5">Update your administrator email, phone number, profile details, password, and optional 2FA.</p>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <!-- Admin Profile & Contact Info -->
+        <section class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+            <div class="flex items-center gap-3 mb-5">
+                <span class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <i class="fa-solid fa-user-gear"></i>
+                </span>
+                <div>
+                    <h2 class="text-base font-bold text-gray-900">Profile &amp; Contact Details</h2>
+                    <p class="text-xs text-gray-500">Change your name, login email, phone number, or avatar.</p>
+                </div>
+            </div>
+
+            <form action="{{ url_for('admin_update_profile') }}" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="admin_full_name" class="block text-xs font-semibold text-gray-700 mb-1">Full Name</label>
+                    <input id="admin_full_name" name="full_name" type="text" required maxlength="120"
+                        value="{{ g.user['full_name'] }}"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                </div>
+
+                <div>
+                    <label for="admin_email" class="block text-xs font-semibold text-gray-700 mb-1">Email Address</label>
+                    <input id="admin_email" name="email" type="email" required maxlength="254"
+                        value="{{ g.user['email'] }}"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                    <p class="text-[11px] text-gray-500 mt-1">Changing your email requires confirming your current password below.</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label for="admin_country_region" class="block text-xs font-semibold text-gray-700 mb-1">Country</label>
+                        <select id="admin_country_region" name="country_region"
+                            class="w-full px-3 py-2.5 text-sm border border-gray-300 rounded-xl bg-white">
+                            {% for country in phone_countries %}
+                            <option value="{{ country.region }}" {% if country.region == 'ZM' %}selected{% endif %}>
+                                {{ country.region }} (+{{ country.calling_code }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="admin_phone" class="block text-xs font-semibold text-gray-700 mb-1">Phone Number</label>
+                        <input id="admin_phone" name="phone" type="tel" required
+                            value="{{ g.user['phone'] }}" placeholder="+260971234567"
+                            class="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="admin_profile_pic" class="block text-xs font-semibold text-gray-700 mb-1">Profile Photo URL <span class="text-gray-400 font-normal">(optional HTTPS URL)</span></label>
+                    <input id="admin_profile_pic" name="profile_pic" type="url" maxlength="2000"
+                        value="{{ g.user['profile_pic'] or '' }}" placeholder="https://..."
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                </div>
+
+                <div class="pt-2 border-t border-gray-100">
+                    <label for="profile_current_password" class="block text-xs font-semibold text-gray-700 mb-1">
+                        Current Password <span class="text-gray-400 font-normal">(required if changing email)</span>
+                    </label>
+                    <input id="profile_current_password" name="current_password" type="password" autocomplete="current-password"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                </div>
+
+                <button type="submit"
+                    class="w-full sm:w-auto px-5 py-2.5 text-sm font-bold rounded-xl bg-gray-900 text-white hover:bg-gray-800 transition">
+                    Save Contact Settings
+                </button>
+            </form>
+        </section>
+
+        <!-- Change Admin Password -->
+        <section class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+            <div class="flex items-center gap-3 mb-5">
+                <span class="w-9 h-9 rounded-xl bg-red-50 text-primary flex items-center justify-center">
+                    <i class="fa-solid fa-lock"></i>
+                </span>
+                <div>
+                    <h2 class="text-base font-bold text-gray-900">Change Password</h2>
+                    <p class="text-xs text-gray-500">Use at least 8 characters with both letters and numbers. Other active devices will be signed out.</p>
+                </div>
+            </div>
+
+            <form action="{{ url_for('admin_change_password') }}" method="POST" class="space-y-4">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label for="pw_current" class="block text-xs font-semibold text-gray-700 mb-1">Current Password</label>
+                    <input id="pw_current" name="current_password" type="password" required autocomplete="current-password"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                </div>
+                <div>
+                    <label for="pw_new" class="block text-xs font-semibold text-gray-700 mb-1">New Password</label>
+                    <input id="pw_new" name="new_password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                </div>
+                <div>
+                    <label for="pw_confirm" class="block text-xs font-semibold text-gray-700 mb-1">Confirm New Password</label>
+                    <input id="pw_confirm" name="confirm_password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"
+                        class="w-full px-3.5 py-2.5 text-sm border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary">
+                </div>
+                <button type="submit"
+                    class="w-full sm:w-auto px-5 py-2.5 text-sm font-bold rounded-xl bg-primary text-white hover:bg-red-600 transition">
+                    Update Password
+                </button>
+            </form>
+        </section>
+    </div>
+
+    <!-- Optional Two-Factor Authentication Card -->
+    <section class="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <span class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <i class="fa-solid fa-key"></i>
+                </span>
+                <div>
+                    <h2 class="text-base font-bold text-gray-900">Two-Factor Authentication (Optional)</h2>
+                    <p class="text-xs text-gray-500 mt-0.5">
+                        Add an extra layer of protection with Google Authenticator, Microsoft Authenticator, 2FAS, or Authy whenever you are ready.
+                    </p>
+                </div>
+            </div>
+            {% if admin_totp_enabled %}
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                <i class="fa-solid fa-circle-check mr-1"></i> 2FA Enabled
+            </span>
+            {% else %}
+            <span class="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">
+                Optional · Not Enabled
+            </span>
+            {% endif %}
+        </div>
+
+        {% if admin_totp_enabled %}
+        <form action="{{ url_for('admin_disable_2fa') }}" method="POST" class="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Current Password</label>
+                <input type="password" name="current_password" required class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">6-Digit Authenticator Code</label>
+                <input type="text" name="totp_code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required
+                    placeholder="123456" class="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-xl">
+            </div>
+            <button type="submit" class="px-4 py-2 text-sm font-bold rounded-xl border border-red-300 text-red-700 hover:bg-red-50 transition">
+                Disable 2FA
+            </button>
+        </form>
+        {% elif pending_totp_secret %}
+        <div class="mt-5 p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+            <p class="text-sm font-semibold text-gray-800">Step 1: Add this setup key to your authenticator app (Time-based, 6 digits, 30s):</p>
+            <div class="p-3 bg-white border border-gray-200 rounded-lg font-mono text-sm break-all select-all text-gray-900">
+                {{ pending_totp_secret }}
+            </div>
+            <p class="text-xs text-gray-500 break-all">OTPAuth URI: <code>{{ pending_totp_uri }}</code></p>
+            <form action="{{ url_for('admin_confirm_2fa') }}" method="POST" class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end pt-2">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Current Password</label>
+                    <input type="password" name="current_password" required class="w-full px-3 py-2 text-sm border border-gray-300 rounded-xl">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">6-Digit Verification Code</label>
+                    <input type="text" name="totp_code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required
+                        placeholder="123456" class="w-full px-3 py-2 text-sm font-mono border border-gray-300 rounded-xl">
+                </div>
+                <button type="submit" class="px-4 py-2 text-sm font-bold rounded-xl bg-green-700 text-white hover:bg-green-800 transition">
+                    Confirm &amp; Enable 2FA
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <form action="{{ url_for('admin_start_2fa') }}" method="POST" class="mt-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="px-4 py-2 text-sm font-bold rounded-xl border border-gray-300 text-gray-800 hover:bg-gray-50 transition">
+                Set Up Authenticator App (2FA)
+            </button>
+        </form>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

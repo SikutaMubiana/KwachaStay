@@ -109,7 +109,23 @@
                     {% if g.user and g.user['is_admin'] %}
                     <a href="{{ url_for('admin_dashboard') }}"
                         class="text-sm font-semibold {% if request.endpoint == 'admin_dashboard' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
-                        <i class="fa-solid fa-shield-halved mr-1"></i>Admin Dashboard
+                        Overview
+                    </a>
+                    <a href="{{ url_for('admin_listings') }}"
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_listings' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        Listings
+                    </a>
+                    <a href="{{ url_for('admin_accounting') }}"
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_accounting' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        Accounting
+                    </a>
+                    <a href="{{ url_for('admin_users') }}"
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_users' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        Users
+                    </a>
+                    <a href="{{ url_for('admin_settings') }}"
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_settings' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        <i class="fa-solid fa-sliders mr-1"></i>Settings
                     </a>
                     {% elif g.user and g.user['role'] == 'owner' %}
                     <a href="{{ url_for('landlord_dashboard') }}"
@@ -219,7 +235,14 @@
                 </div>
                 <hr class="border-gray-100">
                 {% if g.user['is_admin'] %}
-                <a href="{{ url_for('admin_dashboard') }}" class="text-sm font-bold text-red-600">Admin Dashboard</a>
+                <a href="{{ url_for('admin_dashboard') }}" class="text-sm font-bold text-red-600">Overview</a>
+                <a href="{{ url_for('admin_listings') }}" class="text-sm font-medium text-gray-700">Listings</a>
+                <a href="{{ url_for('admin_bookings') }}" class="text-sm font-medium text-gray-700">Bookings</a>
+                <a href="{{ url_for('admin_accounting') }}" class="text-sm font-medium text-gray-700">Money &amp; Accounting</a>
+                <a href="{{ url_for('admin_users') }}" class="text-sm font-medium text-gray-700">Users &amp; Roles</a>
+                <a href="{{ url_for('admin_moderation') }}" class="text-sm font-medium text-gray-700">Moderation &amp; Support</a>
+                <a href="{{ url_for('admin_audit_log') }}" class="text-sm font-medium text-gray-700">Audit Log</a>
+                <a href="{{ url_for('admin_settings') }}" class="text-sm font-semibold text-gray-900">Account &amp; Settings</a>
                 {% elif g.user['role'] == 'owner' %}
                 <a href="{{ url_for('landlord_dashboard') }}" class="text-sm font-semibold text-gray-800">Landlord
                     Dashboard</a>

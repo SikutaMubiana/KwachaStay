@@ -15,7 +15,13 @@
                         <h3 class="font-semibold text-gray-900">{{ property.title }}</h3>
                         <p class="text-gray-500 text-sm">{{ property.compound }}, Lusaka</p>
                         <p class="mt-1 text-xs text-gray-500">
-                            Check-in {{ property.checkin_time or '15:00' }} · Check-out {{ property.checkout_time or '10:00' }}
+                            {% if property.price_period == 'month' %}
+                            Long-term stay (months / years) · Move-in arranged with host
+                            {% elif property.checkin_time and property.checkout_time %}
+                            Check-in {{ property.checkin_time }} · Check-out {{ property.checkout_time }}
+                            {% else %}
+                            Check-in 15:00 · Check-out 10:00
+                            {% endif %}
                             {% if property.self_checkin_method %} · {{ self_checkin_options.get(property.self_checkin_method, 'Contact host') }}{% endif %}
                         </p>
                         <div class="mt-1 flex items-center gap-1 text-xs text-gray-500">
@@ -37,7 +43,9 @@
 
                 <div class="space-y-4 text-sm mb-4">
                     <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-2">Select check-in date</label>
+                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-2">
+                            {% if property.price_period == 'month' %}Select move-in date{% else %}Select check-in date{% endif %}
+                        </label>
                         <input type="hidden" id="checkInDate">
                         <div class="flex items-center justify-between mb-2">
                             <button type="button" id="checkoutPreviousMonth" class="rounded-lg border px-3 py-2 hover:bg-gray-50" aria-label="Previous month">
@@ -58,48 +66,92 @@
                             <span><i class="fa-solid fa-circle text-red-500"></i> Unavailable</span>
                         </div>
                     </div>
+                    {% set init_dur = initial_duration|default(1) %}
                     {% if property.price_period == 'month' %}
-                    <!-- Monthly Booking UI (For Houses/Villas) -->
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Move-in date</label>
-                        <p id="selectedCheckIn" class="text-sm font-medium text-gray-700">Choose an available date above</p>
+                    <!-- Monthly / Long-Term Booking UI (Houses, Hostels, etc.) -->
+                    <div class="grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3 border border-gray-100">
+                        <div>
+                            <label class="block text-[11px] font-semibold uppercase text-gray-500 mb-0.5">Move-in date</label>
+                            <p id="selectedCheckIn" class="text-sm font-semibold text-gray-800">Choose above</p>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold uppercase text-gray-500 mb-0.5">Move-out date</label>
+                            <p id="selectedCheckOut" class="text-sm font-semibold text-gray-800">—</p>
+                        </div>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Duration
-                            (Months)</label>
+                        <label for="duration" class="block text-xs font-semibold uppercase text-gray-500 mb-1">How long would you like to stay?</label>
                         <select id="duration"
-                            class="w-full p-2 border rounded-lg bg-white focus:ring-1 focus:ring-primary outline-none">
-                            {% for i in range(1, 13) %}
-                            <option value="{{ i }}">{{ i }} Month{% if i > 1 %}s{% endif %}</option>
+                            class="w-full p-2.5 border rounded-lg bg-white focus:ring-1 focus:ring-primary outline-none font-medium">
+                            {% set month_presets = [
+                                (1, '1 Month'), (2, '2 Months'), (3, '3 Months'), (4, '4 Months'),
+                                (5, '5 Months'), (6, '6 Months'), (7, '7 Months'), (8, '8 Months'),
+                                (9, '9 Months'), (10, '10 Months'), (11, '11 Months'),
+                                (12, '1 Year (12 Months)'), (18, '1 Year 6 Months (18 Months)'),
+                                (24, '2 Years (24 Months)'), (36, '3 Years (36 Months)'),
+                                (48, '4 Years (48 Months)'), (60, '5 Years (60 Months)')
+                            ] %}
+                            {% set preset_vals = [1,2,3,4,5,6,7,8,9,10,11,12,18,24,36,48,60] %}
+                            {% for val, label in month_presets %}
+                            <option value="{{ val }}" {% if init_dur == val %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
-                            <option value="24">2 Years</option>
+                            {% if init_dur not in preset_vals %}
+                            <option value="{{ init_dur }}" selected>{{ init_dur }} Months</option>
+                            {% endif %}
                         </select>
                     </div>
                     {% else %}
-                    <!-- Nightly Booking UI (For Hotels/Guest Houses) -->
-                    <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Check-in date</label>
-                        <p id="selectedCheckIn" class="text-sm font-medium text-gray-700">Choose an available date above</p>
+                    <!-- Nightly / Short-Stay Booking UI (Villas, Hotels, Guest Houses, etc.) -->
+                    <div class="grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3 border border-gray-100">
+                        <div>
+                            <label class="block text-[11px] font-semibold uppercase text-gray-500 mb-0.5">Check-in date</label>
+                            <p id="selectedCheckIn" class="text-sm font-semibold text-gray-800">Choose above</p>
+                        </div>
+                        <div>
+                            <label class="block text-[11px] font-semibold uppercase text-gray-500 mb-0.5">Check-out date</label>
+                            <p id="selectedCheckOut" class="text-sm font-semibold text-gray-800">—</p>
+                        </div>
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">How many days?</label>
-                        <input type="number" id="duration" value="1" min="1" max="30"
-                            class="w-full p-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none" required
-                            placeholder="Number of nights">
+                        <label for="durationPreset" class="block text-xs font-semibold uppercase text-gray-500 mb-1">How long would you like to stay?</label>
+                        {% set night_preset_vals = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21, 30, 60, 90] %}
+                        <select id="durationPreset"
+                            class="w-full p-2.5 border rounded-lg bg-white focus:ring-1 focus:ring-primary outline-none font-medium">
+                            <option value="1" {% if init_dur == 1 %}selected{% endif %}>1 Day / Night</option>
+                            <option value="2" {% if init_dur == 2 %}selected{% endif %}>2 Days / Nights</option>
+                            <option value="3" {% if init_dur == 3 %}selected{% endif %}>3 Days / Nights</option>
+                            <option value="4" {% if init_dur == 4 %}selected{% endif %}>4 Days / Nights</option>
+                            <option value="5" {% if init_dur == 5 %}selected{% endif %}>5 Days / Nights</option>
+                            <option value="6" {% if init_dur == 6 %}selected{% endif %}>6 Days / Nights</option>
+                            <option value="7" {% if init_dur == 7 %}selected{% endif %}>1 Week (7 Days)</option>
+                            <option value="10" {% if init_dur == 10 %}selected{% endif %}>10 Days</option>
+                            <option value="14" {% if init_dur == 14 %}selected{% endif %}>2 Weeks (14 Days)</option>
+                            <option value="21" {% if init_dur == 21 %}selected{% endif %}>3 Weeks (21 Days)</option>
+                            <option value="30" {% if init_dur == 30 %}selected{% endif %}>1 Month (30 Days)</option>
+                            <option value="60" {% if init_dur == 60 %}selected{% endif %}>2 Months (60 Days)</option>
+                            <option value="90" {% if init_dur == 90 %}selected{% endif %}>3 Months (90 Days)</option>
+                            <option value="custom" {% if init_dur not in night_preset_vals %}selected{% endif %}>Custom number of days…</option>
+                        </select>
+                        <div id="customDurationWrap" class="mt-2 {% if init_dur in night_preset_vals %}hidden{% endif %}">
+                            <label for="duration" class="block text-xs text-gray-500 mb-1">Enter number of days (1–365)</label>
+                            <input type="number" id="duration" value="{{ init_dur }}" min="1" max="365"
+                                class="w-full p-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none" required
+                                placeholder="Number of days / nights">
+                        </div>
                     </div>
                     {% endif %}
                 </div>
 
                 <div class="space-y-3 text-sm">
                     <div class="flex justify-between">
-                        <span class="text-gray-600">Base Price ({% if property.price_period == 'month' %}Per Month{%
-                            else %}Per Night{% endif %})</span>
-                        <span class="font-medium">ZMW <span id="basePriceDisplay">{{
-                                "{:,.0f}".format(property.price_per_night) }}</span></span>
+                        <span class="text-gray-600" id="rateBreakdownLabel">
+                            ZMW {{ "{:,.0f}".format(property.price_per_night) }} &times; {{ init_dur }} {% if property.price_period == 'month' %}month{% if init_dur != 1 %}s{% endif %}{% else %}day{% if init_dur != 1 %}s{% endif %}{% endif %}
+                        </span>
+                        <span class="font-medium" id="baseSubtotalDisplay">ZMW {{ "{:,.0f}".format(property.price_per_night * init_dur) }}</span>
                     </div>
                     <div class="flex justify-between">
                         <span class="text-gray-600">Service fee</span>
-                        <span class="font-medium">ZMW {{ service_fee }}</span>
+                        <span class="font-medium">ZMW {{ "{:,.0f}".format(service_fee) }}</span>
                     </div>
                     {% if property.cleaning_fee %}
                     <div class="flex justify-between">
@@ -110,7 +162,7 @@
                     <hr class="border-gray-100">
                     <div class="flex justify-between text-base font-bold">
                         <span>Total (ZMW)</span>
-                        <span id="totalPriceDisplay">ZMW ...</span>
+                        <span id="totalPriceDisplay">ZMW {{ "{:,.0f}".format((property.price_per_night * init_dur) + service_fee + (property.cleaning_fee or 0)) }}</span>
                     </div>
                     {% if property.refundable_deposit %}
                     <p class="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
@@ -281,37 +333,111 @@
         }
     }
 
+    function formatMoney(amount) {
+        const rounded = Math.round(amount * 100) / 100;
+        const isWhole = Math.abs(rounded - Math.round(rounded)) < 0.005;
+        return 'ZMW ' + rounded.toLocaleString(undefined, {
+            minimumFractionDigits: isWhole ? 0 : 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function formatDurationLabel(n) {
+        if (isMonthly) {
+            if (n === 1) return '1 month';
+            if (n === 12) return '12 months (1 year)';
+            if (n === 18) return '18 months (1.5 years)';
+            if (n % 12 === 0) return n + ' months (' + (n / 12) + ' years)';
+            return n + ' months';
+        }
+        if (n === 1) return '1 day';
+        if (n === 7) return '7 days (1 week)';
+        if (n === 14) return '14 days (2 weeks)';
+        if (n === 21) return '21 days (3 weeks)';
+        if (n === 30) return '30 days (1 month)';
+        return n + ' days';
+    }
+
+    function getSelectedDuration() {
+        const maxDuration = isMonthly ? 60 : 365;
+        const durationInput = document.getElementById('duration');
+        let val = parseInt(durationInput.value, 10);
+        if (isNaN(val) || val < 1) val = 1;
+        if (val > maxDuration) {
+            val = maxDuration;
+            durationInput.value = String(maxDuration);
+        }
+        return val;
+    }
+
+    function updatePriceSummary(durationVal, baseAmount, totalAmount) {
+        const labelEl = document.getElementById('rateBreakdownLabel');
+        const subtotalEl = document.getElementById('baseSubtotalDisplay');
+        const totalEl = document.getElementById('totalPriceDisplay');
+        labelEl.innerText = formatMoney(pricePerUnit) + ' × ' + formatDurationLabel(durationVal);
+        subtotalEl.innerText = formatMoney(baseAmount);
+        totalEl.innerText = formatMoney(totalAmount);
+    }
+
+    let quoteRequestVersion = 0;
+
+    async function syncServerQuote(checkIn, durationVal) {
+        const reqVersion = ++quoteRequestVersion;
+        try {
+            const resp = await fetch('/property/{{ property.id }}/price-quote?check_in=' + encodeURIComponent(checkIn) + '&duration=' + encodeURIComponent(durationVal));
+            const data = await resp.json();
+            if (reqVersion !== quoteRequestVersion) return;
+            if (!resp.ok) {
+                const errorMsg = document.getElementById('errorMsg');
+                errorMsg.innerText = data.error || 'Could not quote those dates.';
+                errorMsg.classList.remove('hidden');
+                const btn = document.getElementById('payBtn');
+                btn.disabled = true;
+                btn.classList.add('opacity-50');
+                return;
+            }
+            calculatedTotal = Number(data.total_price);
+            updatePriceSummary(durationVal, Number(data.base_amount), calculatedTotal);
+            document.getElementById('finalCheckOut').value = data.check_out;
+            document.getElementById('selectedCheckOut').innerText = data.check_out;
+            document.getElementById('finalTotalPrice').value = calculatedTotal;
+            document.getElementById('payBtn').innerText = 'Send request · ' + formatMoney(calculatedTotal);
+        } catch (err) {
+            // Keep instant client calculation if quote request fails transiently
+        }
+    }
+
     function calculateTotal() {
         const checkIn = document.getElementById('checkInDate').value;
         const errorMsg = document.getElementById('errorMsg');
         const btn = document.getElementById('payBtn');
-        let multiplier = 1;
+        const durationVal = getSelectedDuration();
+        const baseSubtotal = pricePerUnit * durationVal;
+        const total = baseSubtotal + serviceFee + cleaningFee;
+        calculatedTotal = total;
+
+        updatePriceSummary(durationVal, baseSubtotal, total);
+        document.getElementById('finalDuration').value = durationVal;
+        document.getElementById('finalTotalPrice').value = total;
 
         if (!checkIn) {
-            btn.innerText = "Select Dates";
+            document.getElementById('selectedCheckOut').innerText = '—';
+            btn.innerText = isMonthly ? 'Select Move-in Date' : 'Select Check-in Date';
             btn.disabled = true;
             btn.classList.add('opacity-50');
             errorMsg.classList.add('hidden');
             return;
         }
 
-        const durationVal = parseInt(document.getElementById('duration').value) || 1;
-        multiplier = durationVal;
         const checkOutDateVal = stayCheckOut(checkIn, durationVal);
-
+        document.getElementById('selectedCheckOut').innerText = checkOutDateVal;
         errorMsg.classList.add('hidden');
 
-        const total = (pricePerUnit * multiplier) + serviceFee + cleaningFee;
-        calculatedTotal = total;
-
-        document.getElementById('totalPriceDisplay').innerText = "ZMW " + total.toLocaleString();
-        document.getElementById('payBtn').innerText = "Send request · ZMW " + total.toLocaleString();
-
-        // Update hidden inputs
+        btn.innerText = 'Send request · ' + formatMoney(total);
         document.getElementById('finalCheckIn').value = checkIn;
         document.getElementById('finalCheckOut').value = checkOutDateVal;
-        document.getElementById('finalTotalPrice').value = total;
-        document.getElementById('finalDuration').value = durationVal;
+
+        syncServerQuote(checkIn, durationVal);
         validateSelectedStay(checkIn, checkOutDateVal);
     }
 
@@ -320,17 +446,36 @@
         const btn = document.getElementById('payBtn');
         const errorMsg = document.getElementById('errorMsg');
         const availabilityMessage = document.getElementById('checkoutAvailabilityMessage');
+        availabilityMessage.className = 'text-xs text-gray-500 mt-2';
         btn.disabled = true;
         btn.classList.add('opacity-50');
-        availabilityMessage.innerText = 'Checking all dates in your stay…';
+        availabilityMessage.innerText = 'Checking availability for your stay…';
         errorMsg.classList.add('hidden');
 
         try {
-            let current = checkIn;
-            while (current < checkOut) {
-                const monthKey = current.slice(0, 7);
-                const monthStatuses = await fetchMonthAvailability(monthKey);
+            // Cap client-side pre-check to 12 months so multi-year leases stay fast; server validates full range on submit
+            const clientCheckEnd = isMonthly && stayCheckOut(checkIn, 12) < checkOut
+                ? stayCheckOut(checkIn, 12)
+                : checkOut;
+            const monthsNeeded = [];
+            const seenMonths = new Set();
+            let cursor = checkIn;
+            while (cursor < clientCheckEnd) {
+                const mk = cursor.slice(0, 7);
+                if (!seenMonths.has(mk)) {
+                    seenMonths.add(mk);
+                    monthsNeeded.push(mk);
+                }
+                cursor = addDaysToIso(cursor, 1);
+            }
+            for (const mk of monthsNeeded) {
+                await fetchMonthAvailability(mk);
                 if (checkVersion !== availabilityCheckVersion) return;
+            }
+            let current = checkIn;
+            while (current < clientCheckEnd) {
+                const monthKey = current.slice(0, 7);
+                const monthStatuses = (checkoutAvailability[monthKey] && checkoutAvailability[monthKey].dates) || {};
                 if (monthStatuses[current] && monthStatuses[current] !== 'available') {
                     throw new Error(current + ' is unavailable. Choose different dates.');
                 }
@@ -339,7 +484,7 @@
             if (checkVersion !== availabilityCheckVersion) return;
             btn.disabled = false;
             btn.classList.remove('opacity-50');
-            availabilityMessage.innerText = 'All selected dates are currently available. The server will check again when you submit.';
+            availabilityMessage.innerText = 'Selected dates look available. The server will verify the full period when you submit.';
         } catch (error) {
             if (checkVersion !== availabilityCheckVersion) return;
             errorMsg.innerText = error.message;
@@ -359,7 +504,25 @@
         checkoutMonth = new Date(checkoutMonth.getFullYear(), checkoutMonth.getMonth() + 1, 1);
         renderCheckoutCalendar();
     });
-    document.getElementById('duration').addEventListener('change', calculateTotal);
+
+    const durationPresetEl = document.getElementById('durationPreset');
+    const customDurationWrap = document.getElementById('customDurationWrap');
+    const durationEl = document.getElementById('duration');
+
+    if (durationPresetEl) {
+        durationPresetEl.addEventListener('change', function () {
+            if (this.value === 'custom') {
+                customDurationWrap.classList.remove('hidden');
+                durationEl.focus();
+            } else {
+                customDurationWrap.classList.add('hidden');
+                durationEl.value = this.value;
+            }
+            calculateTotal();
+        });
+    }
+    durationEl.addEventListener('change', calculateTotal);
+    durationEl.addEventListener('input', calculateTotal);
 
     renderCheckoutCalendar();
     calculateTotal();
