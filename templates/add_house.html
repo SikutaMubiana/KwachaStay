@@ -28,7 +28,9 @@
                     <option value="Hostel">Hostel</option>
                 </select>
                 <p id="propertyTypeHint" class="text-xs text-gray-500 mt-2">
-                    Houses and Hostels default to monthly / long-term stays (months or years). Villas, Hotels, and Guest Houses default to nightly / short stays (days, weeks, or a month). You can adjust the billing period below.
+                    Houses and Hostels default to monthly / long-term stays (months or years). Villas, Hotels, and Guest
+                    Houses default to nightly / short stays (days, weeks, or a month). You can adjust the billing period
+                    below.
                 </p>
             </div>
         </div>
@@ -109,12 +111,13 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Billing / Stay Period</label>
-                    <select name="price_period" id="pricePeriod" onchange="syncStayMode()"
-                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
-                        <option value="month">Per Month (Long-term: months / years)</option>
-                        <option value="night">Per Night (Short stay: days / weeks / month)</option>
-                    </select>
+                    <label id="priceLabel" class="block text-sm font-medium text-gray-700 mb-1">Price per Night
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Billing / Stay Period</label>
+                        <select name="price_period" id="pricePeriod" onchange="syncStayMode()"
+                            class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                            <option value="month">Per Month (Long-term: months / years)</option>
+                            <option value="night">Per Night (Short stay: days / weeks / month)</option>
+                        </select>
                 </div>
                 <div>
                     <label id="priceLabel" class="block text-sm font-medium text-gray-700 mb-1">Price per Month
@@ -123,6 +126,7 @@
                         <span class="absolute left-3 top-3 text-gray-500">K</span>
                         <input type="number" name="price" required min="0" step="0.01" placeholder="0.00"
                             class="w-full pl-8 rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border">
+                        <input type="hidden" name="price_period" id="pricePeriod" value="night">
                     </div>
                 </div>
                 <div>
@@ -171,16 +175,37 @@
                 </label>
             </div>
             <div class="mt-6 border-t pt-5">
-                <h3 class="font-semibold text-gray-900">Pin the property's location</h3>
-                <p class="mt-1 text-sm text-gray-600">Click the map or enter coordinates. You can also use your device's
-                    current location while at the property. Your browser may ask permission.</p>
-                <button type="button" id="useCurrentLocation"
-                    class="mt-3 rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                    <i class="fa-solid fa-location-crosshairs mr-1"></i>Use my current location
-                </button>
-                <p id="locationPickerStatus" role="status" class="mt-2 text-xs text-gray-500">Map coordinates are
-                    optional. Without a pin, guests will see the neighbourhood only.</p>
-                <div id="locationPickerMap" class="mt-3 h-72 w-full rounded-xl border bg-gray-100"></div>
+                <h3 class="font-semibold text-gray-900">Automatic location &amp; Google Maps pin</h3>
+                <p class="mt-1 text-sm text-gray-600">Select a neighbourhood above to auto-locate, use your device's GPS while at the property, search a street/landmark, or paste a Google Maps link so guests can view the house/villa and nearby surroundings.</p>
+                <div class="mt-3 flex flex-col sm:flex-row gap-2">
+                    <input type="text" id="locationSearchInput"
+                        placeholder="Search street, landmark, or paste Google Maps link (e.g. Twin Palm Rd, Kabulonga)"
+                        class="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-primary focus:ring-primary">
+                    <button type="button" id="locationSearchBtn"
+                        class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800 whitespace-nowrap">
+                        <i class="fa-solid fa-magnifying-glass mr-1"></i>Find on Map
+                    </button>
+                </div>
+                <div class="mt-3 flex flex-wrap items-center gap-2">
+                    <button type="button" id="useCurrentLocation"
+                        class="rounded-lg border border-primary/30 bg-red-50 px-4 py-2 text-sm font-semibold text-primary hover:bg-red-100">
+                        <i class="fa-solid fa-location-crosshairs mr-1"></i>Auto-detect my GPS location
+                    </button>
+                    <button type="button" id="toggleMapLayerBtn"
+                        class="rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                        <i class="fa-solid fa-satellite mr-1"></i>Satellite view
+                    </button>
+                    <a id="googleMapsPreviewLink" href="#" target="_blank" rel="noopener noreferrer"
+                        class="hidden rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100">
+                        <i class="fa-solid fa-map-location-dot mr-1"></i>Preview in Google Maps
+                    </a>
+                    <button type="button" id="clearLocationPinBtn"
+                        class="hidden rounded-lg border px-3 py-2 text-xs font-semibold text-gray-500 hover:bg-gray-50">
+                        Clear pin
+                    </button>
+                </div>
+                <p id="locationPickerStatus" role="status" class="mt-2 text-xs text-gray-500">Choosing a neighbourhood automatically centres the map. Switch to Satellite view to drop the pin right on your house or villa.</p>
+                <div id="locationPickerMap" class="mt-3 h-72 w-full rounded-xl border bg-gray-100 z-0"></div>
                 <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label class="text-xs font-semibold text-gray-600">Latitude
                         <input id="latitude" name="latitude" type="number" step="any" min="-90" max="90"
@@ -219,27 +244,36 @@
             <h2 class="text-lg font-semibold mb-2">Arrival guide</h2>
             <p class="text-sm text-gray-500 mb-4">Only shared with the guest after you confirm their booking.</p>
             <div class="space-y-4">
-                <div id="longTermArrivalNotice" class="hidden rounded-xl border border-blue-200 bg-blue-50 p-3.5 text-sm text-blue-900">
+                <div id="longTermArrivalNotice"
+                    class="hidden rounded-xl border border-blue-200 bg-blue-50 p-3.5 text-sm text-blue-900">
                     <i class="fa-solid fa-calendar-days mr-1.5 text-blue-600"></i>
-                    <strong>Long-term stay (months / years):</strong> Daily hotel check-in and check-out clock times are not required for monthly rentals. Arrange move-in date and key handover directly with your tenant.
+                    <strong>Long-term stay (months / years):</strong> Daily hotel check-in and check-out clock times are
+                    not required for monthly rentals. Arrange move-in date and key handover directly with your tenant.
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <label id="checkinTimeField" class="block text-sm font-medium text-gray-700">Check-in time
+                    <label class="block text-sm font-medium text-gray-700">Check-in time
+                        <input type="time" name="checkin_time" value="15:00" required <label id="checkinTimeField"
+                            class="block text-sm font-medium text-gray-700">Check-in time
                         <input type="time" id="checkinTimeInput" name="checkin_time" value="15:00" required
                             class="mt-1 w-full rounded-lg border-gray-300 p-3 border">
                     </label>
-                    <label id="checkoutTimeField" class="block text-sm font-medium text-gray-700">Check-out time
+                    <label class="block text-sm font-medium text-gray-700">Check-out time
+                        <input type="time" name="checkout_time" value="10:00" required <label id="checkoutTimeField"
+                            class="block text-sm font-medium text-gray-700">Check-out time
                         <input type="time" id="checkoutTimeInput" name="checkout_time" value="10:00" required
                             class="mt-1 w-full rounded-lg border-gray-300 p-3 border">
                     </label>
-                    <label class="block text-sm font-medium text-gray-700"><span id="checkinMethodLabel">Check-in / Key handover method</span>
-                        <select name="self_checkin_method"
-                            class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
-                            <option value="">Not specified</option>
-                            {% for value, label in self_checkin_options.items() %}<option value="{{ value }}">{{ label
-                                }}</option>{% endfor %}
-                        </select>
-                    </label>
+                    <label class="block text-sm font-medium text-gray-700">Check-in method
+                        <label class="block text-sm font-medium text-gray-700"><span id="checkinMethodLabel">Check-in /
+                                Key handover method</span>
+                            <select name="self_checkin_method"
+                                class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                                <option value="">Not specified</option>
+                                {% for value, label in self_checkin_options.items() %}<option value="{{ value }}">{{
+                                    label
+                                    }}</option>{% endfor %}
+                            </select>
+                        </label>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Check-in instructions</label>
@@ -585,12 +619,17 @@
     function toggleFields() {
         const type = document.getElementById('propertyType').value;
         const bedTypeField = document.getElementById('bedTypeField');
+        const priceLabel = document.getElementById('priceLabel');
         const pricePeriod = document.getElementById('pricePeriod');
 
         if (type === 'Hostel' || type === 'Guest House' || type === 'Hotel') {
             bedTypeField.classList.remove('hidden');
+            priceLabel.textContent = "Price per Night (ZMW)";
+            pricePeriod.value = "night";
         } else {
             bedTypeField.classList.add('hidden');
+            priceLabel.textContent = "Price per Month (ZMW)";
+            pricePeriod.value = "month";
         }
 
         if (type === 'House' || type === 'Hostel') {
@@ -603,6 +642,9 @@
 
     toggleFields();
     buildExtraSlots();
+</script>
+<script nonce="{{ csp_nonce() }}">
+    window.LUSAKA_NEIGHBOURHOOD_COORDS = {{ neighbourhood_coords|tojson }};
 </script>
 <script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/location-picker.js') }}"></script>
 {% endblock %}

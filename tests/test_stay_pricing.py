@@ -190,6 +190,54 @@ class StayTypeAndPricingTests(unittest.TestCase):
             self.assertEqual(float(booking['base_amount']), 180000.0)
             self.assertEqual(float(booking['total_price']), 180000.0 + kwachastay.BOOKING_SERVICE_FEE)
 
+    def test_automatic_location_google_maps_embed_and_geocode_api(self):
+        # 1. Geocode API parses Google Maps URLs and Lusaka neighbourhoods directly
+        maps_url = 'https://www.google.com/maps/@-15.4245,28.3525,17z'
+        resp_url = self.client.get(f'/api/geocode?q={maps_url}')
+        self.assertEqual(resp_url.status_code, 200)
+        data_url = resp_url.get_json()
+        self.assertAlmostEqual(data_url['latitude'], -15.4245, places=4)
+        self.assertAlmostEqual(data_url['longitude'], 28.3525, places=4)
+
+        resp_area = self.client.get('/api/geocode?q=Kabulonga')
+        self.assertEqual(resp_area.status_code, 200)
+        data_area = resp_area.get_json()
+        self.assertEqual(data_area['compound'], 'Kabulonga')
+        self.assertAlmostEqual(data_area['latitude'], kwachastay.LUSAKA_NEIGHBOURHOOD_COORDS['Kabulonga'][0], places=4)
+
+        # 2. Listing without manual pin automatically centers on Kabulonga in Google Maps + Satellite + Nearby UI
+        csrf = self._login_as(self.owner_id)
+        self.client.post('/add_house', data={
+            'csrf_token': csrf,
+            'title': 'Kabulonga Garden Villa',
+            'description': 'Luxury villa with swimming pool.',
+            'property_type': 'Villa',
+            'price_period': 'night',
+            'price': '800',
+            'compound': 'Kabulonga',
+            'room_capacity': '4',
+            'checkin_time': '15:00',
+            'checkout_time': '10:00',
+            'image_url': 'https://example.com/property.jpg',
+        }, follow_redirects=True)
+
+        with kwachastay.app.app_context():
+            db = kwachastay.get_db()
+            prop_id = db.execute("SELECT id FROM properties WHERE title = 'Kabulonga Garden Villa'").fetchone()['id']
+
+        detail = self.client.get(f'/property/{prop_id}')
+        self.assertEqual(detail.status_code, 200)
+        csp = detail.headers.get('Content-Security-Policy', '')
+        self.assertIn('frame-src', csp)
+        self.assertIn('https://maps.google.com', csp)
+        html = detail.get_data(as_text=True)
+        self.assertIn('https://maps.google.com/maps?q=', html)
+        self.assertIn('Satellite View', html)
+        self.assertIn('Explore nearby surroundings on Google Maps', html)
+        self.assertIn('Google Street View', html)
+        self.assertIn('How far from me?', html)
+        self.assertIn(str(kwachastay.LUSAKA_NEIGHBOURHOOD_COORDS['Kabulonga'][0]), html)
+
 
 if __name__ == '__main__':
     unittest.main()

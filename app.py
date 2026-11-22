@@ -176,6 +176,119 @@ LUSAKA_NEIGHBOURHOODS = sorted([
     'Woodlands Extension',
     'Zingalume',
 ])
+LUSAKA_DEFAULT_COORDS = (-15.4167, 28.2833)
+LUSAKA_NEIGHBOURHOOD_COORDS = {
+    'Avondale': (-15.3886, 28.3935),
+    'Barlastone': (-15.3520, 28.2345),
+    'Bauleni': (-15.4586, 28.3612),
+    'Chaisa': (-15.3745, 28.2845),
+    'Chalala': (-15.4685, 28.3485),
+    'Chamba Valley': (-15.3490, 28.3525),
+    'Chainda': (-15.3945, 28.4195),
+    'Chazanga': (-15.3350, 28.2890),
+    'Chawama': (-15.4580, 28.2735),
+    'Chelstone': (-15.3755, 28.3835),
+    'Chibolya': (-15.4325, 28.2685),
+    'Chilenje': (-15.4485, 28.3275),
+    'Chilenje South': (-15.4615, 28.3285),
+    'Chinika': (-15.4150, 28.2485),
+    'Chunga': (-15.3480, 28.2575),
+    'Emmasdale': (-15.3895, 28.2815),
+    'Foxdale': (-15.3595, 28.3345),
+    'Garden': (-15.3895, 28.2995),
+    'Garden House': (-15.3975, 28.2195),
+    'George': (-15.3675, 28.2455),
+    'Ibex Hill': (-15.4325, 28.3745),
+    'Jack Compound': (-15.4685, 28.2995),
+    'Jesmondine': (-15.3835, 28.3465),
+    'John Laing': (-15.4455, 28.2685),
+    'Kabwata': (-15.4395, 28.3085),
+    'Kabulonga': (-15.4245, 28.3525),
+    'Kabanana': (-15.3325, 28.3095),
+    'Kalingalinga': (-15.4055, 28.3495),
+    'Kalikiliki': (-15.4045, 28.3685),
+    'Kalundu': (-15.3875, 28.3245),
+    'Kamanga': (-15.3725, 28.3645),
+    'Kamwala': (-15.4295, 28.2895),
+    'Kamwala South': (-15.4555, 28.2985),
+    'Kanyama': (-15.4345, 28.2505),
+    'Kaunda Square': (-15.3735, 28.3545),
+    'Libala': (-15.4525, 28.3145),
+    'Libala South': (-15.4695, 28.3195),
+    'Lilanda': (-15.3735, 28.2515),
+    'Lilayi': (-15.5055, 28.2915),
+    'Linda': (-15.4895, 28.2795),
+    'Longacres': (-15.4145, 28.3115),
+    'Makeni': (-15.4685, 28.2535),
+    'Makeni Bonaventure': (-15.4865, 28.2485),
+    'Makeni Villa': (-15.4595, 28.2615),
+    'Mandevu': (-15.3675, 28.2825),
+    'Marapodi': (-15.3645, 28.2925),
+    'Mass Media': (-15.4025, 28.3345),
+    'Matero': (-15.3765, 28.2655),
+    'Meanwood': (-15.3395, 28.3685),
+    'Meanwood Chamba Valley': (-15.3445, 28.3625),
+    'Meanwood Ibex': (-15.4395, 28.3995),
+    'Meanwood Kwamwena': (-15.3245, 28.3745),
+    'Meanwood Ndeke': (-15.3395, 28.4315),
+    'Mazyopa': (-15.3495, 28.2965),
+    'Mtendere': (-15.4065, 28.3735),
+    'Munali': (-15.3835, 28.3595),
+    'New Kasama': (-15.4795, 28.4045),
+    "Ng'ombe": (-15.3675, 28.3155),
+    'Northmead': (-15.3995, 28.2985),
+    'Olympia': (-15.3965, 28.3145),
+    'Olympia Park': (-15.3945, 28.3175),
+    'Olympia Extension': (-15.3895, 28.3195),
+    'PHI': (-15.3885, 28.3685),
+    'Rhodes Park': (-15.4105, 28.3035),
+    'Roma': (-15.3725, 28.3295),
+    'Salama Park': (-15.3845, 28.3975),
+    'Showgrounds': (-15.4055, 28.3185),
+    'Sikanze': (-15.4315, 28.2975),
+    'State Lodge': (-15.4585, 28.4295),
+    'Sunningdale': (-15.4275, 28.3415),
+    'Thorn Park': (-15.4025, 28.2885),
+    'Twin Palm': (-15.4425, 28.3765),
+    'Woodlands': (-15.4425, 28.3425),
+    'Woodlands Extension': (-15.4495, 28.3545),
+    'Zingalume': (-15.3615, 28.2485),
+}
+
+
+def get_neighbourhood_coordinates(compound):
+    if not compound:
+        return LUSAKA_DEFAULT_COORDS
+    if compound in LUSAKA_NEIGHBOURHOOD_COORDS:
+        return LUSAKA_NEIGHBOURHOOD_COORDS[compound]
+    needle = compound.strip().casefold()
+    for name, coords in LUSAKA_NEIGHBOURHOOD_COORDS.items():
+        if name.casefold() == needle:
+            return coords
+    return LUSAKA_DEFAULT_COORDS
+
+
+def extract_google_maps_coordinates(text):
+    raw = (text or '').strip()
+    if not raw:
+        return None
+    patterns = (
+        r'@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)',
+        r'[?&](?:q|ll|destination|viewpoint)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)',
+        r'!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)',
+        r'^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, raw)
+        if match:
+            try:
+                lat = float(match.group(1))
+                lng = float(match.group(2))
+            except ValueError:
+                continue
+            if -90 <= lat <= 90 and -180 <= lng <= 180:
+                return (round(lat, 6), round(lng, 6))
+    return None
 LUSAKA_AREA_GUIDE = [
     {
         'name': 'Kabulonga',
@@ -1890,6 +2003,7 @@ def _build_content_security_policy():
         "'self'", 'data:', 'blob:',
         'https://images.unsplash.com',
         'https://*.tile.openstreetmap.org',
+        'https://server.arcgisonline.com',
         'https://unpkg.com',
         'https://*.supabase.co',
     ]
@@ -1907,6 +2021,7 @@ def _build_content_security_policy():
         "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
         f"img-src {' '.join(dict.fromkeys(img_sources))}",
         "connect-src 'self'",
+        "frame-src 'self' https://maps.google.com https://www.google.com",
         "object-src 'none'",
         "base-uri 'self'",
         "frame-ancestors 'self'",
@@ -3022,11 +3137,86 @@ def add_house():
     return render_template(
         'add_house.html',
         compounds=LUSAKA_NEIGHBOURHOODS,
+        neighbourhood_coords=LUSAKA_NEIGHBOURHOOD_COORDS,
         photo_categories=PHOTO_CATEGORIES,
         power_backup_options=POWER_BACKUP_OPTIONS,
         water_supply_options=WATER_SUPPLY_OPTIONS,
         internet_options=INTERNET_OPTIONS,
     )
+
+
+@app.route('/api/geocode')
+def geocode_location():
+    if not check_rate_limit('geocode_ip', client_ip(), 30, 60):
+        return jsonify({'error': 'Too many location lookups. Please wait a moment.'}), 429
+    query = (request.args.get('q') or '').strip()
+    if not query or len(query) > 300:
+        return jsonify({'error': 'Enter a street, landmark, neighbourhood, or Google Maps link.'}), 400
+
+    # 1. Direct coordinates or Google Maps URL
+    direct = extract_google_maps_coordinates(query)
+    if direct:
+        return jsonify({
+            'latitude': direct[0],
+            'longitude': direct[1],
+            'label': f'Pinned coordinates ({direct[0]:.5f}, {direct[1]:.5f})',
+            'source': 'coordinates',
+        })
+
+    # 2. Exact built-in Lusaka neighbourhood match
+    needle = query.casefold()
+    for name, coords in LUSAKA_NEIGHBOURHOOD_COORDS.items():
+        if name.casefold() == needle or f'{name.casefold()}, lusaka' == needle:
+            return jsonify({
+                'latitude': coords[0],
+                'longitude': coords[1],
+                'label': f'{name}, Lusaka, Zambia',
+                'compound': name,
+                'source': 'neighbourhood',
+            })
+
+    # 3. Live OpenStreetMap Nominatim lookup biased to Lusaka, Zambia
+    search_q = query if 'lusaka' in needle or 'zambia' in needle else f'{query}, Lusaka, Zambia'
+    params = urllib.parse.urlencode({
+        'q': search_q,
+        'format': 'json',
+        'limit': '1',
+        'countrycodes': 'zm',
+        'viewbox': '28.05,-15.62,28.62,-15.18',
+    })
+    url = f'https://nominatim.openstreetmap.org/search?{params}'
+    req = urllib.request.Request(
+        url,
+        headers={'User-Agent': 'KwachaStay/1.0 (+https://kwachastay.onrender.com)'},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            results = json.loads(resp.read().decode('utf-8'))
+        if results:
+            lat = round(float(results[0]['lat']), 6)
+            lng = round(float(results[0]['lon']), 6)
+            label = results[0].get('display_name') or search_q
+            return jsonify({
+                'latitude': lat,
+                'longitude': lng,
+                'label': label,
+                'source': 'nominatim',
+            })
+    except (urllib.error.URLError, TimeoutError, ValueError, KeyError, OSError):
+        pass
+
+    # 4. Partial built-in Lusaka neighbourhood fallback
+    for name, coords in LUSAKA_NEIGHBOURHOOD_COORDS.items():
+        if needle in name.casefold() or name.casefold() in needle:
+            return jsonify({
+                'latitude': coords[0],
+                'longitude': coords[1],
+                'label': f'{name}, Lusaka, Zambia',
+                'compound': name,
+                'source': 'neighbourhood',
+            })
+
+    return jsonify({'error': 'Location not found. Try a Lusaka neighbourhood, road name, or drop a pin on the map.'}), 404
 
 @app.route('/dashboard')
 @login_required
@@ -3453,8 +3643,18 @@ def property_details(property_id):
         s_dict['rating'] = round(s['avg_rating'], 1) if s['avg_rating'] else None
         similar.append(s_dict)
 
+    has_exact_pin = property['latitude'] is not None and property['longitude'] is not None
+    if has_exact_pin:
+        map_lat = float(property['latitude'])
+        map_lng = float(property['longitude'])
+    else:
+        map_lat, map_lng = get_neighbourhood_coordinates(property['compound'])
+
     return render_template('property_details.html',
                            property=property,
+                           has_exact_pin=has_exact_pin,
+                           map_lat=map_lat,
+                           map_lng=map_lng,
                            images=image_list,
                            photo_categories=photo_categories,
                            reviews=reviews,
@@ -6535,6 +6735,7 @@ def edit_property(property_id):
         extra_images=extra_images,
         photo_categories_present=photo_categories_present,
         compounds=LUSAKA_NEIGHBOURHOODS,
+        neighbourhood_coords=LUSAKA_NEIGHBOURHOOD_COORDS,
         photo_categories=PHOTO_CATEGORIES,
         power_backup_options=POWER_BACKUP_OPTIONS,
         water_supply_options=WATER_SUPPLY_OPTIONS,

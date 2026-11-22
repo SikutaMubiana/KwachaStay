@@ -272,33 +272,127 @@
 
             <hr>
 
-            <!-- Map -->
+            <!-- Map & Google Maps Surroundings -->
             <div>
-                <h3 class="text-lg font-semibold mb-4">Where you'll be</h3>
-                {% set has_exact_pin = property.latitude is not none and property.longitude is not none %}
-                {% set lat = property.latitude if has_exact_pin else -15.4167 %}
-                {% set lng = property.longitude if has_exact_pin else 28.2833 %}
-                <div id="map" class="w-full h-[400px] rounded-xl bg-gray-200 z-0"></div>
-                <p class="mt-2 text-sm text-gray-500">
-                    {% if has_exact_pin %}
-                    Host-pinned location · {{ property.compound }}, Lusaka
-                    {% else %}
-                    Approximate neighbourhood view only · {{ property.compound }}, Lusaka
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold">Where you'll be</h3>
+                        <p class="text-xs text-gray-500 mt-0.5">
+                            {% if has_exact_pin %}
+                            <i class="fa-solid fa-location-dot text-primary mr-1"></i>Exact host-pinned location · {{ property.compound }}, Lusaka
+                            {% else %}
+                            <i class="fa-solid fa-map-pin text-gray-400 mr-1"></i>Automatic neighbourhood view · {{ property.compound }}, Lusaka
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% if not low_data_mode %}
+                    <div class="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1 text-xs font-semibold" role="tablist" aria-label="Map view mode">
+                        <button type="button" id="mapTabGoogle" data-map-mode="google-map"
+                            class="rounded-lg px-3 py-1.5 bg-white text-gray-900 shadow-sm transition">
+                            <i class="fa-solid fa-map mr-1 text-blue-600"></i>Google Map
+                        </button>
+                        <button type="button" id="mapTabSatellite" data-map-mode="google-satellite"
+                            class="rounded-lg px-3 py-1.5 text-gray-600 hover:text-gray-900 transition">
+                            <i class="fa-solid fa-satellite mr-1 text-emerald-600"></i>Satellite View
+                        </button>
+                        <button type="button" id="mapTabLeaflet" data-map-mode="leaflet"
+                            class="rounded-lg px-3 py-1.5 text-gray-600 hover:text-gray-900 transition">
+                            <i class="fa-solid fa-layer-group mr-1 text-gray-500"></i>Pin Map
+                        </button>
+                    </div>
                     {% endif %}
-                </p>
-                {% if has_exact_pin %}
-                <a href="https://www.google.com/maps/dir/?api=1&amp;destination={{ property.latitude }},{{ property.longitude }}"
-                    target="_blank" rel="noopener noreferrer"
-                    class="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800">
-                    <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>Get directions in Google Maps
-                </a>
+                </div>
+
+                {% set lat = map_lat if map_lat is defined else (property.latitude if has_exact_pin else -15.4167) %}
+                {% set lng = map_lng if map_lng is defined else (property.longitude if has_exact_pin else 28.2833) %}
+                {% set embed_query = (lat ~ ',' ~ lng) if has_exact_pin else (property.compound ~ ', Lusaka, Zambia') %}
+                {% set embed_zoom = 17 if has_exact_pin else 15 %}
+
+                {% if not low_data_mode %}
+                <!-- Google Maps / Satellite Live Embed -->
+                <div id="googleMapWrap" class="w-full h-[420px] rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 shadow-sm">
+                    <iframe id="googleMapFrame"
+                        title="Google Maps location for {{ property.title }}"
+                        src="https://maps.google.com/maps?q={{ embed_query|urlencode }}&amp;t=m&amp;z={{ embed_zoom }}&amp;ie=UTF8&amp;iwloc=&amp;output=embed"
+                        class="w-full h-full border-0"
+                        loading="lazy"
+                        referrerpolicy="no-referrer-when-downgrade"
+                        allowfullscreen></iframe>
+                </div>
+
+                <!-- Interactive Leaflet Fallback Map -->
+                <div id="map" class="hidden w-full h-[420px] rounded-2xl border border-gray-200 bg-gray-200 z-0"></div>
+
+                <!-- Explore Nearby Surroundings Chips -->
+                <div class="mt-4">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                        Explore nearby surroundings on Google Maps
+                    </p>
+                    <div class="flex flex-wrap gap-2" id="nearbyChips">
+                        <button type="button" data-nearby=""
+                            class="nearby-chip rounded-full border border-primary bg-red-50 px-3 py-1.5 text-xs font-semibold text-primary transition">
+                            <i class="fa-solid fa-house mr-1"></i>Property Location
+                        </button>
+                        <button type="button" data-nearby="supermarkets and shopping malls"
+                            class="nearby-chip rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-400 transition">
+                            <i class="fa-solid fa-cart-shopping mr-1 text-amber-600"></i>Malls &amp; Shops
+                        </button>
+                        <button type="button" data-nearby="restaurants and cafes"
+                            class="nearby-chip rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-400 transition">
+                            <i class="fa-solid fa-utensils mr-1 text-red-500"></i>Restaurants
+                        </button>
+                        <button type="button" data-nearby="hospitals and clinics"
+                            class="nearby-chip rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-400 transition">
+                            <i class="fa-solid fa-hospital mr-1 text-rose-600"></i>Hospitals &amp; Clinics
+                        </button>
+                        <button type="button" data-nearby="schools and universities"
+                            class="nearby-chip rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-400 transition">
+                            <i class="fa-solid fa-graduation-cap mr-1 text-indigo-600"></i>Schools
+                        </button>
+                        <button type="button" data-nearby="fuel stations"
+                            class="nearby-chip rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-400 transition">
+                            <i class="fa-solid fa-gas-pump mr-1 text-emerald-600"></i>Fuel Stations
+                        </button>
+                        <button type="button" data-nearby="banks and ATMs"
+                            class="nearby-chip rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-400 transition">
+                            <i class="fa-solid fa-building-columns mr-1 text-blue-600"></i>ATMs &amp; Banks
+                        </button>
+                    </div>
+                </div>
                 {% else %}
-                <a href="https://www.google.com/maps/search/?api=1&amp;query={{ (property.compound ~ ', Lusaka, Zambia')|urlencode }}"
-                    target="_blank" rel="noopener noreferrer"
-                    class="mt-3 inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                    <i class="fa-solid fa-map-location-dot" aria-hidden="true"></i>Find this neighbourhood in Google Maps
-                </a>
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
+                    Map embed paused in Low-Data Mode. Use the Google Maps buttons below to inspect {{ property.compound }}, Lusaka.
+                </div>
                 {% endif %}
+
+                <!-- Google Maps Actions & Live Distance from User -->
+                <div class="mt-4 flex flex-wrap items-center gap-2.5">
+                    {% if has_exact_pin %}
+                    <a id="googleDirectionsBtn"
+                        href="https://www.google.com/maps/dir/?api=1&amp;destination={{ lat }},{{ lng }}"
+                        target="_blank" rel="noopener noreferrer"
+                        class="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 transition">
+                        <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>Get Directions
+                    </a>
+                    {% else %}
+                    <a id="googleDirectionsBtn"
+                        href="https://www.google.com/maps/dir/?api=1&amp;destination={{ (property.compound ~ ', Lusaka, Zambia')|urlencode }}"
+                        target="_blank" rel="noopener noreferrer"
+                        class="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 transition">
+                        <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>Directions to {{ property.compound }}
+                    </a>
+                    {% endif %}
+                    <a href="https://www.google.com/maps/@?api=1&amp;map_action=pano&amp;viewpoint={{ lat }},{{ lng }}"
+                        target="_blank" rel="noopener noreferrer"
+                        class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                        <i class="fa-solid fa-street-view text-amber-600" aria-hidden="true"></i>Google Street View
+                    </a>
+                    <button type="button" id="distanceFromMeBtn"
+                        class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">
+                        <i class="fa-solid fa-location-crosshairs text-primary" aria-hidden="true"></i>How far from me?
+                    </button>
+                </div>
+                <p id="distanceFromMeResult" role="status" class="mt-2 text-xs text-gray-600 hidden"></p>
             </div>
 
             <hr>
@@ -782,20 +876,152 @@
     });
 </script>
 
-{% if not low_data_mode %}
-<!-- Leaflet Map JS -->
+<!-- Interactive Google Maps, Satellite, Nearby Surroundings & Live Distance JS -->
 <script nonce="{{ csp_nonce() }}">
-    var hasExactPropertyPin = {{ has_exact_pin|tojson }};
-    var map = L.map('map').setView([{{ lat|tojson }}, {{ lng|tojson }}], hasExactPropertyPin ? 16 : 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+    (function () {
+        const propLat = {{ lat|tojson }};
+        const propLng = {{ lng|tojson }};
+        const hasExactPin = {{ has_exact_pin|tojson }};
+        const compoundName = {{ property.compound|tojson }};
+        const propTitle = {{ property.title|tojson }};
+        const baseQuery = hasExactPin ? (propLat + ',' + propLng) : (compoundName + ', Lusaka, Zambia');
+        const defaultZoom = hasExactPin ? 17 : 15;
 
-    if (hasExactPropertyPin) {
-        L.marker([{{ lat|tojson }}, {{ lng|tojson }}]).addTo(map)
-            .bindPopup({{ (property.title ~ '<br>' ~ property.compound)|tojson }})
-            .openPopup();
-    }
+        const googleWrap = document.getElementById('googleMapWrap');
+        const googleFrame = document.getElementById('googleMapFrame');
+        const leafletDiv = document.getElementById('map');
+        const tabButtons = document.querySelectorAll('[data-map-mode]');
+        const nearbyChips = document.querySelectorAll('.nearby-chip');
+        let currentMapType = 'm'; // 'm' = Google Map, 'k' = Satellite
+        let currentNearby = '';
+        let leafletMap = null;
+
+        function updateGoogleEmbed() {
+            if (!googleFrame) return;
+            const query = currentNearby
+                ? (currentNearby + ' near ' + baseQuery)
+                : baseQuery;
+            const zoom = currentNearby ? 15 : defaultZoom;
+            googleFrame.src = 'https://maps.google.com/maps?q=' + encodeURIComponent(query)
+                + '&t=' + currentMapType + '&z=' + zoom + '&ie=UTF8&iwloc=&output=embed';
+        }
+
+        function ensureLeafletMap() {
+            if (leafletMap || !leafletDiv || !window.L) return;
+            leafletMap = L.map('map').setView([propLat, propLng], hasExactPin ? 16 : 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(leafletMap);
+            if (hasExactPin) {
+                L.marker([propLat, propLng]).addTo(leafletMap)
+                    .bindPopup(propTitle + '<br>' + compoundName)
+                    .openPopup();
+            } else {
+                L.circle([propLat, propLng], {
+                    radius: 850,
+                    color: '#ff385c',
+                    fillOpacity: 0.12
+                }).addTo(leafletMap).bindPopup(compoundName + ', Lusaka (approximate area)').openPopup();
+            }
+        }
+
+        function setActiveTab(mode) {
+            tabButtons.forEach(function (btn) {
+                const active = btn.getAttribute('data-map-mode') === mode;
+                btn.className = active
+                    ? 'rounded-lg px-3 py-1.5 bg-white text-gray-900 shadow-sm transition'
+                    : 'rounded-lg px-3 py-1.5 text-gray-600 hover:text-gray-900 transition';
+            });
+            if (mode === 'leaflet') {
+                if (googleWrap) googleWrap.classList.add('hidden');
+                if (leafletDiv) {
+                    leafletDiv.classList.remove('hidden');
+                    ensureLeafletMap();
+                    if (leafletMap) window.setTimeout(function () { leafletMap.invalidateSize(); }, 80);
+                }
+            } else {
+                if (leafletDiv) leafletDiv.classList.add('hidden');
+                if (googleWrap) googleWrap.classList.remove('hidden');
+                currentMapType = mode === 'google-satellite' ? 'k' : 'm';
+                updateGoogleEmbed();
+            }
+        }
+
+        tabButtons.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                setActiveTab(btn.getAttribute('data-map-mode'));
+            });
+        });
+
+        nearbyChips.forEach(function (chip) {
+            chip.addEventListener('click', function () {
+                currentNearby = chip.getAttribute('data-nearby') || '';
+                nearbyChips.forEach(function (c) {
+                    const active = c === chip;
+                    c.className = active
+                        ? 'nearby-chip rounded-full border border-primary bg-red-50 px-3 py-1.5 text-xs font-semibold text-primary transition'
+                        : 'nearby-chip rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:border-gray-400 transition';
+                });
+                if (leafletDiv && !leafletDiv.classList.contains('hidden')) {
+                    setActiveTab('google-map');
+                } else {
+                    updateGoogleEmbed();
+                }
+            });
+        });
+
+        // Live "How far from me?" GPS distance + turn-by-turn directions
+        const distBtn = document.getElementById('distanceFromMeBtn');
+        const distOut = document.getElementById('distanceFromMeResult');
+        const dirBtn = document.getElementById('googleDirectionsBtn');
+
+        function haversineKm(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        if (distBtn && distOut) {
+            distBtn.addEventListener('click', function () {
+                if (!navigator.geolocation) {
+                    distOut.textContent = 'Your browser does not support automatic location detection.';
+                    distOut.classList.remove('hidden');
+                    return;
+                }
+                distBtn.disabled = true;
+                distOut.textContent = 'Detecting your location…';
+                distOut.classList.remove('hidden');
+                navigator.geolocation.getCurrentPosition(
+                    function (pos) {
+                        const uLat = pos.coords.latitude;
+                        const uLng = pos.coords.longitude;
+                        const km = haversineKm(uLat, uLng, propLat, propLng);
+                        const roadKm = km * 1.25;
+                        const estMinutes = Math.max(2, Math.round((roadKm / 35) * 60));
+                        const dest = hasExactPin ? (propLat + ',' + propLng) : (compoundName + ', Lusaka, Zambia');
+                        const dirUrl = 'https://www.google.com/maps/dir/?api=1&origin='
+                            + encodeURIComponent(uLat.toFixed(6) + ',' + uLng.toFixed(6))
+                            + '&destination=' + encodeURIComponent(dest);
+                        if (dirBtn) dirBtn.href = dirUrl;
+                        distOut.innerHTML = '<i class="fa-solid fa-route text-blue-600 mr-1"></i>About <strong>'
+                            + km.toFixed(1) + ' km</strong> away (~' + estMinutes
+                            + ' min drive). <a class="font-semibold text-blue-700 underline ml-1" target="_blank" rel="noopener noreferrer" href="'
+                            + dirUrl + '">Open turn-by-turn route in Google Maps</a>';
+                        distBtn.disabled = false;
+                    },
+                    function () {
+                        distOut.textContent = 'Location permission was denied or unavailable. Click "Get Directions" to enter your starting point in Google Maps.';
+                        distBtn.disabled = false;
+                    },
+                    { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 }
+                );
+            });
+        }
+    })();
 </script>
-{% endif %}
 {% endblock %}
