@@ -38,6 +38,9 @@ POSTGRES_STATEMENTS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE properties ADD COLUMN IF NOT EXISTS room_sharing TEXT",
+    "ALTER TABLE properties ADD COLUMN IF NOT EXISTS upfront_months INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE properties ADD COLUMN IF NOT EXISTS hourly_rate DOUBLE PRECISION",
 ]
 
 
@@ -94,6 +97,14 @@ def migrate_sqlite(db_path, check_only=False):
             }.items():
                 if name not in cols:
                     conn.execute(f'ALTER TABLE users ADD COLUMN {name} {ddl}')
+            prop_cols = {row[1] for row in conn.execute('PRAGMA table_info(properties)').fetchall()}
+            for name, ddl in {
+                'room_sharing': 'TEXT',
+                'upfront_months': 'INTEGER NOT NULL DEFAULT 1',
+                'hourly_rate': 'REAL',
+            }.items():
+                if name not in prop_cols:
+                    conn.execute(f'ALTER TABLE properties ADD COLUMN {name} {ddl}')
             conn.commit()
             print(f'Applied security schema migration to SQLite ({db_path}).')
 

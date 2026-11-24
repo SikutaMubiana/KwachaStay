@@ -180,6 +180,81 @@
                 </div>
             </div>
 
+            <!-- Boarding House / Monthly Payment Terms Highlights -->
+            {% if property.property_type == 'Boarding House' %}
+            <div class="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                    <h3 class="font-bold text-indigo-950 flex items-center gap-2">
+                        <i class="fa-solid fa-graduation-cap text-indigo-600"></i>
+                        Boarding House / University Apartment Details
+                    </h3>
+                    <span class="rounded-full bg-indigo-600 text-white text-xs font-bold px-3 py-1">
+                        {% if property.room_sharing == 'shared' %}
+                        Shared Room{% if property.room_capacity %} ({{ property.room_capacity }} per room){% endif %}
+                        {% else %}
+                        Single Room (Private)
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div class="rounded-xl bg-white border border-indigo-100 p-3 flex items-center gap-3">
+                        <i class="fa-solid fa-wifi text-lg {% if property.has_wifi %}text-green-600{% else %}text-gray-400{% endif %}"></i>
+                        <div>
+                            <p class="font-semibold text-gray-900">
+                                {% if property.has_wifi %}WiFi Available{% else %}No WiFi Listed{% endif %}
+                            </p>
+                            <p class="text-xs text-gray-500">
+                                {% if property.has_wifi %}
+                                    {% if property.internet_speed_mbps %}{{ property.internet_speed_mbps }} Mbps · {% endif %}Great for online classes &amp; study
+                                {% else %}
+                                    Confirm internet arrangements with host
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-white border border-indigo-100 p-3 flex items-center gap-3">
+                        <i class="fa-solid fa-money-bill-wave text-lg text-amber-600"></i>
+                        <div>
+                            <p class="font-semibold text-gray-900">
+                                {% if upfront_months and upfront_months > 1 %}
+                                {{ upfront_months }} Months Upfront Required
+                                {% else %}
+                                Paid Monthly (1 month at a time)
+                                {% endif %}
+                            </p>
+                            <p class="text-xs text-gray-500">
+                                {% if upfront_months and upfront_months > 1 %}
+                                Initial rent: ZMW {{ "{:,.0f}".format(property.price_per_night * upfront_months) }} ({{ upfront_months }} months)
+                                {% else %}
+                                No multi-month upfront bulk payment required
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% elif property.price_period == 'month' %}
+            <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 flex items-start gap-3">
+                <i class="fa-solid fa-money-bill-wave text-xl text-amber-600 mt-0.5"></i>
+                <div>
+                    <h3 class="font-bold text-gray-900 text-sm">
+                        {% if upfront_months and upfront_months > 1 %}
+                        Rent Payment Terms: {{ upfront_months }} Months Upfront Required
+                        {% else %}
+                        Rent Payment Terms: Monthly (Pay 1 Month at a Time)
+                        {% endif %}
+                    </h3>
+                    <p class="text-xs text-gray-700 mt-0.5">
+                        {% if upfront_months and upfront_months > 1 %}
+                        The owner requires {{ upfront_months }} months rent paid upfront (ZMW {{ "{:,.0f}".format(property.price_per_night * upfront_months) }} before fees).
+                        {% else %}
+                        No multi-month upfront requirement — rent can be paid month-to-month.
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            {% endif %}
+
             <div class="bg-gray-50 border rounded-2xl p-5 space-y-4">
                 <div>
                     <h3 class="font-bold text-gray-900 mb-1">Cancellation policy</h3>
@@ -529,15 +604,32 @@
         <!-- Right Column: Booking Card -->
         <div class="relative">
             <div class="sticky top-24 border rounded-xl shadow-lg p-6 bg-white">
-                <div class="flex justify-between items-end mb-4">
+                <div class="flex justify-between items-end mb-3">
                     <div>
                         <span class="text-2xl font-bold">ZMW {{ "{:,.0f}".format(property.price_per_night) }}</span>
                         <span class="text-gray-500 text-sm"> / {{ property.price_period }}</span>
+                        {% if can_book_hourly %}
+                        <p class="text-xs font-medium text-blue-700 mt-0.5">
+                            <i class="fa-regular fa-clock mr-1"></i>Or ZMW {{ "{:,.0f}".format(effective_hourly_rate) }} / hour (3-hour min)
+                        </p>
+                        {% endif %}
                     </div>
                 </div>
                 <div class="mb-4 space-y-1 text-xs text-gray-600">
+                    {% if property.property_type == 'Boarding House' %}
+                    <p class="font-semibold text-indigo-700">
+                        <i class="fa-solid fa-bed mr-1"></i>
+                        {% if property.room_sharing == 'shared' %}Shared Room{% else %}Single Room (Private){% endif %}
+                        · {% if property.has_wifi %}<span class="text-green-700"><i class="fa-solid fa-wifi mr-0.5"></i>WiFi Included</span>{% else %}No WiFi Listed{% endif %}
+                    </p>
+                    {% endif %}
                     {% if property.price_period == 'month' %}
                     <p class="font-medium text-blue-700"><i class="fa-solid fa-calendar-days mr-1"></i>Long-term stay (months or years)</p>
+                    {% if upfront_months and upfront_months > 1 %}
+                    <p class="font-semibold text-amber-800"><i class="fa-solid fa-money-bill-wave mr-1"></i>Requires {{ upfront_months }} months upfront</p>
+                    {% else %}
+                    <p class="font-medium text-green-700"><i class="fa-solid fa-circle-check mr-1"></i>Can be paid monthly (1 month at a time)</p>
+                    {% endif %}
                     {% elif property.checkin_time and property.checkout_time %}
                     <p><i class="fa-regular fa-clock mr-1"></i>Check-in {{ property.checkin_time }} · Check-out {{ property.checkout_time }}</p>
                     {% endif %}
@@ -572,23 +664,39 @@
                 {% else %}
                 <div class="border rounded-xl p-3.5 mb-4 bg-gray-50/70 space-y-3">
                     <div>
-                        <label for="pdDurationSelect" class="block text-[11px] font-bold uppercase text-gray-500 mb-1">
-                            {% if property.price_period == 'month' %}Rental Duration{% else %}Stay Length{% endif %}
-                        </label>
                         {% if property.price_period == 'month' %}
+                        {% set min_m = upfront_months|default(1) %}
+                        <label for="pdDurationSelect" class="block text-[11px] font-bold uppercase text-gray-500 mb-1">
+                            Rental Duration{% if min_m > 1 %} (Min {{ min_m }} months upfront){% endif %}
+                        </label>
                         <select id="pdDurationSelect" class="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm font-medium focus:border-primary focus:ring-primary">
-                            <option value="1">1 Month</option>
-                            <option value="2">2 Months</option>
-                            <option value="3">3 Months</option>
-                            <option value="6">6 Months</option>
-                            <option value="9">9 Months</option>
-                            <option value="12">1 Year (12 Months)</option>
-                            <option value="18">1 Year 6 Months (18 Months)</option>
-                            <option value="24">2 Years (24 Months)</option>
-                            <option value="36">3 Years (36 Months)</option>
-                            <option value="60">5 Years (60 Months)</option>
+                            {% for val, label in [(1,'1 Month'),(2,'2 Months'),(3,'3 Months'),(4,'4 Months'),(5,'5 Months'),(6,'6 Months'),(9,'9 Months'),(12,'1 Year (12 Months)'),(18,'1 Year 6 Months (18 Months)'),(24,'2 Years (24 Months)'),(36,'3 Years (36 Months)'),(60,'5 Years (60 Months)')] %}
+                            {% if val >= min_m %}
+                            <option value="{{ val }}">{{ label }}{% if min_m > 1 and val == min_m %} — Min upfront{% endif %}</option>
+                            {% endif %}
+                            {% endfor %}
                         </select>
                         {% else %}
+                        <label class="block text-[11px] font-bold uppercase text-gray-500 mb-1.5">Book by</label>
+                        <div class="grid grid-cols-3 gap-1 rounded-lg bg-gray-200/70 p-1 text-xs font-bold mb-2.5" role="tablist">
+                            <button type="button" data-pd-mode="hour"
+                                class="pd-mode-btn rounded-md py-1.5 text-gray-600 hover:text-gray-900 transition">Hours (3h+)</button>
+                            <button type="button" data-pd-mode="day"
+                                class="pd-mode-btn rounded-md py-1.5 bg-white text-gray-900 shadow-sm transition">Days</button>
+                            <button type="button" data-pd-mode="week"
+                                class="pd-mode-btn rounded-md py-1.5 text-gray-600 hover:text-gray-900 transition">Weeks</button>
+                        </div>
+                        <select id="pdHourlySelect" class="hidden w-full rounded-lg border border-gray-300 bg-white p-2 text-sm font-medium focus:border-primary focus:ring-primary">
+                            <option value="3">3 Hours (Minimum)</option>
+                            <option value="4">4 Hours</option>
+                            <option value="5">5 Hours</option>
+                            <option value="6">6 Hours</option>
+                            <option value="8">8 Hours</option>
+                            <option value="10">10 Hours</option>
+                            <option value="12">12 Hours</option>
+                            <option value="18">18 Hours</option>
+                            <option value="24">24 Hours</option>
+                        </select>
                         <select id="pdDurationSelect" class="w-full rounded-lg border border-gray-300 bg-white p-2 text-sm font-medium focus:border-primary focus:ring-primary">
                             <option value="1">1 Day / Night</option>
                             <option value="2">2 Days / Nights</option>
@@ -598,8 +706,17 @@
                             <option value="6">6 Days / Nights</option>
                             <option value="7">1 Week (7 Days)</option>
                             <option value="14">2 Weeks (14 Days)</option>
+                            <option value="21">3 Weeks (21 Days)</option>
                             <option value="30">1 Month (30 Days)</option>
                             <option value="custom">Custom days…</option>
+                        </select>
+                        <select id="pdWeeklySelect" class="hidden w-full rounded-lg border border-gray-300 bg-white p-2 text-sm font-medium focus:border-primary focus:ring-primary">
+                            <option value="7">1 Week (7 Days)</option>
+                            <option value="14">2 Weeks (14 Days)</option>
+                            <option value="21">3 Weeks (21 Days)</option>
+                            <option value="30">1 Month (30 Days)</option>
+                            <option value="60">2 Months (60 Days)</option>
+                            <option value="90">3 Months (90 Days)</option>
                         </select>
                         <input type="number" id="pdCustomDays" min="1" max="365" value="1"
                             class="hidden mt-2 w-full rounded-lg border border-gray-300 bg-white p-2 text-sm"
@@ -608,8 +725,8 @@
                     </div>
                     <div class="space-y-1.5 text-xs text-gray-700 border-t border-gray-200 pt-2.5">
                         <div class="flex justify-between">
-                            <span id="pdRateLine">ZMW {{ "{:,.0f}".format(property.price_per_night) }} &times; 1 {% if property.price_period == 'month' %}month{% else %}day{% endif %}</span>
-                            <span class="font-semibold" id="pdSubtotal">ZMW {{ "{:,.0f}".format(property.price_per_night) }}</span>
+                            <span id="pdRateLine">ZMW {{ "{:,.0f}".format(property.price_per_night) }} &times; {{ upfront_months if property.price_period == 'month' else 1 }} {% if property.price_period == 'month' %}month{% if upfront_months != 1 %}s{% endif %}{% else %}day{% endif %}</span>
+                            <span class="font-semibold" id="pdSubtotal">ZMW {{ "{:,.0f}".format(property.price_per_night * (upfront_months if property.price_period == 'month' else 1)) }}</span>
                         </div>
                         <div class="flex justify-between">
                             <span>Service fee</span>
@@ -623,7 +740,7 @@
                         {% endif %}
                         <div class="flex justify-between text-sm font-bold text-gray-900 border-t border-gray-200 pt-2">
                             <span>Estimated total</span>
-                            <span id="pdTotal">ZMW {{ "{:,.0f}".format(property.price_per_night + service_fee + (property.cleaning_fee or 0)) }}</span>
+                            <span id="pdTotal">ZMW {{ "{:,.0f}".format((property.price_per_night * (upfront_months if property.price_period == 'month' else 1)) + service_fee + (property.cleaning_fee or 0)) }}</span>
                         </div>
                     </div>
                 </div>
@@ -760,16 +877,21 @@
     (function () {
         const selectEl = document.getElementById('pdDurationSelect');
         if (!selectEl) return;
+        const hourlySelect = document.getElementById('pdHourlySelect');
+        const weeklySelect = document.getElementById('pdWeeklySelect');
         const customInput = document.getElementById('pdCustomDays');
+        const modeButtons = document.querySelectorAll('.pd-mode-btn');
         const rateLine = document.getElementById('pdRateLine');
         const subtotalEl = document.getElementById('pdSubtotal');
         const totalEl = document.getElementById('pdTotal');
         const reserveBtn = document.getElementById('reservePropertyBtn');
         const baseCheckoutUrl = "{{ url_for('checkout', property_id=property.id) }}";
         const unitPrice = {{ property.price_per_night }};
+        const hourlyRate = {{ effective_hourly_rate|default(property.price_per_night) }};
         const serviceFee = {{ service_fee }};
         const cleaningFee = {{ property.cleaning_fee or 0 }};
         const isMonthly = "{{ property.price_period }}" === "month";
+        let pdMode = isMonthly ? 'month' : 'day';
 
         function fmtMoney(amount) {
             const rounded = Math.round(amount * 100) / 100;
@@ -780,31 +902,71 @@
             });
         }
 
+        function setPdMode(nextMode) {
+            if (isMonthly) return;
+            pdMode = nextMode;
+            modeButtons.forEach(function (btn) {
+                const active = btn.getAttribute('data-pd-mode') === pdMode;
+                btn.className = active
+                    ? 'pd-mode-btn rounded-md py-1.5 bg-white text-gray-900 shadow-sm transition'
+                    : 'pd-mode-btn rounded-md py-1.5 text-gray-600 hover:text-gray-900 transition';
+            });
+            if (hourlySelect) hourlySelect.classList.toggle('hidden', pdMode !== 'hour');
+            selectEl.classList.toggle('hidden', pdMode !== 'day');
+            if (weeklySelect) weeklySelect.classList.toggle('hidden', pdMode !== 'week');
+            if (customInput) customInput.classList.add('hidden');
+            updateEstimate();
+        }
+
         function updateEstimate() {
             let n = 1;
-            if (!isMonthly && selectEl.value === 'custom' && customInput) {
+            let rate = unitPrice;
+            let unitParam = isMonthly ? 'month' : 'night';
+            let unitLabel = isMonthly ? 'month' : 'day';
+
+            if (isMonthly) {
+                n = parseInt(selectEl.value, 10) || 1;
+                unitLabel = n === 1 ? 'month' : 'months';
+            } else if (pdMode === 'hour' && hourlySelect) {
+                n = parseInt(hourlySelect.value, 10) || 3;
+                if (n < 3) n = 3;
+                rate = hourlyRate;
+                unitParam = 'hour';
+                unitLabel = 'hours';
+            } else if (pdMode === 'week' && weeklySelect) {
+                n = parseInt(weeklySelect.value, 10) || 7;
+                unitParam = 'night';
+                unitLabel = n === 7 ? 'days (1 week)' : (n === 14 ? 'days (2 weeks)' : (n === 21 ? 'days (3 weeks)' : 'days'));
+            } else if (selectEl.value === 'custom' && customInput) {
                 customInput.classList.remove('hidden');
                 n = parseInt(customInput.value, 10) || 1;
                 if (n < 1) n = 1;
                 if (n > 365) n = 365;
+                unitLabel = n === 1 ? 'day' : 'days';
             } else {
                 if (customInput) customInput.classList.add('hidden');
                 n = parseInt(selectEl.value, 10) || 1;
+                unitLabel = n === 1 ? 'day' : 'days';
             }
-            const unitLabel = isMonthly
-                ? (n === 1 ? 'month' : 'months')
-                : (n === 1 ? 'day' : 'days');
-            const subtotal = unitPrice * n;
+
+            const subtotal = rate * n;
             const total = subtotal + serviceFee + cleaningFee;
-            rateLine.textContent = fmtMoney(unitPrice) + ' × ' + n + ' ' + unitLabel;
+            rateLine.textContent = fmtMoney(rate) + ' × ' + n + ' ' + unitLabel;
             subtotalEl.textContent = fmtMoney(subtotal);
             totalEl.textContent = fmtMoney(total);
             if (reserveBtn) {
-                reserveBtn.href = baseCheckoutUrl + '?duration=' + encodeURIComponent(n);
+                reserveBtn.href = baseCheckoutUrl + '?unit=' + encodeURIComponent(unitParam) + '&duration=' + encodeURIComponent(n);
             }
         }
 
+        modeButtons.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                setPdMode(btn.getAttribute('data-pd-mode'));
+            });
+        });
         selectEl.addEventListener('change', updateEstimate);
+        if (hourlySelect) hourlySelect.addEventListener('change', updateEstimate);
+        if (weeklySelect) weeklySelect.addEventListener('change', updateEstimate);
         if (customInput) {
             customInput.addEventListener('input', updateEstimate);
             customInput.addEventListener('change', updateEstimate);

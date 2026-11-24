@@ -782,9 +782,69 @@ def parse_property_utility_fields(form):
 
 
 def default_price_period_for_type(property_type):
-    if (property_type or '').strip() in ('House', 'Hostel'):
+    if (property_type or '').strip() in ('House', 'Boarding House'):
         return 'month'
     return 'night'
+
+
+MIN_HOURLY_STAY_HOURS = 3
+MAX_HOURLY_STAY_HOURS = 24
+UPFRONT_MONTH_OPTIONS = (1, 2, 3, 4, 5, 6, 12)
+ROOM_SHARING_OPTIONS = {
+    'single': 'Single Room (Private)',
+    'shared': 'Shared Room',
+}
+
+
+def supports_hourly_booking(property_row):
+    if not property_row:
+        return False
+    return property_row['price_period'] != 'month'
+
+
+def get_effective_hourly_rate(property_row):
+    raw_hourly = property_row['hourly_rate'] if 'hourly_rate' in property_row.keys() else None
+    if raw_hourly is not None and float(raw_hourly) > 0:
+        return round(float(raw_hourly), 2)
+    return round(max(1.0, float(property_row['price_per_night']) / 8.0), 2)
+
+
+def get_upfront_months(property_row):
+    raw = property_row['upfront_months'] if 'upfront_months' in property_row.keys() else 1
+    try:
+        val = int(raw or 1)
+    except (TypeError, ValueError):
+        val = 1
+    return max(1, min(val, 24))
+
+
+def parse_stay_terms_fields(form, property_type, price_period):
+    room_sharing = (form.get('room_sharing') or '').strip().lower()
+    if room_sharing and room_sharing not in ROOM_SHARING_OPTIONS:
+        raise ValueError('Choose either Single Room or Shared Room.')
+    if property_type == 'Boarding House' and not room_sharing:
+        room_sharing = 'single'
+
+    upfront_raw = (form.get('upfront_months') or '1').strip()
+    try:
+        upfront_months = int(upfront_raw) if price_period == 'month' else 1
+    except ValueError:
+        raise ValueError('Choose a valid upfront months option.')
+    if upfront_months < 1 or upfront_months > 24:
+        raise ValueError('Upfront payment requirement must be between 1 and 24 months.')
+
+    hourly_raw = (form.get('hourly_rate') or '').strip()
+    hourly_rate = None
+    if price_period != 'month' and hourly_raw:
+        hourly_rate = parse_nonnegative_money(hourly_raw, 'Hourly rate')
+        if hourly_rate <= 0:
+            hourly_rate = None
+
+    return {
+        'room_sharing': room_sharing or None,
+        'upfront_months': upfront_months,
+        'hourly_rate': hourly_rate,
+    }
 
 
 def parse_checkin_fields(form, is_long_term=False):
@@ -955,15 +1015,48 @@ def seasonal_rule_for_date(db, property_id, selected_date):
     ).fetchone()
 
 
-def quote_property_stay(db, property_row, check_in, duration):
-    duration_unit = 'month' if property_row['price_period'] == 'month' else 'night'
+def quote_property_stay(db, property_row, check_in, duration, duration_unit_override=None):
+    default_unit = 'month' if property_row['price_period'] == 'month' else 'night'
+    if duration_unit_override == 'hour' and supports_hourly_booking(property_row):
+        duration_unit = 'hour'
+    else:
+        duration_unit = default_unit
+
+    if duration_unit == 'hour':
+        if duration < MIN_HOURLY_STAY_HOURS or duration > MAX_HOURLY_STAY_HOURS:
+            raise ValueError(
+                f'Hourly stays require a minimum of {MIN_HOURLY_STAY_HOURS} hours '
+                f'(up to {MAX_HOURLY_STAY_HOURS} hours).'
+            )
+        check_out = check_in + timedelta(days=1)
+        hourly_rate = get_effective_hourly_rate(property_row)
+        base_amount = round(hourly_rate * duration, 2)
+        cleaning_fee = float(property_row['cleaning_fee'] or 0)
+        return {
+            'check_out': check_out,
+            'duration_unit': 'hour',
+            'unit_price': hourly_rate,
+            'base_amount': base_amount,
+            'service_fee': BOOKING_SERVICE_FEE,
+            'cleaning_fee': cleaning_fee,
+            'refundable_deposit': float(property_row['refundable_deposit'] or 0),
+            'total_price': round(base_amount + BOOKING_SERVICE_FEE + cleaning_fee, 2),
+            'minimum_stay': MIN_HOURLY_STAY_HOURS,
+        }
+
     check_out = (
         add_months(check_in, duration) if duration_unit == 'month'
         else check_in + timedelta(days=duration)
     )
     start_rule = seasonal_rule_for_date(db, property_row['id'], check_in)
     minimum_stay = start_rule['minimum_stay'] if start_rule else 1
+    if duration_unit == 'month':
+        upfront_min = get_upfront_months(property_row)
+        if upfront_min > minimum_stay:
+            minimum_stay = upfront_min
     if duration < minimum_stay:
+        if duration_unit == 'month' and minimum_stay == get_upfront_months(property_row) and minimum_stay > 1:
+            raise ValueError(f'This property requires at least {minimum_stay} months paid upfront.')
         raise ValueError(f'This listing requires a minimum stay of {minimum_stay} {duration_unit}(s) for those dates.')
 
     base_amount = 0.0
@@ -981,6 +1074,7 @@ def quote_property_stay(db, property_row, check_in, duration):
     return {
         'check_out': check_out,
         'duration_unit': duration_unit,
+        'unit_price': float(property_row['price_per_night']),
         'base_amount': base_amount,
         'service_fee': BOOKING_SERVICE_FEE,
         'cleaning_fee': cleaning_fee,
@@ -1341,6 +1435,9 @@ def init_db():
             'water_supply': 'TEXT',
             'internet_availability': 'TEXT',
             'internet_speed_mbps': 'INTEGER',
+            'room_sharing': 'TEXT',
+            'upfront_months': 'INTEGER NOT NULL DEFAULT 1',
+            'hourly_rate': 'REAL',
             'arrival_instructions': 'TEXT',
             'arrival_directions': 'TEXT',
             'nearby_essentials': 'TEXT',
@@ -1689,6 +1786,9 @@ def ensure_db_schema():
                 'water_supply': 'TEXT',
                 'internet_availability': 'TEXT',
                 'internet_speed_mbps': 'INTEGER',
+                'room_sharing': 'TEXT',
+                'upfront_months': 'INTEGER NOT NULL DEFAULT 1',
+                'hourly_rate': 'REAL',
                 'arrival_instructions': 'TEXT',
                 'arrival_directions': 'TEXT',
                 'nearby_essentials': 'TEXT',
@@ -3014,6 +3114,7 @@ def add_house():
             )
             utility_fields = parse_property_utility_fields(request.form)
             checkin_fields = parse_checkin_fields(request.form, is_long_term=(price_period == 'month'))
+            stay_terms = parse_stay_terms_fields(request.form, property_type, price_period)
         except ValueError as error:
             flash(str(error), 'error')
             return redirect(url_for('add_house'))
@@ -3089,7 +3190,8 @@ def add_house():
             '''INSERT INTO properties (
                 owner_id, title, description, price_per_night, price_period, compound, property_type,
                 listing_category, availability_status, location_details, agent_name, agent_phone,
-                bedrooms, bathrooms, bed_type, room_capacity, kitchen_type, has_sitting_room,
+                bedrooms, bathrooms, bed_type, room_sharing, room_capacity, kitchen_type, has_sitting_room,
+                upfront_months, hourly_rate,
                 has_solar, has_borehole, has_pool, has_garden, has_bbq,
                 has_balcony, has_ac, has_wifi, has_parking, image_main, is_featured,
                 cancellation_policy, house_rules, cleaning_fee, refundable_deposit,
@@ -3098,10 +3200,11 @@ def add_house():
                 arrival_instructions, arrival_directions, nearby_essentials,
                 checkin_time, checkout_time, self_checkin_method,
                 main_photo_category, latitude, longitude
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
             (owner_id, title, description, price, price_period, compound, property_type,
              listing_category, availability_status, location_details, agent_name, agent_phone,
-             bedrooms, bathrooms, bed_type, room_capacity, kitchen_type, has_sitting_room,
+             bedrooms, bathrooms, bed_type, stay_terms['room_sharing'], room_capacity, kitchen_type, has_sitting_room,
+             stay_terms['upfront_months'], stay_terms['hourly_rate'],
              has_solar, has_borehole, has_pool, has_garden, has_bbq,
              has_balcony, has_ac, has_wifi, has_parking, image_url, is_featured,
              cancellation_policy, house_rules, cleaning_fee, refundable_deposit,
@@ -3655,6 +3758,10 @@ def property_details(property_id):
                            has_exact_pin=has_exact_pin,
                            map_lat=map_lat,
                            map_lng=map_lng,
+                           effective_hourly_rate=get_effective_hourly_rate(property),
+                           can_book_hourly=supports_hourly_booking(property),
+                           upfront_months=get_upfront_months(property),
+                           room_sharing_options=ROOM_SHARING_OPTIONS,
                            images=image_list,
                            photo_categories=photo_categories,
                            reviews=reviews,
@@ -4386,16 +4493,26 @@ def property_price_quote(property_id):
         (property_id,),
     ).fetchone()
     check_in = parse_iso_date(request.args.get('check_in'))
+    requested_unit = (request.args.get('unit') or '').strip().lower()
     try:
         duration = int(request.args.get('duration', ''))
     except (TypeError, ValueError):
         duration = 0
-    max_duration = 60 if property_row and property_row['price_period'] == 'month' else 365
-    if (not property_row or not check_in or check_in < date.today()
-            or not 1 <= duration <= max_duration):
+    if not property_row or not check_in or check_in < date.today():
         return jsonify({'error': 'Choose a valid future date and stay duration.'}), 400
+    is_hourly = requested_unit == 'hour' and supports_hourly_booking(property_row)
+    if is_hourly:
+        if not MIN_HOURLY_STAY_HOURS <= duration <= MAX_HOURLY_STAY_HOURS:
+            return jsonify({'error': f'Hourly stays must be between {MIN_HOURLY_STAY_HOURS} and {MAX_HOURLY_STAY_HOURS} hours.'}), 400
+    else:
+        max_duration = 60 if property_row['price_period'] == 'month' else 365
+        if not 1 <= duration <= max_duration:
+            return jsonify({'error': 'Choose a valid future date and stay duration.'}), 400
     try:
-        quote = quote_property_stay(db, property_row, check_in, duration)
+        quote = quote_property_stay(
+            db, property_row, check_in, duration,
+            duration_unit_override=('hour' if is_hourly else None),
+        )
     except ValueError as error:
         return jsonify({'error': str(error)}), 400
     return jsonify({
@@ -4404,6 +4521,8 @@ def property_price_quote(property_id):
         'cleaning_fee': quote['cleaning_fee'],
         'total_price': quote['total_price'],
         'minimum_stay': quote['minimum_stay'],
+        'duration_unit': quote['duration_unit'],
+        'unit_price': quote['unit_price'],
         'check_out': quote['check_out'].isoformat(),
     })
 
@@ -6057,14 +6176,31 @@ def checkout(property_id):
         flash('You cannot book your own property.', 'error')
         return redirect(url_for('property_details', property_id=property_id))
     
-    duration_unit = 'month' if property['price_period'] == 'month' else 'night'
-    max_duration = 60 if duration_unit == 'month' else 365
+    default_unit = 'month' if property['price_period'] == 'month' else 'night'
+    can_book_hourly = supports_hourly_booking(property)
+    effective_hourly_rate = get_effective_hourly_rate(property)
+    upfront_months = get_upfront_months(property)
+    requested_unit = (request.args.get('unit') or default_unit).strip().lower()
+    initial_unit = 'hour' if (requested_unit == 'hour' and can_book_hourly) else default_unit
+    initial_min = MIN_HOURLY_STAY_HOURS if initial_unit == 'hour' else (upfront_months if initial_unit == 'month' else 1)
+    initial_max = MAX_HOURLY_STAY_HOURS if initial_unit == 'hour' else (60 if initial_unit == 'month' else 365)
     try:
-        initial_duration = int(request.args.get('duration', '1'))
+        initial_duration = int(request.args.get('duration', str(initial_min)))
     except (TypeError, ValueError):
-        initial_duration = 1
-    if not 1 <= initial_duration <= max_duration:
-        initial_duration = 1
+        initial_duration = initial_min
+    if not initial_min <= initial_duration <= initial_max:
+        initial_duration = initial_min
+
+    checkout_ctx = {
+        'property': property,
+        'user': g.user,
+        'initial_duration': initial_duration,
+        'initial_unit': initial_unit,
+        'can_book_hourly': can_book_hourly,
+        'effective_hourly_rate': effective_hourly_rate,
+        'upfront_months': upfront_months,
+        'min_hourly_stay': MIN_HOURLY_STAY_HOURS,
+    }
 
     if request.method == 'POST':
         if not check_rate_limit('checkout_user', str(g.user['id']), 10, 900):
@@ -6073,8 +6209,10 @@ def checkout(property_id):
         tenant_phone = request.form.get('tenant_phone', '').strip()
         if request.form.get('accept_policies') != 'on':
             flash('Please review and accept the house rules and cancellation policy.', 'error')
-            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
+            return render_template('checkout.html', **checkout_ctx)
         check_in = parse_iso_date(request.form.get('check_in'))
+        submitted_unit = (request.form.get('duration_unit') or default_unit).strip().lower()
+        duration_unit = 'hour' if (submitted_unit == 'hour' and can_book_hourly) else default_unit
         duration_value = request.form.get('duration_val', '')
         try:
             duration = int(duration_value)
@@ -6083,19 +6221,32 @@ def checkout(property_id):
 
         if not tenant_name or not tenant_phone:
             flash('Name and phone number are required.', 'error')
-            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
+            return render_template('checkout.html', **checkout_ctx)
         if not check_in or check_in < date.today():
             flash('Choose a valid future check-in date.', 'error')
-            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
-        if duration < 1 or duration > max_duration:
-            flash(f'Duration must be between 1 and {max_duration} {duration_unit}(s).', 'error')
-            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
+            return render_template('checkout.html', **checkout_ctx)
+        if duration_unit == 'hour':
+            if duration < MIN_HOURLY_STAY_HOURS or duration > MAX_HOURLY_STAY_HOURS:
+                flash(f'Hourly bookings require between {MIN_HOURLY_STAY_HOURS} and {MAX_HOURLY_STAY_HOURS} hours.', 'error')
+                return render_template('checkout.html', **checkout_ctx)
+        else:
+            max_duration = 60 if duration_unit == 'month' else 365
+            min_duration = upfront_months if duration_unit == 'month' else 1
+            if duration < min_duration or duration > max_duration:
+                if duration_unit == 'month' and min_duration > 1:
+                    flash(f'This property requires at least {min_duration} months upfront (up to {max_duration} months).', 'error')
+                else:
+                    flash(f'Duration must be between {min_duration} and {max_duration} {duration_unit}(s).', 'error')
+                return render_template('checkout.html', **checkout_ctx)
 
         try:
-            quote = quote_property_stay(db, property, check_in, duration)
+            quote = quote_property_stay(
+                db, property, check_in, duration,
+                duration_unit_override=('hour' if duration_unit == 'hour' else None),
+            )
         except ValueError as error:
             flash(str(error), 'error')
-            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
+            return render_template('checkout.html', **checkout_ctx)
         check_out = quote['check_out']
         base_amount = quote['base_amount']
         cleaning_fee = quote['cleaning_fee']
@@ -6108,7 +6259,7 @@ def checkout(property_id):
             if conflict:
                 db.rollback()
                 flash(conflict, 'error')
-                return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
+                return render_template('checkout.html', **checkout_ctx)
 
             tx_ref = f'KS-{secrets.token_urlsafe(12)}'
             db.execute(
@@ -6128,7 +6279,7 @@ def checkout(property_id):
             db.rollback()
             app.logger.exception('Could not create booking request for property %s', property_id)
             flash('We could not submit your booking request. Please try again.', 'error')
-            return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
+            return render_template('checkout.html', **checkout_ctx)
 
         flash(f'Booking request sent for {property["title"]}. No payment has been taken.', 'success')
         
@@ -6174,7 +6325,7 @@ def checkout(property_id):
 
         return redirect(url_for('dashboard'))
 
-    return render_template('checkout.html', property=property, user=g.user, initial_duration=initial_duration)
+    return render_template('checkout.html', **checkout_ctx)
 
 
 
@@ -6614,6 +6765,7 @@ def edit_property(property_id):
             )
             utility_fields = parse_property_utility_fields(request.form)
             checkin_fields = parse_checkin_fields(request.form, is_long_term=(price_period == 'month'))
+            stay_terms = parse_stay_terms_fields(request.form, property_type, price_period)
         except ValueError as error:
             flash(str(error), 'error')
             return redirect(url_for('edit_property', property_id=property_id))
@@ -6669,8 +6821,8 @@ def edit_property(property_id):
         db.execute('''
             UPDATE properties SET
                 title=?, description=?, price_per_night=?, price_period=?, compound=?,
-                property_type=?, bed_type=?, room_capacity=?, kitchen_type=?,
-                has_sitting_room=?, has_solar=?, has_borehole=?, has_pool=?,
+                property_type=?, bed_type=?, room_sharing=?, room_capacity=?, kitchen_type=?,
+                has_sitting_room=?, upfront_months=?, hourly_rate=?, has_solar=?, has_borehole=?, has_pool=?,
                 has_garden=?, has_bbq=?, has_balcony=?, has_ac=?, has_wifi=?,
                 has_parking=?, image_main=?, cancellation_policy=?, house_rules=?,
                 cleaning_fee=?, refundable_deposit=?, utilities_included=?,
@@ -6681,7 +6833,8 @@ def edit_property(property_id):
                 main_photo_category=?, latitude=?, longitude=?
             WHERE id=? AND owner_id=?
         ''', (title, description, price, price_period, compound, property_type,
-              bed_type, room_capacity, kitchen_type, has_sitting_room,
+              bed_type, stay_terms['room_sharing'], room_capacity, kitchen_type, has_sitting_room,
+              stay_terms['upfront_months'], stay_terms['hourly_rate'],
               has_solar, has_borehole, has_pool, has_garden, has_bbq,
               has_balcony, has_ac, has_wifi, has_parking, image_main,
               cancellation_policy, house_rules, cleaning_fee, refundable_deposit,

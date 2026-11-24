@@ -46,17 +46,20 @@ CREATE TABLE IF NOT EXISTS properties (
     price_period TEXT DEFAULT 'night', -- 'night' or 'month'
     compound TEXT NOT NULL,
     location_details TEXT,
-    property_type TEXT NOT NULL DEFAULT 'House', -- House, Hotel, Villa, Guest House, Hostel
+    property_type TEXT NOT NULL DEFAULT 'House', -- House, Boarding House, Hotel, Villa, Guest House, Hostel
     listing_category TEXT DEFAULT 'rental',
     availability_status TEXT DEFAULT 'available',
     
     -- Specific Amenities
     bed_type TEXT, -- Single, Double, Bunk (primarily for hostels/guest houses)
+    room_sharing TEXT, -- 'single' or 'shared' (for boarding houses / student apartments)
     room_capacity INTEGER, -- Number of people per room
     bedrooms INTEGER DEFAULT 1,
     bathrooms INTEGER DEFAULT 1,
     kitchen_type TEXT, -- Private, Shared, None
     has_sitting_room INTEGER DEFAULT 0,
+    upfront_months INTEGER NOT NULL DEFAULT 1, -- Minimum upfront months required for monthly rentals
+    hourly_rate DOUBLE PRECISION, -- Optional explicit hourly rate for Hotel/Villa/Hostel short stays (min 3 hours)
     
     -- Lusaka Essentials & Luxury
     has_solar INTEGER DEFAULT 0,

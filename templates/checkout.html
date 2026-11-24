@@ -67,8 +67,21 @@
                         </div>
                     </div>
                     {% set init_dur = initial_duration|default(1) %}
+                    {% set init_unit = initial_unit|default('month' if property.price_period == 'month' else 'night') %}
+                    {% set min_upfront = upfront_months|default(1) %}
                     {% if property.price_period == 'month' %}
-                    <!-- Monthly / Long-Term Booking UI (Houses, Hostels, etc.) -->
+                    <!-- Monthly / Long-Term Booking UI (Houses, Boarding Houses, etc.) -->
+                    {% if min_upfront > 1 %}
+                    <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                        <i class="fa-solid fa-money-bill-wave mr-1"></i>
+                        <strong>Owner Payment Terms:</strong> Minimum <strong>{{ min_upfront }} months upfront</strong> required.
+                    </div>
+                    {% else %}
+                    <div class="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-900">
+                        <i class="fa-solid fa-circle-check mr-1"></i>
+                        <strong>Flexible Monthly Rent:</strong> Can be paid monthly (1 month at a time).
+                    </div>
+                    {% endif %}
                     <div class="grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3 border border-gray-100">
                         <div>
                             <label class="block text-[11px] font-semibold uppercase text-gray-500 mb-0.5">Move-in date</label>
@@ -93,50 +106,82 @@
                             ] %}
                             {% set preset_vals = [1,2,3,4,5,6,7,8,9,10,11,12,18,24,36,48,60] %}
                             {% for val, label in month_presets %}
-                            <option value="{{ val }}" {% if init_dur == val %}selected{% endif %}>{{ label }}</option>
+                            {% if val >= min_upfront %}
+                            <option value="{{ val }}" {% if init_dur == val %}selected{% endif %}>{{ label }}{% if min_upfront > 1 and val == min_upfront %} (Min upfront){% endif %}</option>
+                            {% endif %}
                             {% endfor %}
-                            {% if init_dur not in preset_vals %}
+                            {% if init_dur not in preset_vals and init_dur >= min_upfront %}
                             <option value="{{ init_dur }}" selected>{{ init_dur }} Months</option>
                             {% endif %}
                         </select>
                     </div>
                     {% else %}
-                    <!-- Nightly / Short-Stay Booking UI (Villas, Hotels, Guest Houses, etc.) -->
+                    <!-- Short-Stay Booking UI (Hotels, Villas, Hostels, Guest Houses: Hours 3h min, Days, Weeks) -->
                     <div class="grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3 border border-gray-100">
                         <div>
                             <label class="block text-[11px] font-semibold uppercase text-gray-500 mb-0.5">Check-in date</label>
                             <p id="selectedCheckIn" class="text-sm font-semibold text-gray-800">Choose above</p>
                         </div>
                         <div>
-                            <label class="block text-[11px] font-semibold uppercase text-gray-500 mb-0.5">Check-out date</label>
+                            <label class="block text-[11px] font-semibold uppercase text-gray-500 mb-0.5" id="checkOutLabel">Check-out date</label>
                             <p id="selectedCheckOut" class="text-sm font-semibold text-gray-800">—</p>
                         </div>
                     </div>
                     <div>
-                        <label for="durationPreset" class="block text-xs font-semibold uppercase text-gray-500 mb-1">How long would you like to stay?</label>
-                        {% set night_preset_vals = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21, 30, 60, 90] %}
-                        <select id="durationPreset"
-                            class="w-full p-2.5 border rounded-lg bg-white focus:ring-1 focus:ring-primary outline-none font-medium">
-                            <option value="1" {% if init_dur == 1 %}selected{% endif %}>1 Day / Night</option>
-                            <option value="2" {% if init_dur == 2 %}selected{% endif %}>2 Days / Nights</option>
-                            <option value="3" {% if init_dur == 3 %}selected{% endif %}>3 Days / Nights</option>
-                            <option value="4" {% if init_dur == 4 %}selected{% endif %}>4 Days / Nights</option>
-                            <option value="5" {% if init_dur == 5 %}selected{% endif %}>5 Days / Nights</option>
-                            <option value="6" {% if init_dur == 6 %}selected{% endif %}>6 Days / Nights</option>
-                            <option value="7" {% if init_dur == 7 %}selected{% endif %}>1 Week (7 Days)</option>
-                            <option value="10" {% if init_dur == 10 %}selected{% endif %}>10 Days</option>
-                            <option value="14" {% if init_dur == 14 %}selected{% endif %}>2 Weeks (14 Days)</option>
-                            <option value="21" {% if init_dur == 21 %}selected{% endif %}>3 Weeks (21 Days)</option>
-                            <option value="30" {% if init_dur == 30 %}selected{% endif %}>1 Month (30 Days)</option>
-                            <option value="60" {% if init_dur == 60 %}selected{% endif %}>2 Months (60 Days)</option>
-                            <option value="90" {% if init_dur == 90 %}selected{% endif %}>3 Months (90 Days)</option>
-                            <option value="custom" {% if init_dur not in night_preset_vals %}selected{% endif %}>Custom number of days…</option>
-                        </select>
-                        <div id="customDurationWrap" class="mt-2 {% if init_dur in night_preset_vals %}hidden{% endif %}">
-                            <label for="duration" class="block text-xs text-gray-500 mb-1">Enter number of days (1–365)</label>
-                            <input type="number" id="duration" value="{{ init_dur }}" min="1" max="365"
-                                class="w-full p-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none" required
-                                placeholder="Number of days / nights">
+                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1.5">Choose stay type</label>
+                        <div class="grid grid-cols-3 gap-1.5 rounded-xl bg-gray-100 p-1 text-xs font-bold mb-3" role="tablist">
+                            <button type="button" data-checkout-mode="hour"
+                                class="checkout-mode-btn rounded-lg py-2 transition {% if init_unit == 'hour' %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+                                <i class="fa-regular fa-clock mr-1"></i>Hours (3h min)
+                            </button>
+                            <button type="button" data-checkout-mode="day"
+                                class="checkout-mode-btn rounded-lg py-2 transition {% if init_unit != 'hour' and init_dur not in [7,14,21,30,60,90] %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+                                <i class="fa-solid fa-sun mr-1"></i>Days
+                            </button>
+                            <button type="button" data-checkout-mode="week"
+                                class="checkout-mode-btn rounded-lg py-2 transition {% if init_unit != 'hour' and init_dur in [7,14,21,30,60,90] %}bg-white text-gray-900 shadow-sm{% else %}text-gray-600 hover:text-gray-900{% endif %}">
+                                <i class="fa-solid fa-calendar-week mr-1"></i>Weeks
+                            </button>
+                        </div>
+
+                        <!-- Hourly selector (3-hour minimum) -->
+                        <div id="hourlyDurationWrap" class="{% if init_unit != 'hour' %}hidden{% endif %}">
+                            <label for="hourlyDurationSelect" class="block text-xs font-semibold uppercase text-gray-500 mb-1">How many hours? (3-hour minimum · ZMW {{ "{:,.0f}".format(effective_hourly_rate) }}/hr)</label>
+                            <select id="hourlyDurationSelect"
+                                class="w-full p-2.5 border rounded-lg bg-white focus:ring-1 focus:ring-primary outline-none font-medium">
+                                {% for h in [3, 4, 5, 6, 8, 10, 12, 18, 24] %}
+                                <option value="{{ h }}" {% if init_unit == 'hour' and init_dur == h %}selected{% endif %}>{{ h }} Hours{% if h == 3 %} (Minimum){% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Days / Weeks selector -->
+                        <div id="nightlyDurationWrap" class="{% if init_unit == 'hour' %}hidden{% endif %}">
+                            <label for="durationPreset" class="block text-xs font-semibold uppercase text-gray-500 mb-1">How long would you like to stay?</label>
+                            {% set night_preset_vals = [1, 2, 3, 4, 5, 6, 7, 10, 14, 21, 30, 60, 90] %}
+                            <select id="durationPreset"
+                                class="w-full p-2.5 border rounded-lg bg-white focus:ring-1 focus:ring-primary outline-none font-medium">
+                                <option value="1" {% if init_unit != 'hour' and init_dur == 1 %}selected{% endif %}>1 Day / Night</option>
+                                <option value="2" {% if init_unit != 'hour' and init_dur == 2 %}selected{% endif %}>2 Days / Nights</option>
+                                <option value="3" {% if init_unit != 'hour' and init_dur == 3 %}selected{% endif %}>3 Days / Nights</option>
+                                <option value="4" {% if init_unit != 'hour' and init_dur == 4 %}selected{% endif %}>4 Days / Nights</option>
+                                <option value="5" {% if init_unit != 'hour' and init_dur == 5 %}selected{% endif %}>5 Days / Nights</option>
+                                <option value="6" {% if init_unit != 'hour' and init_dur == 6 %}selected{% endif %}>6 Days / Nights</option>
+                                <option value="7" {% if init_unit != 'hour' and init_dur == 7 %}selected{% endif %}>1 Week (7 Days)</option>
+                                <option value="10" {% if init_unit != 'hour' and init_dur == 10 %}selected{% endif %}>10 Days</option>
+                                <option value="14" {% if init_unit != 'hour' and init_dur == 14 %}selected{% endif %}>2 Weeks (14 Days)</option>
+                                <option value="21" {% if init_unit != 'hour' and init_dur == 21 %}selected{% endif %}>3 Weeks (21 Days)</option>
+                                <option value="30" {% if init_unit != 'hour' and init_dur == 30 %}selected{% endif %}>1 Month (30 Days)</option>
+                                <option value="60" {% if init_unit != 'hour' and init_dur == 60 %}selected{% endif %}>2 Months (60 Days)</option>
+                                <option value="90" {% if init_unit != 'hour' and init_dur == 90 %}selected{% endif %}>3 Months (90 Days)</option>
+                                <option value="custom" {% if init_unit != 'hour' and init_dur not in night_preset_vals %}selected{% endif %}>Custom number of days…</option>
+                            </select>
+                            <div id="customDurationWrap" class="mt-2 {% if init_unit == 'hour' or init_dur in night_preset_vals %}hidden{% endif %}">
+                                <label for="duration" class="block text-xs text-gray-500 mb-1">Enter number of days (1–365)</label>
+                                <input type="number" id="duration" value="{{ init_dur if init_unit != 'hour' else 1 }}" min="1" max="365"
+                                    class="w-full p-2 border rounded-lg focus:ring-1 focus:ring-primary outline-none" required
+                                    placeholder="Number of days / nights">
+                            </div>
                         </div>
                     </div>
                     {% endif %}
@@ -194,6 +239,7 @@
                     <input type="hidden" name="check_out" id="finalCheckOut">
                     <input type="hidden" name="total_price" id="finalTotalPrice">
                     <input type="hidden" name="duration_val" id="finalDuration">
+                    <input type="hidden" name="duration_unit" id="finalDurationUnit" value="{{ initial_unit|default('month' if property.price_period == 'month' else 'night') }}">
                     {% if property.cancellation_policy == 'flexible' %}
                     <p class="mb-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">Cancellation: full refund for cancellations at least 24 hours before check-in.</p>
                     {% elif property.cancellation_policy == 'strict' %}
@@ -238,9 +284,12 @@
 
 <script nonce="{{ csp_nonce() }}">
     const pricePerUnit = {{ property.price_per_night }};
+    const hourlyRate = {{ effective_hourly_rate|default(property.price_per_night) }};
     const serviceFee = {{ service_fee }};
     const cleaningFee = {{ property.cleaning_fee or 0 }};
     const isMonthly = "{{ property.price_period }}" === "month";
+    const upfrontMinMonths = {{ upfront_months|default(1) }};
+    let currentBookingUnit = "{{ initial_unit|default('month' if property.price_period == 'month' else 'night') }}";
     let calculatedTotal = 0;
     let checkoutMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     let checkoutAvailability = {};
@@ -267,6 +316,7 @@
     }
 
     function stayCheckOut(checkIn, duration) {
+        if (currentBookingUnit === 'hour') return addDaysToIso(checkIn, 1);
         return isMonthly ? addMonthsToIso(checkIn, duration) : addDaysToIso(checkIn, duration);
     }
 
@@ -343,6 +393,9 @@
     }
 
     function formatDurationLabel(n) {
+        if (currentBookingUnit === 'hour') {
+            return n + ' hours';
+        }
         if (isMonthly) {
             if (n === 1) return '1 month';
             if (n === 12) return '12 months (1 year)';
@@ -359,10 +412,18 @@
     }
 
     function getSelectedDuration() {
+        if (currentBookingUnit === 'hour') {
+            const hourlyEl = document.getElementById('hourlyDurationSelect');
+            let h = parseInt(hourlyEl ? hourlyEl.value : '3', 10);
+            if (isNaN(h) || h < 3) h = 3;
+            if (h > 24) h = 24;
+            return h;
+        }
+        const minDuration = isMonthly ? upfrontMinMonths : 1;
         const maxDuration = isMonthly ? 60 : 365;
         const durationInput = document.getElementById('duration');
         let val = parseInt(durationInput.value, 10);
-        if (isNaN(val) || val < 1) val = 1;
+        if (isNaN(val) || val < minDuration) val = minDuration;
         if (val > maxDuration) {
             val = maxDuration;
             durationInput.value = String(maxDuration);
@@ -370,11 +431,12 @@
         return val;
     }
 
-    function updatePriceSummary(durationVal, baseAmount, totalAmount) {
+    function updatePriceSummary(durationVal, baseAmount, totalAmount, activeRate) {
         const labelEl = document.getElementById('rateBreakdownLabel');
         const subtotalEl = document.getElementById('baseSubtotalDisplay');
         const totalEl = document.getElementById('totalPriceDisplay');
-        labelEl.innerText = formatMoney(pricePerUnit) + ' × ' + formatDurationLabel(durationVal);
+        const rateUsed = activeRate !== undefined ? activeRate : (currentBookingUnit === 'hour' ? hourlyRate : pricePerUnit);
+        labelEl.innerText = formatMoney(rateUsed) + ' × ' + formatDurationLabel(durationVal);
         subtotalEl.innerText = formatMoney(baseAmount);
         totalEl.innerText = formatMoney(totalAmount);
     }
@@ -384,7 +446,7 @@
     async function syncServerQuote(checkIn, durationVal) {
         const reqVersion = ++quoteRequestVersion;
         try {
-            const resp = await fetch('/property/{{ property.id }}/price-quote?check_in=' + encodeURIComponent(checkIn) + '&duration=' + encodeURIComponent(durationVal));
+            const resp = await fetch('/property/{{ property.id }}/price-quote?check_in=' + encodeURIComponent(checkIn) + '&duration=' + encodeURIComponent(durationVal) + '&unit=' + encodeURIComponent(currentBookingUnit));
             const data = await resp.json();
             if (reqVersion !== quoteRequestVersion) return;
             if (!resp.ok) {
@@ -397,9 +459,10 @@
                 return;
             }
             calculatedTotal = Number(data.total_price);
-            updatePriceSummary(durationVal, Number(data.base_amount), calculatedTotal);
+            updatePriceSummary(durationVal, Number(data.base_amount), calculatedTotal, Number(data.unit_price));
             document.getElementById('finalCheckOut').value = data.check_out;
-            document.getElementById('selectedCheckOut').innerText = data.check_out;
+            document.getElementById('selectedCheckOut').innerText =
+                currentBookingUnit === 'hour' ? (checkIn + ' (' + durationVal + '-hour stay)') : data.check_out;
             document.getElementById('finalTotalPrice').value = calculatedTotal;
             document.getElementById('payBtn').innerText = 'Send request · ' + formatMoney(calculatedTotal);
         } catch (err) {
@@ -412,12 +475,14 @@
         const errorMsg = document.getElementById('errorMsg');
         const btn = document.getElementById('payBtn');
         const durationVal = getSelectedDuration();
-        const baseSubtotal = pricePerUnit * durationVal;
+        const activeRate = currentBookingUnit === 'hour' ? hourlyRate : pricePerUnit;
+        const baseSubtotal = activeRate * durationVal;
         const total = baseSubtotal + serviceFee + cleaningFee;
         calculatedTotal = total;
 
-        updatePriceSummary(durationVal, baseSubtotal, total);
+        updatePriceSummary(durationVal, baseSubtotal, total, activeRate);
         document.getElementById('finalDuration').value = durationVal;
+        document.getElementById('finalDurationUnit').value = currentBookingUnit;
         document.getElementById('finalTotalPrice').value = total;
 
         if (!checkIn) {
@@ -430,7 +495,8 @@
         }
 
         const checkOutDateVal = stayCheckOut(checkIn, durationVal);
-        document.getElementById('selectedCheckOut').innerText = checkOutDateVal;
+        document.getElementById('selectedCheckOut').innerText =
+            currentBookingUnit === 'hour' ? (checkIn + ' (' + durationVal + '-hour stay)') : checkOutDateVal;
         errorMsg.classList.add('hidden');
 
         btn.innerText = 'Send request · ' + formatMoney(total);
@@ -508,6 +574,45 @@
     const durationPresetEl = document.getElementById('durationPreset');
     const customDurationWrap = document.getElementById('customDurationWrap');
     const durationEl = document.getElementById('duration');
+    const hourlyWrap = document.getElementById('hourlyDurationWrap');
+    const nightlyWrap = document.getElementById('nightlyDurationWrap');
+    const hourlySelectEl = document.getElementById('hourlyDurationSelect');
+    const modeButtons = document.querySelectorAll('.checkout-mode-btn');
+
+    modeButtons.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const mode = btn.getAttribute('data-checkout-mode');
+            modeButtons.forEach(function (b) {
+                const active = b === btn;
+                b.className = active
+                    ? 'checkout-mode-btn rounded-lg py-2 transition bg-white text-gray-900 shadow-sm'
+                    : 'checkout-mode-btn rounded-lg py-2 transition text-gray-600 hover:text-gray-900';
+            });
+            if (mode === 'hour') {
+                currentBookingUnit = 'hour';
+                if (hourlyWrap) hourlyWrap.classList.remove('hidden');
+                if (nightlyWrap) nightlyWrap.classList.add('hidden');
+            } else {
+                currentBookingUnit = 'night';
+                if (hourlyWrap) hourlyWrap.classList.add('hidden');
+                if (nightlyWrap) nightlyWrap.classList.remove('hidden');
+                if (mode === 'week' && durationPresetEl) {
+                    durationPresetEl.value = '7';
+                    if (customDurationWrap) customDurationWrap.classList.add('hidden');
+                    if (durationEl) durationEl.value = '7';
+                } else if (mode === 'day' && durationPresetEl && ['7', '14', '21', '30', '60', '90'].includes(durationPresetEl.value)) {
+                    durationPresetEl.value = '1';
+                    if (customDurationWrap) customDurationWrap.classList.add('hidden');
+                    if (durationEl) durationEl.value = '1';
+                }
+            }
+            calculateTotal();
+        });
+    });
+
+    if (hourlySelectEl) {
+        hourlySelectEl.addEventListener('change', calculateTotal);
+    }
 
     if (durationPresetEl) {
         durationPresetEl.addEventListener('change', function () {
@@ -521,8 +626,10 @@
             calculateTotal();
         });
     }
-    durationEl.addEventListener('change', calculateTotal);
-    durationEl.addEventListener('input', calculateTotal);
+    if (durationEl) {
+        durationEl.addEventListener('change', calculateTotal);
+        durationEl.addEventListener('input', calculateTotal);
+    }
 
     renderCheckoutCalendar();
     calculateTotal();

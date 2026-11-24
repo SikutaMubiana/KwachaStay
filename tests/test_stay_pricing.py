@@ -238,6 +238,112 @@ class StayTypeAndPricingTests(unittest.TestCase):
         self.assertIn('How far from me?', html)
         self.assertIn(str(kwachastay.LUSAKA_NEIGHBOURHOOD_COORDS['Kabulonga'][0]), html)
 
+    def test_boarding_house_room_sharing_wifi_and_upfront_months(self):
+        csrf = self._login_as(self.owner_id)
+        resp = self.client.post('/add_house', data={
+            'csrf_token': csrf,
+            'title': 'UNZA Campus Boarding House',
+            'description': 'Clean student apartments near Great East Road.',
+            'property_type': 'Boarding House',
+            'room_sharing': 'shared',
+            'room_capacity': '2',
+            'price_period': 'month',
+            'price': '1500',
+            'upfront_months': '3',
+            'has_wifi': 'on',
+            'compound': 'Kalingalinga',
+            'checkin_time': '',
+            'checkout_time': '',
+            'image_url': 'https://example.com/property.jpg',
+        }, follow_redirects=True)
+        self.assertEqual(resp.status_code, 200)
+
+        with kwachastay.app.app_context():
+            db = kwachastay.get_db()
+            prop = db.execute("SELECT * FROM properties WHERE title = 'UNZA Campus Boarding House'").fetchone()
+            self.assertIsNotNone(prop)
+            self.assertEqual(prop['property_type'], 'Boarding House')
+            self.assertEqual(prop['room_sharing'], 'shared')
+            self.assertEqual(int(prop['has_wifi']), 1)
+            self.assertEqual(int(prop['upfront_months']), 3)
+            prop_id = prop['id']
+
+        detail = self.client.get(f'/property/{prop_id}')
+        self.assertEqual(detail.status_code, 200)
+        html = detail.get_data(as_text=True)
+        self.assertIn('Shared Room', html)
+        self.assertIn('WiFi Available', html)
+        self.assertIn('3 Months Upfront Required', html)
+
+        # Upfront minimum enforced: 1 month rejected, 3 months accepted
+        self._login_as(self.tenant_id)
+        check_in = (date.today() + timedelta(days=5)).isoformat()
+        too_short = self.client.get(f'/property/{prop_id}/price-quote?check_in={check_in}&duration=1')
+        self.assertEqual(too_short.status_code, 400)
+        self.assertIn('3 months', too_short.get_json()['error'])
+
+        valid_upfront = self.client.get(f'/property/{prop_id}/price-quote?check_in={check_in}&duration=3')
+        self.assertEqual(valid_upfront.status_code, 200)
+        self.assertEqual(valid_upfront.get_json()['base_amount'], 4500.0)
+
+    def test_hotel_villa_hostel_hourly_booking_minimum_3_hours(self):
+        csrf = self._login_as(self.owner_id)
+        self.client.post('/add_house', data={
+            'csrf_token': csrf,
+            'title': 'Longacres City Hotel',
+            'description': 'Flexible hours, days, and weeks.',
+            'property_type': 'Hotel',
+            'price_period': 'night',
+            'price': '400',
+            'hourly_rate': '60',
+            'compound': 'Longacres',
+            'room_capacity': '2',
+            'checkin_time': '14:00',
+            'checkout_time': '11:00',
+            'image_url': 'https://example.com/property.jpg',
+        }, follow_redirects=True)
+
+        with kwachastay.app.app_context():
+            db = kwachastay.get_db()
+            prop = db.execute("SELECT * FROM properties WHERE title = 'Longacres City Hotel'").fetchone()
+            self.assertEqual(float(prop['hourly_rate']), 60.0)
+            prop_id = prop['id']
+
+        csrf = self._login_as(self.tenant_id)
+        check_in = (date.today() + timedelta(days=4)).isoformat()
+
+        # Less than 3 hours must be rejected
+        too_short = self.client.get(f'/property/{prop_id}/price-quote?check_in={check_in}&unit=hour&duration=2')
+        self.assertEqual(too_short.status_code, 400)
+
+        # 3 hours at K60/hr = K180 + service fee
+        three_hr = self.client.get(f'/property/{prop_id}/price-quote?check_in={check_in}&unit=hour&duration=3')
+        self.assertEqual(three_hr.status_code, 200)
+        q = three_hr.get_json()
+        self.assertEqual(q['duration_unit'], 'hour')
+        self.assertEqual(q['base_amount'], 180.0)
+        self.assertEqual(q['total_price'], 180.0 + kwachastay.BOOKING_SERVICE_FEE)
+
+        # Submitting a 4-hour booking saves duration=4, duration_unit='hour', base_amount=240
+        post_resp = self.client.post(f'/checkout/{prop_id}', data={
+            'csrf_token': csrf,
+            'check_in': check_in,
+            'duration_unit': 'hour',
+            'duration_val': '4',
+            'tenant_name': 'Guest One',
+            'tenant_phone': '+260972222222',
+            'accept_policies': 'on',
+        }, follow_redirects=True)
+        self.assertEqual(post_resp.status_code, 200)
+        with kwachastay.app.app_context():
+            db = kwachastay.get_db()
+            b = db.execute('SELECT * FROM bookings WHERE property_id = ?', (prop_id,)).fetchone()
+            self.assertIsNotNone(b)
+            self.assertEqual(b['duration'], 4)
+            self.assertEqual(b['duration_unit'], 'hour')
+            self.assertEqual(float(b['base_amount']), 240.0)
+            self.assertEqual(float(b['total_price']), 240.0 + kwachastay.BOOKING_SERVICE_FEE)
+
 
 if __name__ == '__main__':
     unittest.main()
