@@ -10,4 +10,4 @@ View in KwachaStay:
 {{ action_url }}
 {% endif %}
 
-KwachaStay · Lusaka, Zambia
+KwachaStay · Zambia

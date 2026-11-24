@@ -13,7 +13,7 @@
                     <img src="{{ property.image_main|listing_image }}" loading="lazy" decoding="async" class="w-24 h-24 object-cover rounded-lg">
                     <div>
                         <h3 class="font-semibold text-gray-900">{{ property.title }}</h3>
-                        <p class="text-gray-500 text-sm">{{ property.compound }}, Lusaka</p>
+                        <p class="text-gray-500 text-sm">{{ property.compound }}, {{ property.city or 'Lusaka' }}</p>
                         <p class="mt-1 text-xs text-gray-500">
                             {% if property.price_period == 'month' %}
                             Long-term stay (months / years) · Move-in arranged with host
@@ -209,6 +209,27 @@
                         <span>Total (ZMW)</span>
                         <span id="totalPriceDisplay">ZMW {{ "{:,.0f}".format((property.price_per_night * init_dur) + service_fee + (property.cleaning_fee or 0)) }}</span>
                     </div>
+                    {% if property.price_period != 'month' %}
+                    <div class="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <label for="checkoutSplitGuests" class="text-xs font-semibold text-gray-700">
+                                <i class="fa-solid fa-users text-primary mr-1"></i>Split cost with friends / group
+                            </label>
+                            <select id="checkoutSplitGuests" class="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold">
+                                <option value="1">1 guest (Solo)</option>
+                                <option value="2">2 guests (Couple)</option>
+                                <option value="3">3 guests</option>
+                                <option value="4">4 guests</option>
+                                <option value="5">5 guests</option>
+                                <option value="6">6 guests</option>
+                                <option value="8">8 guests</option>
+                                <option value="10">10 guests</option>
+                                <option value="12">12 guests</option>
+                            </select>
+                        </div>
+                        <p id="checkoutSplitResult" class="hidden text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-2.5 py-1.5"></p>
+                    </div>
+                    {% endif %}
                     {% if property.refundable_deposit %}
                     <p class="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
                         Refundable security deposit: ZMW {{ "{:,.2f}".format(property.refundable_deposit) }}.
@@ -227,7 +248,7 @@
             <div class="bg-white border rounded-xl p-8 shadow-lg shadow-gray-100 sticky top-24">
                 <h3 class="text-xl font-bold mb-2">Request this stay</h3>
                 <p class="text-sm text-gray-600 mb-5">Sending a request does not charge you. The host must confirm availability first. Unpaid requests expire after {{ booking_request_expiry_hours }} hours if unanswered, releasing the dates. Payment and refunds are handled only after a real payment is confirmed.</p>
-                <a href="https://wa.me/{{ payment_whatsapp_number }}?text={{ ('Hello, I need help booking ' ~ property.title ~ ' in ' ~ property.compound ~ ', Lusaka.')|urlencode }}"
+                <a href="https://wa.me/{{ payment_whatsapp_number }}?text={{ ('Hello, I need help booking ' ~ property.title ~ ' in ' ~ property.compound ~ ', ' ~ (property.city or 'Lusaka') ~ '.')|urlencode }}"
                     target="_blank" rel="noopener noreferrer"
                     class="mb-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-bold text-green-800 hover:bg-green-100">
                     <i class="fa-brands fa-whatsapp text-lg"></i>Need help? WhatsApp KwachaStay
@@ -439,6 +460,17 @@
         labelEl.innerText = formatMoney(rateUsed) + ' × ' + formatDurationLabel(durationVal);
         subtotalEl.innerText = formatMoney(baseAmount);
         totalEl.innerText = formatMoney(totalAmount);
+        const splitSel = document.getElementById('checkoutSplitGuests');
+        const splitOut = document.getElementById('checkoutSplitResult');
+        if (splitSel && splitOut) {
+            const guests = parseInt(splitSel.value, 10) || 1;
+            if (guests > 1) {
+                splitOut.innerText = 'Split between ' + guests + ' guests: only ' + formatMoney(totalAmount / guests) + ' per person';
+                splitOut.classList.remove('hidden');
+            } else {
+                splitOut.classList.add('hidden');
+            }
+        }
     }
 
     let quoteRequestVersion = 0;
@@ -629,6 +661,11 @@
     if (durationEl) {
         durationEl.addEventListener('change', calculateTotal);
         durationEl.addEventListener('input', calculateTotal);
+    }
+
+    const checkoutSplitEl = document.getElementById('checkoutSplitGuests');
+    if (checkoutSplitEl) {
+        checkoutSplitEl.addEventListener('change', calculateTotal);
     }
 
     renderCheckoutCalendar();

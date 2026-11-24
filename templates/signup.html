@@ -54,15 +54,32 @@
                     </ul>
                 </div>
 
+                <div class="mb-4">
+                    <label for="preferredCitySelect" class="block text-sm font-medium text-gray-700 mb-1">Your City (Launch Cities — optional)</label>
+                    <select name="preferred_city" id="preferredCitySelect"
+                        class="block w-full px-3 py-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
+                        <option value="">Select your city (optional)</option>
+                        {% for city_name in zambia_cities %}
+                        <option value="{{ city_name }}">{{ city_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">
+                        KwachaStay is launching across {{ zambia_cities | join(', ') }}.
+                    </p>
+                </div>
+
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Account Type</label>
                     <select name="role"
                         class="block w-full px-3 py-3 border border-gray-300 bg-white rounded-lg shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm">
-                        <option value="tenant" {% if default_role != 'owner' %}selected{% endif %}>Tenant — Rent / book a place</option>
-                        <option value="owner" {% if default_role == 'owner' %}selected{% endif %}>Landlord / Lister — List a property</option>
+                        <option value="tenant" {% if default_role !='owner' %}selected{% endif %}>Tenant — Rent / book a
+                            place</option>
+                        <option value="owner" {% if default_role=='owner' %}selected{% endif %}>Landlord / Lister — List
+                            a property</option>
                     </select>
                     <p class="mt-2 text-xs text-gray-500">
-                        Tenant and Landlord accounts have separate dashboards. If you want to both rent and list properties, create a separate account for each role.
+                        Tenant and Landlord accounts have separate dashboards. If you want to both rent and list
+                        properties, create a separate account for each role.
                     </p>
                 </div>
             </div>

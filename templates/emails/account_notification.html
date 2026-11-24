@@ -1,13 +1,17 @@
 <!doctype html>
 <html lang="en">
+
 <body style="margin:0;background:#f8fafc;font-family:Arial,sans-serif;color:#1f2937">
   <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;padding:36px">
     <div style="color:#dc2626;font-size:24px;font-weight:700">KwachaStay</div>
     <h1 style="font-size:24px;margin:28px 0 12px">{{ title }}</h1>
     <p>Hello {{ user_name or 'there' }},</p>
     <div style="font-size:16px;line-height:1.6">{{ message }}</div>
-    {% if action_url %}<p><a href="{{ action_url }}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;border-radius:10px;padding:13px 20px;font-weight:700">View in KwachaStay</a></p>{% endif %}
-    <p style="color:#6b7280;font-size:13px">KwachaStay · Lusaka, Zambia</p>
+    {% if action_url %}<p><a href="{{ action_url }}"
+        style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;border-radius:10px;padding:13px 20px;font-weight:700">View
+        in KwachaStay</a></p>{% endif %}
+    <p style="color:#6b7280;font-size:13px">KwachaStay · Zambia</p>
   </div>
 </body>
+
 </html>

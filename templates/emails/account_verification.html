@@ -8,7 +8,7 @@
     {% if verification_code %}<p>Your verification code is:</p><p style="font-size:30px;letter-spacing:8px;font-weight:700;color:#dc2626">{{ verification_code }}</p>{% endif %}
     {% if verification_link %}<p><a href="{{ verification_link }}" style="display:inline-block;background:#dc2626;color:#fff;text-decoration:none;border-radius:10px;padding:13px 20px;font-weight:700">Verify email address</a></p>{% endif %}
     <p style="color:#6b7280;font-size:14px">Verification links expire in {{ (email_verification_ttl_seconds // 3600) if email_verification_ttl_seconds else 24 }} hours. Verification codes expire in 10 minutes. If you did not request this, you can safely ignore it.</p>
-    <p style="color:#6b7280;font-size:13px">KwachaStay · Lusaka, Zambia</p>
+    <p style="color:#6b7280;font-size:13px">KwachaStay · Zambia</p>
   </div>
 </body>
 </html>

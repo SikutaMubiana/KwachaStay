@@ -4,7 +4,7 @@
 <header class="bg-gradient-to-br from-rose-50 via-white to-orange-50">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20">
         <p class="text-sm font-bold uppercase tracking-[0.2em] text-primary">About KwachaStay</p>
-        <h1 class="mt-4 text-4xl sm:text-5xl font-bold tracking-tight text-gray-900">A Lusaka-based PropTech platform</h1>
+        <h1 class="mt-4 text-4xl sm:text-5xl font-bold tracking-tight text-gray-900">Your trusted marketplace for discovering and listing properties across Zambia.</h1>
     </div>
 </header>
 
@@ -45,29 +45,39 @@
         </div>
         <h2 id="about-heading" class="text-2xl font-bold text-gray-900">About KwachaStay</h2>
         <p class="mt-4 leading-7 text-gray-600">
-            KwachaStay is a Lusaka-based property technology and accommodation marketplace connecting people searching for accommodation with property owners, landlords, real estate agents, property managers, and hospitality providers.
+            KwachaStay is a Zambian property marketplace connecting property seekers, landlords, real estate agents, property managers, hotels and accommodation providers across multiple major cities in Zambia.
         </p>
         <p class="mt-4 leading-7 text-gray-600">
-            The platform offers a centralized digital space to discover residential properties, student hostels, apartments, villas, hotels, and short-term accommodation within Lusaka, Zambia.
+            Discover houses, apartments, hostels, hotels, villas and short-term accommodation across Zambia’s major cities — all in one transparent, easy-to-use digital platform.
         </p>
         <p class="mt-4 leading-7 text-gray-600">
-            Our target market includes students, tenants, families, professionals, travellers, tourists, property owners, real estate professionals, and hospitality businesses operating within Lusaka.
+            Our platform serves students, tenants, families, professionals, travellers, tourists, landlords, real estate agents, property managers, and hospitality businesses operating across our launch cities.
         </p>
-        <p class="mt-5 inline-flex items-center gap-2 rounded-lg bg-rose-50 px-4 py-3 text-sm font-semibold text-gray-800">
-            <i class="fa-solid fa-location-dot text-primary" aria-hidden="true"></i>
-            Current service market: Lusaka, Zambia only.
-        </p>
+        <div class="mt-5 rounded-xl bg-rose-50 px-5 py-4 text-sm text-gray-800">
+            <p class="font-semibold flex items-center gap-2">
+                <i class="fa-solid fa-location-dot text-primary" aria-hidden="true"></i>
+                Current Launch Cities (7 Zambian Cities):
+            </p>
+            <div class="mt-2.5 flex flex-wrap gap-2">
+                {% for city in launch_cities %}
+                <a href="{{ url_for('index', city=city) }}"
+                    class="rounded-full bg-white border border-rose-200 px-3 py-1 text-xs font-bold text-gray-800 hover:border-primary hover:text-primary transition">
+                    {{ city }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
 
         <div class="mt-8 border-t border-gray-100 pt-7">
             <h3 class="text-xl font-bold text-gray-900">Our Services</h3>
             <ul class="mt-5 grid gap-4 sm:grid-cols-2">
                 {% for service in [
                     'Residential property rentals and listings.',
-                    'Student accommodation and hostels.',
-                    'Apartments, villas, and houses.',
-                    'Hotels and short-term accommodation.',
-                    'Property advertising and promotion.',
-                    'Accommodation enquiries and booking connections.'
+                    'Student boarding houses, university apartments, and hostels.',
+                    'Apartments, villas, and family houses.',
+                    'Hotels, guest houses, and short-term accommodation.',
+                    'Property advertising, virtual walkthroughs, and promotion.',
+                    'Viewing scheduling, enquiries, and booking connections.'
                 ] %}
                 <li class="flex items-start gap-3 text-gray-700">
                     <i class="fa-solid fa-check mt-1 text-primary" aria-hidden="true"></i>
@@ -84,7 +94,7 @@
         </div>
         <h2 id="mission-heading" class="text-2xl font-bold text-gray-900">Our Mission</h2>
         <p class="mt-4 leading-7 text-gray-600">
-            To simplify accommodation discovery in Lusaka through innovative digital solutions that connect property seekers with accommodation providers while improving accessibility, convenience, and efficiency within the real estate and hospitality sectors.
+            To simplify property and accommodation discovery across Zambia’s major cities through innovative digital solutions that connect property seekers with verified landlords, agents, and hospitality providers while improving trust, convenience, and efficiency.
         </p>
     </section>
 
@@ -94,7 +104,7 @@
         </div>
         <h2 id="vision-heading" class="text-2xl font-bold text-gray-900">Our Vision</h2>
         <p class="mt-4 leading-7 text-gray-600">
-            To become a leading property technology platform in Zambia, transforming how people discover, access, and manage accommodation through technology, innovation, and digital connectivity.
+            To become a leading property technology platform in Zambia, transforming how people discover, access, and manage accommodation across cities through technology, innovation, and digital connectivity.
         </p>
     </section>
 </main>

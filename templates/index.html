@@ -3,26 +3,74 @@
 {% block content %}
 
 <!-- ===== HERO SECTION ===== -->
-<section class="bg-gradient-to-br from-gray-900 via-gray-800 to-red-900 text-white py-20 px-4">
-    <div class="max-w-4xl mx-auto text-center">
+<section class="bg-gradient-to-br from-gray-900 via-gray-800 to-red-900 text-white py-16 md:py-20 px-4">
+    <div class="max-w-5xl mx-auto text-center">
+        <span
+            class="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3.5 py-1 text-xs font-semibold text-gray-200 mb-4">
+            <i class="fa-solid fa-map-location-dot text-primary"></i>
+            {{ zambia_cities | join(' · ') }}
+        </span>
         <h1 class="text-4xl md:text-6xl font-bold mb-4 leading-tight">
-            Find your perfect stay <br>in <span class="text-primary">Lusaka</span>
+            Find Your Next Home <span class="text-primary">Across Zambia.</span>
         </h1>
-        <p class="text-lg text-gray-300 mb-10">Browse verified properties across Lusaka's finest neighbourhoods</p>
+        <p class="text-base md:text-lg text-gray-300 mb-8 max-w-3xl mx-auto">Discover houses, apartments, hostels, hotels, villas and short-term accommodation across Zambia’s major cities.</p>
 
-        <!-- Search Bar -->
-        <form action="{{ url_for('index') }}" method="GET" class="no-loader">
-            <div class="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto">
-                <div class="relative flex-grow">
-                    <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                    <input type="text" name="q" value="{{ search_q or '' }}"
-                        placeholder="Search by name, area or keyword…"
-                        class="w-full pl-11 pr-4 py-4 rounded-xl text-gray-900 text-base font-medium focus:outline-none focus:ring-2 focus:ring-primary shadow-lg">
+        <!-- Guided 3-Step Search Bar: City -> Neighbourhood -> Property Type -->
+        <form action="{{ url_for('index') }}" method="GET"
+            class="no-loader bg-white/95 backdrop-blur rounded-2xl p-3 sm:p-4 shadow-2xl text-left max-w-4xl mx-auto">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                    <label for="heroCitySelect" class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1">1. Select City</label>
+                    <select name="city" id="heroCitySelect"
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-900 focus:border-primary focus:ring-primary">
+                        <option value="All" {% if selected_city == 'All' %}selected{% endif %}>All 7 Launch Cities</option>
+                        {% for city_name in zambia_cities %}
+                        <option value="{{ city_name }}" {% if selected_city==city_name %}selected{% endif %}>{{ city_name }}</option>
+                        {% endfor %}
+                    </select>
                 </div>
-                <button type="submit"
-                    class="bg-primary hover:bg-red-600 text-white px-8 py-4 rounded-xl font-bold text-base transition shadow-md shadow-red-500/30">
-                    Search
-                </button>
+                <div>
+                    <label for="heroCompoundSelect" class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1">2. Select Neighbourhood</label>
+                    <select name="compound" id="heroCompoundSelect"
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-900 focus:border-primary focus:ring-primary">
+                        <option value="All">{% if selected_city != 'All' %}All areas in {{ selected_city }}{% else %}Select a city first{% endif %}</option>
+                        {% for c in compounds %}
+                        <option value="{{ c }}" {% if selected_compound==c %}selected{% endif %}>{{ c }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="heroTypeSelect" class="block text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-1">3. Property Type</label>
+                    <select name="property_type" id="heroTypeSelect"
+                        class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm font-semibold text-gray-900 focus:border-primary focus:ring-primary">
+                        <option value="All">All Property Types</option>
+                        <option value="House" {% if property_type=='House' %}selected{% endif %}>House</option>
+                        <option value="Apartment" {% if property_type=='Apartment' %}selected{% endif %}>Apartment
+                        </option>
+                        <option value="Boarding House" {% if property_type=='Boarding House' %}selected{% endif %}>
+                            Boarding House / University Apt</option>
+                        <option value="Villa" {% if property_type=='Villa' %}selected{% endif %}>Villa</option>
+                        <option value="Hotel" {% if property_type=='Hotel' %}selected{% endif %}>Hotel</option>
+                        <option value="Guest House" {% if property_type=='Guest House' %}selected{% endif %}>Guest House
+                        </option>
+                        <option value="Hostel" {% if property_type=='Hostel' %}selected{% endif %}>Hostel</option>
+                    </select>
+                </div>
+                <div class="flex items-end">
+                    <button type="submit"
+                        class="w-full bg-primary hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold text-sm transition shadow-md shadow-red-500/30 h-[46px]">
+                        <i class="fa-solid fa-magnifying-glass mr-1.5"></i>Search
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3 pt-3 border-t border-gray-100">
+                <div class="relative">
+                    <i
+                        class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs"></i>
+                    <input type="text" name="q" value="{{ search_q or '' }}"
+                        placeholder="Optional keyword (e.g. UNZA, CBU, 2 bedroom, solar, pool)…"
+                        class="w-full pl-9 pr-4 py-2 rounded-lg border border-gray-200 bg-white text-gray-900 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary">
+                </div>
             </div>
         </form>
     </div>
@@ -43,12 +91,44 @@
         </div>
         <div class="text-gray-300">|</div>
         <div>
+            <span class="text-2xl font-bold text-primary">{{ zambia_cities | length }}</span>
+            <span class="text-gray-500 ml-1">launch cities</span>
+        </div>
+        <div class="text-gray-300">|</div>
+        <div>
             <span class="text-2xl font-bold text-primary">ZMW</span>
             <span class="text-gray-500 ml-1">Kwacha pricing, always</span>
         </div>
     </div>
 </section>
 {% endif %}
+
+<!-- ===== EXPLORE PROPERTIES ACROSS OUR CITIES ===== -->
+<section class="bg-gray-50/70 border-b border-gray-100 py-8 px-4" aria-labelledby="explore-cities-heading">
+    <div class="max-w-7xl mx-auto">
+        <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+            <div>
+                <h2 id="explore-cities-heading" class="text-xl md:text-2xl font-bold text-gray-900">Explore Properties Across Our Cities.</h2>
+                <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Browse verified homes, apartments, boarding houses, hotels, and villas in our seven Zambian launch cities.</p>
+            </div>
+            <a href="{{ url_for('lusaka_areas') }}" class="text-xs sm:text-sm font-bold text-primary hover:underline">
+                View all city &amp; neighbourhood guides <i class="fa-solid fa-arrow-right ml-1"></i>
+            </a>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {% for city in city_guide %}
+            <a href="{{ url_for('index', city=city.name) }}"
+                class="group rounded-xl border p-3.5 transition flex flex-col justify-between {% if selected_city == city.name %}border-primary bg-rose-50/60 shadow-sm{% else %}border-gray-200 bg-white hover:border-primary hover:shadow-sm{% endif %}">
+                <div class="flex items-center justify-between gap-1 mb-1">
+                    <span class="font-bold text-sm text-gray-900 group-hover:text-primary transition">{{ city.name }}</span>
+                    <i class="fa-solid fa-location-dot text-xs text-primary/70 group-hover:text-primary" aria-hidden="true"></i>
+                </div>
+                <p class="text-[11px] text-gray-500">{{ city_counts.get(city.name, 0) }} listing{{ 's' if city_counts.get(city.name, 0) != 1 }}</p>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</section>
 
 <!-- ===== MAIN CONTENT ===== -->
 <div class="max-w-7xl mx-auto px-4 py-10 flex flex-col lg:flex-row gap-8">
@@ -63,12 +143,25 @@
                 <!-- Keep search query -->
                 {% if search_q %}<input type="hidden" name="q" value="{{ search_q }}">{% endif %}
 
+                <!-- City / Town -->
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-2">City (Launch Cities)</label>
+                    <select name="city" id="filterCitySelect"
+                        class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                        <option value="All" {% if selected_city=='All' %}selected{% endif %}>All 7 Launch Cities</option>
+                        {% for city_name in zambia_cities %}
+                        <option value="{{ city_name }}" {% if selected_city==city_name %}selected{% endif %}>{{
+                            city_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
                 <!-- Area -->
                 <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">Neighbourhood / Compound</label>
-                    <select name="compound"
+                    <label class="block text-sm font-bold text-gray-700 mb-2">Neighbourhood / Area</label>
+                    <select name="compound" id="filterCompoundSelect"
                         class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
-                        <option value="All">All Areas</option>
+                        <option value="All">{% if selected_city != 'All' %}All areas in {{ selected_city }}{% else %}Select a city first{% endif %}</option>
                         {% for c in compounds %}
                         <option value="{{ c }}" {% if selected_compound==c %}selected{% endif %}>{{ c }}</option>
                         {% endfor %}
@@ -76,16 +169,18 @@
                 </div>
 
                 <div class="space-y-2">
-                    <label for="nearbyLandmark" class="block text-sm font-bold text-gray-700">Search near a landmark or pin</label>
+                    <label for="nearbyLandmark" class="block text-sm font-bold text-gray-700">Search near a landmark or
+                        pin</label>
                     <select id="nearbyLandmark"
                         class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
-                        <option value="">Choose a Lusaka landmark</option>
-                        <option value="-15.4167,28.2833">Lusaka city centre</option>
-                        <option value="-15.3302,28.4526">Kenneth Kaunda International Airport</option>
-                        <option value="-15.3917,28.3292">University of Zambia</option>
-                        <option value="-15.3988,28.3304">EastPark Mall</option>
-                        <option value="-15.4303,28.2928">University Teaching Hospital</option>
-                        <option value="-15.3915,28.2806">Levy Junction</option>
+                        <option value="">Choose a city landmark</option>
+                        {% for city_name, landmarks in city_landmarks.items() %}
+                        <optgroup label="{{ city_name }}">
+                            {% for lm_name, lm_icon, lm_lat, lm_lng in landmarks %}
+                            <option value="{{ lm_lat }},{{ lm_lng }}">{{ lm_name }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endfor %}
                     </select>
                     <div class="flex gap-2">
                         <button id="useSearchLocation" type="button"
@@ -95,13 +190,15 @@
                         <select name="near_radius_km" aria-label="Distance from selected location"
                             class="rounded-xl border px-3 py-2 text-xs">
                             {% for radius in ['1', '2', '5', '10', '20', '50'] %}
-                            <option value="{{ radius }}" {% if near_radius_km == radius %}selected{% endif %}>{{ radius }} km</option>
+                            <option value="{{ radius }}" {% if near_radius_km==radius %}selected{% endif %}>{{ radius }}
+                                km</option>
                             {% endfor %}
                         </select>
                     </div>
                     <input type="hidden" name="near_lat" id="nearLatitude" value="{{ near_lat }}">
                     <input type="hidden" name="near_lon" id="nearLongitude" value="{{ near_lon }}">
-                    <p class="text-xs text-gray-500">Filter by distance from a landmark, your location, or a point selected on the map.</p>
+                    <p class="text-xs text-gray-500">Filter by distance from a landmark, your location, or a point
+                        selected on the map.</p>
                 </div>
 
                 <!-- Property Type -->
@@ -110,37 +207,162 @@
                     <select name="property_type"
                         class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
                         <option value="All">All Types</option>
-                        <option value="House" {% if property_type == 'House' %}selected{% endif %}>House</option>
-                        <option value="Boarding House" {% if property_type == 'Boarding House' %}selected{% endif %}>Boarding House / University Apartment</option>
-                        <option value="Apartment" {% if property_type == 'Apartment' %}selected{% endif %}>Apartment</option>
-                        <option value="Villa" {% if property_type == 'Villa' %}selected{% endif %}>Villa</option>
-                        <option value="Guest House" {% if property_type == 'Guest House' %}selected{% endif %}>Guest House</option>
-                        <option value="Hotel" {% if property_type == 'Hotel' %}selected{% endif %}>Hotel</option>
-                        <option value="Hostel" {% if property_type == 'Hostel' %}selected{% endif %}>Hostel</option>
+                        <option value="House" {% if property_type=='House' %}selected{% endif %}>House</option>
+                        <option value="Boarding House" {% if property_type=='Boarding House' %}selected{% endif %}>
+                            Boarding House / University Apartment</option>
+                        <option value="Apartment" {% if property_type=='Apartment' %}selected{% endif %}>Apartment
+                        </option>
+                        <option value="Villa" {% if property_type=='Villa' %}selected{% endif %}>Villa</option>
+                        <option value="Guest House" {% if property_type=='Guest House' %}selected{% endif %}>Guest House
+                        </option>
+                        <option value="Hotel" {% if property_type=='Hotel' %}selected{% endif %}>Hotel</option>
+                        <option value="Hostel" {% if property_type=='Hostel' %}selected{% endif %}>Hostel</option>
                     </select>
                 </div>
 
                 <div class="space-y-3">
                     <div>
-                        <label for="powerBackupFilter" class="block text-sm font-bold text-gray-700 mb-2">Power backup</label>
+                        <label for="powerBackupFilter" class="block text-sm font-bold text-gray-700 mb-2">Power
+                            backup</label>
                         <select id="powerBackupFilter" name="power_backup"
                             class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
                             <option value="">Any power backup</option>
                             {% for value, label in power_backup_options.items() %}
-                            <option value="{{ value }}" {% if power_backup == value %}selected{% endif %}>{{ label }}</option>
+                            <option value="{{ value }}" {% if power_backup==value %}selected{% endif %}>{{ label }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
                     <div>
-                        <label for="waterSupplyFilter" class="block text-sm font-bold text-gray-700 mb-2">Water supply</label>
+                        <label for="waterSupplyFilter" class="block text-sm font-bold text-gray-700 mb-2">Water
+                            supply</label>
                         <select id="waterSupplyFilter" name="water_supply"
                             class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
                             <option value="">Any water supply</option>
                             {% for value, label in water_supply_options.items() %}
-                            <option value="{{ value }}" {% if water_supply == value %}selected{% endif %}>{{ label }}</option>
+                            <option value="{{ value }}" {% if water_supply==value %}selected{% endif %}>{{ label }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Furnishing</label>
+                        <select name="furnishing_status"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="">Any furnishing</option>
+                            {% for value, label in furnishing_options.items() %}
+                            <option value="{{ value }}" {% if furnishing_status==value %}selected{% endif %}>{{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">ZESCO Meter</label>
+                        <select name="zesco_meter_type"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="">Any electricity meter</option>
+                            {% for value, label in zesco_meter_options.items() %}
+                            <option value="{{ value }}" {% if zesco_meter_type==value %}selected{% endif %}>{{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Compound / Yard Style</label>
+                        <select name="yard_type"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="">Own yard or complex</option>
+                            {% for value, label in yard_type_options.items() %}
+                            <option value="{{ value }}" {% if yard_type==value %}selected{% endif %}>{{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Owner / Agent</label>
+                        <select name="listing_source"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="">Direct owner or agent</option>
+                            {% for value, label in listing_source_options.items() %}
+                            <option value="{{ value }}" {% if listing_source==value %}selected{% endif %}>{{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Near My University / Campus</label>
+                        <select name="nearby_university"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="">Any campus</option>
+                            {% for uni in zambia_universities %}
+                            <option value="{{ uni }}" {% if nearby_university==uni %}selected{% endif %}>{{ uni }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Distance to Campus</label>
+                        <select name="campus_distance"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="">Any walking / bus distance</option>
+                            {% for value, label in campus_distance_options.items() %}
+                            <option value="{{ value }}" {% if campus_distance==value %}selected{% endif %}>{{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Boarding House Gender</label>
+                        <select name="boarding_gender"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="">Any gender policy</option>
+                            {% for value, label in boarding_gender_options.items() %}
+                            <option value="{{ value }}" {% if boarding_gender==value %}selected{% endif %}>{{ label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">Gate &amp; Curfew</label>
+                        <select name="gate_curfew_policy"
+                            class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
+                            <option value="">Any gate access</option>
+                            {% for value, label in gate_curfew_options.items() %}
+                            <option value="{{ value }}" {% if gate_curfew_policy==value %}selected{% endif %}>{{ label
+                                }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label class="flex items-center gap-2.5 cursor-pointer pt-1">
+                        <input type="checkbox" name="master_self_contained" value="1" {% if master_self_contained
+                            %}checked{% endif %}
+                            class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                        <span class="text-sm font-semibold text-gray-700">Master Self-Contained (MSC)</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" name="has_study_backup_power" value="1" {% if
+                            request.args.get('has_study_backup_power') %}checked{% endif %}
+                            class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                        <span class="text-sm font-medium text-gray-700">Study Lights &amp; Laptop Solar Backup</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" name="has_study_desk" value="1" {% if request.args.get('has_study_desk')
+                            %}checked{% endif %}
+                            class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                        <span class="text-sm font-medium text-gray-700">Study Desk / Quiet Area</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" name="has_bed_mattress" value="1" {% if
+                            request.args.get('has_bed_mattress') %}checked{% endif %}
+                            class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                        <span class="text-sm font-medium text-gray-700">Bed &amp; Mattress Provided</span>
+                    </label>
+                    <label class="flex items-center gap-2.5 cursor-pointer">
+                        <input type="checkbox" name="has_stove_fridge" value="1" {% if
+                            request.args.get('has_stove_fridge') %}checked{% endif %}
+                            class="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300">
+                        <span class="text-sm font-medium text-gray-700">Stove &amp; Fridge Access</span>
+                    </label>
                 </div>
 
                 <!-- Price Range -->
@@ -180,12 +402,14 @@
                     <label for="sortBy" class="block text-sm font-bold text-gray-700 mb-2">Sort By</label>
                     <select id="sortBy" name="sort"
                         class="w-full border border-gray-200 rounded-xl p-3 text-sm focus:ring-primary outline-none">
-                        <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest Listings</option>
-                        <option value="price_asc" {% if sort == 'price_asc' %}selected{% endif %}>Price: Low to High</option>
-                        <option value="price_desc" {% if sort == 'price_desc' %}selected{% endif %}>Price: High to Low</option>
-                        <option value="top_rated" {% if sort == 'top_rated' %}selected{% endif %}>Top Rated</option>
-                        <option value="most_viewed" {% if sort == 'most_viewed' %}selected{% endif %}>Most Viewed</option>
-                        <option value="distance" {% if sort == 'distance' %}selected{% endif %}>Nearest first</option>
+                        <option value="newest" {% if sort=='newest' %}selected{% endif %}>Newest Listings</option>
+                        <option value="price_asc" {% if sort=='price_asc' %}selected{% endif %}>Price: Low to High
+                        </option>
+                        <option value="price_desc" {% if sort=='price_desc' %}selected{% endif %}>Price: High to Low
+                        </option>
+                        <option value="top_rated" {% if sort=='top_rated' %}selected{% endif %}>Top Rated</option>
+                        <option value="most_viewed" {% if sort=='most_viewed' %}selected{% endif %}>Most Viewed</option>
+                        <option value="distance" {% if sort=='distance' %}selected{% endif %}>Nearest first</option>
                     </select>
                 </div>
 
@@ -270,7 +494,8 @@
                     </div>
 
                     <!-- Views count badge -->
-                    <div class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                    <div
+                        class="absolute bottom-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
                         <i class="fa-regular fa-eye"></i> {{ prop.view_count or 0 }} views
                     </div>
 
@@ -300,7 +525,8 @@
                     </div>
 
                     <p class="text-gray-500 text-sm mb-3">
-                        <i class="fa-solid fa-location-dot text-primary text-xs mr-1"></i>{{ prop.compound }}, Lusaka
+                        <i class="fa-solid fa-location-dot text-primary text-xs mr-1"></i>{{ prop.compound }}, {{
+                        prop.city or 'Lusaka' }}
                     </p>
                     {% if prop.distance_km is defined %}
                     <p class="text-xs text-blue-700 mb-3">{{ prop.distance_km }} km from your selected location</p>
@@ -438,8 +664,8 @@
                 </div>
                 <div class="text-xs font-bold text-primary uppercase tracking-widest mb-2">Step 1</div>
                 <h3 class="text-xl font-bold mb-2">Search</h3>
-                <p class="text-gray-500 text-sm">Browse verified properties across Lusaka's top neighbourhoods. Filter
-                    by area, type, price and amenities like Solar Power and Borehole Water.</p>
+                <p class="text-gray-500 text-sm">Browse verified properties across Zambia’s major cities. Filter
+                    by city, neighbourhood, property type, price and essentials like Solar Power and Borehole Water.</p>
             </div>
             <div class="text-center p-6 relative">
                 <div
@@ -451,8 +677,7 @@
                 </div>
                 <div class="text-xs font-bold text-primary uppercase tracking-widest mb-2">Step 2</div>
                 <h3 class="text-xl font-bold mb-2">Book</h3>
-                <p class="text-gray-500 text-sm">Select your dates and pay securely via MTN Money, Airtel Money, or card
-                    — all in Kwacha. Instant booking confirmation sent to your inbox.</p>
+                <p class="text-gray-500 text-sm">Request an in-person viewing or book directly in Kwacha via MTN Money, Airtel Money, or card. Instant confirmation sent to your inbox.</p>
             </div>
             <div class="text-center p-6 relative">
                 <div
@@ -465,7 +690,7 @@
                 <div class="text-xs font-bold text-primary uppercase tracking-widest mb-2">Step 3</div>
                 <h3 class="text-xl font-bold mb-2">Stay</h3>
                 <p class="text-gray-500 text-sm">Check in, settle in, and enjoy. Leave a review after your stay to help
-                    others find their perfect Lusaka home away from home.</p>
+                    others find their next home across Zambia.</p>
             </div>
         </div>
     </div>
@@ -474,15 +699,16 @@
 <!-- ===== CTA BANNER ===== -->
 <section class="bg-gradient-to-r from-primary to-red-700 text-white py-16 px-4">
     <div class="max-w-3xl mx-auto text-center">
-        <h2 class="text-3xl font-bold mb-3">Have a property in Lusaka?</h2>
-        <p class="text-red-100 mb-8">List it on KwachaStay and start earning from guests across Zambia and beyond.</p>
+        <h2 class="text-3xl font-bold mb-3">List Your Property on KwachaStay.</h2>
+        <p class="text-red-100 mb-8">Connect with renters, students, travellers, and guests across {{ zambia_cities | join(', ') }}.</p>
         {% if g.user and g.user['role'] == 'owner' %}
         <a href="{{ url_for('add_house') }}"
             class="inline-block bg-white text-primary font-bold px-8 py-3 rounded-xl hover:bg-red-50 transition shadow-lg">
             List a Property Now
         </a>
         {% elif g.user %}
-        <p class="text-sm text-red-100 mb-4">You're currently signed in with a Tenant account. Log out to register a separate Landlord / Lister account.</p>
+        <p class="text-sm text-red-100 mb-4">You're currently signed in with a Tenant account. Log out to register a
+            separate Landlord / Lister account.</p>
         <a href="{{ url_for('logout') }}"
             class="inline-block bg-white text-primary font-bold px-8 py-3 rounded-xl hover:bg-red-50 transition shadow-lg">
             Log Out to Register as Landlord
@@ -497,91 +723,96 @@
 </section>
 
 <script nonce="{{ csp_nonce() }}">
-(() => {
-    const form = document.getElementById('searchFilters');
-    const landmark = document.getElementById('nearbyLandmark');
-    const latitude = document.getElementById('nearLatitude');
-    const longitude = document.getElementById('nearLongitude');
-    const locateButton = document.getElementById('useSearchLocation');
-    const toggleButton = document.getElementById('toggleSearchMap');
-    const mapElement = document.getElementById('searchMap');
-    let map;
+    (() => {
+        const form = document.getElementById('searchFilters');
+        const landmark = document.getElementById('nearbyLandmark');
+        const latitude = document.getElementById('nearLatitude');
+        const longitude = document.getElementById('nearLongitude');
+        const locateButton = document.getElementById('useSearchLocation');
+        const toggleButton = document.getElementById('toggleSearchMap');
+        const mapElement = document.getElementById('searchMap');
+        let map;
 
-    function setSearchPoint(lat, lon) {
-        latitude.value = Number(lat).toFixed(6);
-        longitude.value = Number(lon).toFixed(6);
-        landmark.value = '';
-    }
-
-    landmark.addEventListener('change', () => {
-        if (!landmark.value) {
-            latitude.value = '';
-            longitude.value = '';
-            return;
+        function setSearchPoint(lat, lon) {
+            latitude.value = Number(lat).toFixed(6);
+            longitude.value = Number(lon).toFixed(6);
+            landmark.value = '';
         }
-        const [lat, lon] = landmark.value.split(',');
-        setSearchPoint(lat, lon);
+
+        landmark.addEventListener('change', () => {
+            if (!landmark.value) {
+                latitude.value = '';
+                longitude.value = '';
+                return;
+            }
+            const [lat, lon] = landmark.value.split(',');
+            setSearchPoint(lat, lon);
+        });
+
+        locateButton.addEventListener('click', () => {
+            if (!navigator.geolocation) {
+                window.alert('Location is not supported by this browser.');
+                return;
+            }
+            locateButton.disabled = true;
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    setSearchPoint(position.coords.latitude, position.coords.longitude);
+                    locateButton.disabled = false;
+                    form.requestSubmit();
+                },
+                () => {
+                    locateButton.disabled = false;
+                    window.alert('Could not get your location. Choose a landmark or select a point on the map.');
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+            );
+        });
+
+        function showMap() {
+            if (!toggleButton || !mapElement) return;
+            mapElement.classList.remove('hidden');
+            toggleButton.textContent = 'Hide map';
+            toggleButton.setAttribute('aria-expanded', 'true');
+            if (!window.L || map) {
+                if (map) window.setTimeout(() => map.invalidateSize(), 50);
+                return;
+            }
+            const searchPoint = {{ near_point | tojson }};
+            const markers = {{ map_markers | tojson }};
+            const cityCoordsMap = {{ city_coords | tojson }};
+            const selectedCityName = {{ selected_city | tojson }};
+            const zambiaCenter = {{ zambia_default_center | tojson }};
+            const initialCenter = searchPoint || (selectedCityName && cityCoordsMap[selectedCityName]) || zambiaCenter;
+            const initialZoom = searchPoint ? 13 : (selectedCityName && cityCoordsMap[selectedCityName] ? 12 : 6);
+    map = L.map(mapElement, { scrollWheelZoom: false })
+        .setView(initialCenter, initialZoom);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
+    markers.forEach(property => {
+        const marker = L.marker([property.latitude, property.longitude]).addTo(map);
+        const popup = document.createElement('a');
+        popup.href = `/property/${encodeURIComponent(property.id)}`;
+        popup.className = 'font-bold text-gray-900';
+        popup.textContent = `${property.title} · ZMW ${Number(property.price).toLocaleString()}`;
+        marker.bindPopup(popup);
     });
-
-    locateButton.addEventListener('click', () => {
-        if (!navigator.geolocation) {
-            window.alert('Location is not supported by this browser.');
-            return;
-        }
-        locateButton.disabled = true;
-        navigator.geolocation.getCurrentPosition(
-            position => {
-                setSearchPoint(position.coords.latitude, position.coords.longitude);
-                locateButton.disabled = false;
-                form.requestSubmit();
-            },
-            () => {
-                locateButton.disabled = false;
-                window.alert('Could not get your location. Choose a landmark or select a point on the map.');
-            },
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
-        );
-    });
-
-    function showMap() {
-        if (!toggleButton || !mapElement) return;
-        mapElement.classList.remove('hidden');
-        toggleButton.textContent = 'Hide map';
-        toggleButton.setAttribute('aria-expanded', 'true');
-        if (!window.L || map) {
-            if (map) window.setTimeout(() => map.invalidateSize(), 50);
-            return;
-        }
-        const searchPoint = {{ near_point|tojson }};
-        const markers = {{ map_markers|tojson }};
-        map = L.map(mapElement, { scrollWheelZoom: false })
-            .setView(searchPoint || [-15.4167, 28.2833], searchPoint ? 13 : 11);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap contributors',
-            maxZoom: 19
+    if (searchPoint) {
+        L.circle(searchPoint, {
+            radius: Number(document.querySelector('[name="near_radius_km"]').value) * 1000,
+            color: '#ff385c',
+            fillOpacity: 0.08
         }).addTo(map);
-        markers.forEach(property => {
-            const marker = L.marker([property.latitude, property.longitude]).addTo(map);
-            const popup = document.createElement('a');
-            popup.href = `/property/${encodeURIComponent(property.id)}`;
-            popup.className = 'font-bold text-gray-900';
-            popup.textContent = `${property.title} · ZMW ${Number(property.price).toLocaleString()}`;
-            marker.bindPopup(popup);
-        });
-        if (searchPoint) {
-            L.circle(searchPoint, {
-                radius: Number(document.querySelector('[name="near_radius_km"]').value) * 1000,
-                color: '#ff385c',
-                fillOpacity: 0.08
-            }).addTo(map);
-        }
-        map.on('click', event => {
-            setSearchPoint(event.latlng.lat, event.latlng.lng);
-            form.requestSubmit();
-        });
-        if (markers.length > 1 && !searchPoint) {
-            map.fitBounds(markers.map(item => [item.latitude, item.longitude]), { padding: [24, 24] });
-        }
+    }
+    map.on('click', event => {
+        setSearchPoint(event.latlng.lat, event.latlng.lng);
+        form.requestSubmit();
+    });
+    if (markers.length > 1 && !searchPoint) {
+        map.fitBounds(markers.map(item => [item.latitude, item.longitude]), { padding: [24, 24] });
+    }
     }
 
     if (toggleButton) {
@@ -595,7 +826,34 @@
             }
         });
     }
-})();
+
+    // Dynamic City -> Neighbourhood cascading for Hero & Sidebar filters
+    const cityNeighbourhoodsMap = {{ city_neighbourhoods| tojson }};
+    function wireCityCascade(citySelectId, compoundSelectId) {
+        const cityEl = document.getElementById(citySelectId);
+        const compEl = document.getElementById(compoundSelectId);
+        if (!cityEl || !compEl) return;
+        cityEl.addEventListener('change', function () {
+            const city = cityEl.value;
+            const list = (city && city !== 'All' && cityNeighbourhoodsMap[city])
+                ? cityNeighbourhoodsMap[city]
+                : [];
+            compEl.innerHTML = '';
+            const allOpt = document.createElement('option');
+            allOpt.value = 'All';
+            allOpt.textContent = (city && city !== 'All') ? ('All areas in ' + city) : 'Select a city first';
+            compEl.appendChild(allOpt);
+            list.forEach(function (area) {
+                const opt = document.createElement('option');
+                opt.value = area;
+                opt.textContent = area;
+                compEl.appendChild(opt);
+            });
+        });
+    }
+    wireCityCascade('heroCitySelect', 'heroCompoundSelect');
+    wireCityCascade('filterCitySelect', 'filterCompoundSelect');
+}) ();
 </script>
 
 {% endblock %}

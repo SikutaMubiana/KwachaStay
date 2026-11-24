@@ -25,8 +25,8 @@
             <span>•</span>
             <span class="underline font-medium">{{ reviews|length }} reviews</span>
             <span>•</span>
-            <a href="{{ url_for('lusaka_areas') }}" class="hover:text-primary hover:underline">
-                {{ property.compound }}, Lusaka, Zambia <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
+            <a href="{{ url_for('lusaka_areas', city=property_city or 'Lusaka') }}" class="hover:text-primary hover:underline">
+                {{ property.compound }}, {{ property_city or 'Lusaka' }}, Zambia <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
             </a>
             <span>•</span>
             <span class="bg-gray-100 px-2.5 py-0.5 rounded text-xs font-semibold flex items-center gap-1 text-gray-700">
@@ -212,48 +212,220 @@
                             </p>
                         </div>
                     </div>
-                    <div class="rounded-xl bg-white border border-indigo-100 p-3 flex items-center gap-3">
-                        <i class="fa-solid fa-money-bill-wave text-lg text-amber-600"></i>
-                        <div>
-                            <p class="font-semibold text-gray-900">
-                                {% if upfront_months and upfront_months > 1 %}
-                                {{ upfront_months }} Months Upfront Required
-                                {% else %}
-                                Paid Monthly (1 month at a time)
-                                {% endif %}
-                            </p>
-                            <p class="text-xs text-gray-500">
-                                {% if upfront_months and upfront_months > 1 %}
-                                Initial rent: ZMW {{ "{:,.0f}".format(property.price_per_night * upfront_months) }} ({{ upfront_months }} months)
-                                {% else %}
-                                No multi-month upfront bulk payment required
-                                {% endif %}
-                            </p>
+                        <div class="rounded-xl bg-white border border-indigo-100 p-3 flex items-center gap-3">
+                            <i class="fa-solid fa-money-bill-wave text-lg text-amber-600"></i>
+                            <div>
+                                <p class="font-semibold text-gray-900">
+                                    {% if upfront_months and upfront_months > 1 %}
+                                    {{ upfront_months }} Months Upfront Required
+                                    {% else %}
+                                    Paid Monthly (1 month at a time)
+                                    {% endif %}
+                                </p>
+                                <p class="text-xs text-gray-500">
+                                    {% if upfront_months and upfront_months > 1 %}
+                                    Initial rent: ZMW {{ "{:,.0f}".format(property.price_per_night * upfront_months) }} ({{ upfront_months }} months)
+                                    {% else %}
+                                    No multi-month upfront bulk payment required
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        {% if property.boarding_gender %}
+                        <div class="rounded-xl bg-white border border-indigo-100 p-3 flex items-center gap-3">
+                            <i class="fa-solid fa-users text-lg text-indigo-600"></i>
+                            <div>
+                                <p class="font-semibold text-gray-900">{{ boarding_gender_options.get(property.boarding_gender, property.boarding_gender) }}</p>
+                                <p class="text-xs text-gray-500">Boarding house gender policy</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if property.nearby_university %}
+                        <div class="rounded-xl bg-white border border-indigo-100 p-3 flex items-center gap-3">
+                            <i class="fa-solid fa-school text-lg text-blue-600"></i>
+                            <div>
+                                <p class="font-semibold text-gray-900">{{ property.nearby_university }}</p>
+                                <p class="text-xs text-gray-500">
+                                    {% if property.campus_distance %}
+                                    {{ campus_distance_options.get(property.campus_distance, property.campus_distance) }}
+                                    {% else %}
+                                    Nearest university / college
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if property.gate_curfew_policy %}
+                        <div class="rounded-xl bg-white border border-indigo-100 p-3 flex items-center gap-3">
+                            <i class="fa-solid fa-door-closed text-lg text-slate-700"></i>
+                            <div>
+                                <p class="font-semibold text-gray-900">{{ gate_curfew_options.get(property.gate_curfew_policy, property.gate_curfew_policy) }}</p>
+                                <p class="text-xs text-gray-500">Gate access &amp; house policy</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if property.bed_spaces_left is not none %}
+                        <div class="rounded-xl bg-white border border-indigo-100 p-3 flex items-center gap-3">
+                            <i class="fa-solid fa-bed text-lg text-emerald-600"></i>
+                            <div>
+                                <p class="font-semibold text-gray-900">{{ property.bed_spaces_left }} bed space{% if property.bed_spaces_left != 1 %}s{% endif %} left</p>
+                                <p class="text-xs text-gray-500">Current room availability</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% if property.semester_rate %}
+                        <div class="rounded-xl bg-white border border-indigo-100 p-3 flex items-center gap-3">
+                            <i class="fa-solid fa-book-open text-lg text-purple-600"></i>
+                            <div>
+                                <p class="font-semibold text-gray-900">ZMW {{ "{:,.0f}".format(property.semester_rate) }} / semester</p>
+                                <p class="text-xs text-gray-500">Academic term / semester rate available</p>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if property.has_bed_mattress or property.has_stove_fridge or property.has_laundry_area or property.has_study_desk or property.has_study_backup_power %}
+                    <div class="border-t border-indigo-200 pt-3">
+                        <p class="text-xs font-bold uppercase tracking-wide text-indigo-900 mb-2">Student Room, Cooking &amp; Study Essentials</p>
+                        <div class="flex flex-wrap gap-2 text-xs font-semibold">
+                            {% if property.has_bed_mattress %}
+                            <span class="rounded-full bg-white border border-indigo-200 text-indigo-900 px-3 py-1">
+                                <i class="fa-solid fa-bed text-indigo-600 mr-1"></i>Bed &amp; Mattress Provided
+                            </span>
+                            {% endif %}
+                            {% if property.has_stove_fridge %}
+                            <span class="rounded-full bg-white border border-amber-200 text-amber-900 px-3 py-1">
+                                <i class="fa-solid fa-kitchen-set text-amber-600 mr-1"></i>Stove &amp; Fridge Access
+                            </span>
+                            {% endif %}
+                            {% if property.has_laundry_area %}
+                            <span class="rounded-full bg-white border border-blue-200 text-blue-900 px-3 py-1">
+                                <i class="fa-solid fa-shirt text-blue-600 mr-1"></i>Laundry Area
+                            </span>
+                            {% endif %}
+                            {% if property.has_study_desk %}
+                            <span class="rounded-full bg-white border border-purple-200 text-purple-900 px-3 py-1">
+                                <i class="fa-solid fa-book-open-reader text-purple-600 mr-1"></i>Study Desk / Quiet Study Area
+                            </span>
+                            {% endif %}
+                            {% if property.has_study_backup_power %}
+                            <span class="rounded-full bg-orange-50 border border-orange-200 text-orange-900 px-3 py-1">
+                                <i class="fa-solid fa-solar-panel text-orange-500 mr-1"></i>Backup Solar / Inverter for Study Lights &amp; Laptop Charging
+                            </span>
+                            {% endif %}
                         </div>
                     </div>
+                    {% endif %}
                 </div>
-            </div>
-            {% elif property.price_period == 'month' %}
-            <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 flex items-start gap-3">
-                <i class="fa-solid fa-money-bill-wave text-xl text-amber-600 mt-0.5"></i>
-                <div>
-                    <h3 class="font-bold text-gray-900 text-sm">
-                        {% if upfront_months and upfront_months > 1 %}
-                        Rent Payment Terms: {{ upfront_months }} Months Upfront Required
-                        {% else %}
-                        Rent Payment Terms: Monthly (Pay 1 Month at a Time)
-                        {% endif %}
+                {% elif property.price_period == 'month' %}
+                <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 flex items-start gap-3">
+                    <i class="fa-solid fa-money-bill-wave text-xl text-amber-600 mt-0.5"></i>
+                    <div>
+                        <h3 class="font-bold text-gray-900 text-sm">
+                            {% if upfront_months and upfront_months > 1 %}
+                            Rent Payment Terms: {{ upfront_months }} Months Upfront Required
+                            {% else %}
+                            Rent Payment Terms: Monthly (Pay 1 Month at a Time)
+                            {% endif %}
+                        </h3>
+                        <p class="text-xs text-gray-700 mt-0.5">
+                            {% if upfront_months and upfront_months > 1 %}
+                            The owner requires {{ upfront_months }} months rent paid upfront (ZMW {{ "{:,.0f}".format(property.price_per_night * upfront_months) }} before fees).
+                            {% else %}
+                            No multi-month upfront requirement — rent can be paid month-to-month.
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Zambia Rental Essentials Badges -->
+                <div class="rounded-2xl border border-gray-200 bg-white p-5">
+                    <h3 class="font-bold text-gray-900 text-sm mb-3 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-check text-primary"></i>
+                        Property Essentials &amp; Transparency
                     </h3>
-                    <p class="text-xs text-gray-700 mt-0.5">
-                        {% if upfront_months and upfront_months > 1 %}
-                        The owner requires {{ upfront_months }} months rent paid upfront (ZMW {{ "{:,.0f}".format(property.price_per_night * upfront_months) }} before fees).
-                        {% else %}
-                        No multi-month upfront requirement — rent can be paid month-to-month.
+                    <div class="flex flex-wrap gap-2 text-xs font-semibold">
+                        <span class="rounded-full bg-slate-100 text-slate-800 px-3 py-1.5">
+                            <i class="fa-solid fa-location-dot text-primary mr-1"></i>{{ property.compound }}, {{ property_city or 'Lusaka' }}
+                        </span>
+                        <span class="rounded-full bg-blue-50 text-blue-800 px-3 py-1.5">
+                            <i class="fa-solid fa-couch mr-1"></i>{{ furnishing_options.get(property.furnishing_status or 'unfurnished', 'Unfurnished') }}
+                        </span>
+                        {% if property.master_self_contained %}
+                        <span class="rounded-full bg-purple-50 text-purple-800 px-3 py-1.5">
+                            <i class="fa-solid fa-bath mr-1"></i>Master Self-Contained (MSC)
+                        </span>
                         {% endif %}
-                    </p>
+                        {% if property.zesco_meter_type %}
+                        <span class="rounded-full bg-amber-50 text-amber-900 px-3 py-1.5">
+                            <i class="fa-solid fa-bolt mr-1"></i>{{ zesco_meter_options.get(property.zesco_meter_type, property.zesco_meter_type) }}
+                        </span>
+                        {% endif %}
+                        {% if property.security_fence %}
+                        <span class="rounded-full bg-emerald-50 text-emerald-800 px-3 py-1.5">
+                            <i class="fa-solid fa-shield-halved mr-1"></i>{{ security_fence_options.get(property.security_fence, property.security_fence) }}
+                        </span>
+                        {% endif %}
+                        {% if property.yard_type %}
+                        <span class="rounded-full bg-teal-50 text-teal-800 px-3 py-1.5">
+                            <i class="fa-solid fa-house-chimney mr-1"></i>{{ yard_type_options.get(property.yard_type, property.yard_type) }}
+                        </span>
+                        {% endif %}
+                        {% if property.has_paved_yard %}
+                        <span class="rounded-full bg-stone-100 text-stone-800 px-3 py-1.5">
+                            <i class="fa-solid fa-road mr-1"></i>Paved Yard
+                        </span>
+                        {% endif %}
+                        {% if property.is_family_friendly %}
+                        <span class="rounded-full bg-sky-50 text-sky-800 px-3 py-1.5">
+                            <i class="fa-solid fa-children mr-1"></i>Kids / Family-Friendly
+                        </span>
+                        {% endif %}
+                        {% if property.is_pet_friendly %}
+                        <span class="rounded-full bg-lime-50 text-lime-800 px-3 py-1.5">
+                            <i class="fa-solid fa-paw mr-1"></i>Pet-Friendly
+                        </span>
+                        {% endif %}
+                        <span class="rounded-full {% if (property.listing_source or 'owner') == 'owner' %}bg-green-50 text-green-800{% else %}bg-orange-50 text-orange-800{% endif %} px-3 py-1.5">
+                            <i class="fa-solid fa-user-check mr-1"></i>{{ listing_source_options.get(property.listing_source or 'owner', 'Direct Owner') }}
+                        </span>
+                        <span class="rounded-full bg-gray-100 text-gray-800 px-3 py-1.5">
+                            <i class="fa-solid fa-eye mr-1"></i>{% if property.viewing_fee and property.viewing_fee > 0 %}Viewing fee: ZMW {{ "{:,.0f}".format(property.viewing_fee) }}{% else %}Free physical viewing{% endif %}
+                        </span>
+                    </div>
+                    {% if property.has_private_entrance or property.couples_friendly or property.has_smart_tv or property.allows_small_gatherings or property.offers_airport_transfer %}
+                    <div class="mt-4 pt-3 border-t border-gray-100">
+                        <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-2">Comfort, Privacy &amp; Group Highlights</p>
+                        <div class="flex flex-wrap gap-2 text-xs font-semibold">
+                            {% if property.has_private_entrance %}
+                            <span class="rounded-full bg-rose-50 text-rose-800 px-3 py-1">
+                                <i class="fa-solid fa-key mr-1"></i>Private Entrance / Discreet Access
+                            </span>
+                            {% endif %}
+                            {% if property.couples_friendly %}
+                            <span class="rounded-full bg-pink-50 text-pink-800 px-3 py-1">
+                                <i class="fa-solid fa-heart mr-1"></i>Couples Welcome / Discreet Parking
+                            </span>
+                            {% endif %}
+                            {% if property.has_smart_tv %}
+                            <span class="rounded-full bg-indigo-50 text-indigo-800 px-3 py-1">
+                                <i class="fa-solid fa-tv mr-1"></i>Smart TV (Netflix) / DSTV
+                            </span>
+                            {% endif %}
+                            {% if property.allows_small_gatherings %}
+                            <span class="rounded-full bg-amber-50 text-amber-900 px-3 py-1">
+                                <i class="fa-solid fa-fire-burner mr-1"></i>Small Gatherings / Braai (BBQ) Allowed
+                            </span>
+                            {% endif %}
+                            {% if property.offers_airport_transfer %}
+                            <span class="rounded-full bg-blue-50 text-blue-800 px-3 py-1">
+                                <i class="fa-solid fa-plane-arrival mr-1"></i>Airport Transfer Available
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
-            </div>
-            {% endif %}
 
             <div class="bg-gray-50 border rounded-2xl p-5 space-y-4">
                 <div>
@@ -333,9 +505,22 @@
                     {% if property.location_details %}
                         {{ property.location_details }}
                     {% else %}
-                        Located in {{ property.compound }}, this property is well positioned for access to schools, shopping, transport routes, and daily amenities in Lusaka.
+                        Located in {{ property.compound }}, {{ property_city or 'Lusaka' }}, this property is well positioned for access to schools, shopping, transport routes, and daily amenities.
                     {% endif %}
                 </p>
+                {% if nearby_landmarks %}
+                <div class="mt-4">
+                    <p class="text-xs font-bold uppercase tracking-wide text-gray-500 mb-2">Estimated Distance to Key Landmarks</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                        {% for lm in nearby_landmarks %}
+                        <div class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 flex items-center justify-between">
+                            <span class="font-semibold text-gray-800"><i class="fa-solid {{ lm.icon }} text-primary mr-1.5"></i>{{ lm.name }}</span>
+                            <span class="text-gray-600 font-medium">~{{ lm.distance_km }} km · {{ lm.drive_min }} min</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
 
             <hr>
@@ -344,6 +529,49 @@
             <div>
                 <p class="text-gray-700 leading-relaxed whitespace-pre-line">{{ property.description }}</p>
             </div>
+
+            {% if video_tour %}
+            <hr>
+            <!-- Short Video Walkthrough / Virtual Tour -->
+            <div>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div>
+                        <h3 class="text-lg font-semibold flex items-center gap-2">
+                            <i class="fa-solid fa-video text-primary"></i>Video Walkthrough / Virtual Tour
+                        </h3>
+                        <p class="text-xs text-gray-500 mt-0.5">Tour this property remotely before scheduling a physical viewing.</p>
+                    </div>
+                    <a href="{{ video_tour.original_url }}" target="_blank" rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 transition">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>Open on {{ video_tour.provider }}
+                    </a>
+                </div>
+                {% if video_tour.embed_url and not low_data_mode %}
+                <div class="w-full aspect-video rounded-2xl overflow-hidden border border-gray-200 bg-black shadow-sm">
+                    <iframe src="{{ video_tour.embed_url }}"
+                        title="Video walkthrough for {{ property.title }}"
+                        class="w-full h-full border-0"
+                        loading="lazy"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen></iframe>
+                </div>
+                {% else %}
+                <a href="{{ video_tour.original_url }}" target="_blank" rel="noopener noreferrer"
+                    class="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 p-4 hover:bg-gray-100 transition">
+                    <div class="flex items-center gap-3">
+                        <span class="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-play"></i>
+                        </span>
+                        <div>
+                            <p class="font-bold text-sm text-gray-900">Watch {{ video_tour.provider }} Walkthrough</p>
+                            <p class="text-xs text-gray-500">Opens the host's walkthrough video in a new tab</p>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-gray-400"></i>
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
 
             <hr>
 
@@ -354,9 +582,9 @@
                         <h3 class="text-lg font-semibold">Where you'll be</h3>
                         <p class="text-xs text-gray-500 mt-0.5">
                             {% if has_exact_pin %}
-                            <i class="fa-solid fa-location-dot text-primary mr-1"></i>Exact host-pinned location · {{ property.compound }}, Lusaka
+                            <i class="fa-solid fa-location-dot text-primary mr-1"></i>Exact host-pinned location · {{ property.compound }}, {{ property_city or 'Lusaka' }}
                             {% else %}
-                            <i class="fa-solid fa-map-pin text-gray-400 mr-1"></i>Automatic neighbourhood view · {{ property.compound }}, Lusaka
+                            <i class="fa-solid fa-map-pin text-gray-400 mr-1"></i>Automatic neighbourhood view · {{ property.compound }}, {{ property_city or 'Lusaka' }}
                             {% endif %}
                         </p>
                     </div>
@@ -380,7 +608,7 @@
 
                 {% set lat = map_lat if map_lat is defined else (property.latitude if has_exact_pin else -15.4167) %}
                 {% set lng = map_lng if map_lng is defined else (property.longitude if has_exact_pin else 28.2833) %}
-                {% set embed_query = (lat ~ ',' ~ lng) if has_exact_pin else (property.compound ~ ', Lusaka, Zambia') %}
+                {% set embed_query = (lat ~ ',' ~ lng) if has_exact_pin else (property.compound ~ ', ' ~ (property_city or 'Lusaka') ~ ', Zambia') %}
                 {% set embed_zoom = 17 if has_exact_pin else 15 %}
 
                 {% if not low_data_mode %}
@@ -436,7 +664,7 @@
                 </div>
                 {% else %}
                 <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                    Map embed paused in Low-Data Mode. Use the Google Maps buttons below to inspect {{ property.compound }}, Lusaka.
+                    Map embed paused in Low-Data Mode. Use the Google Maps buttons below to inspect {{ property.compound }}, {{ property_city or 'Lusaka' }}.
                 </div>
                 {% endif %}
 
@@ -451,7 +679,7 @@
                     </a>
                     {% else %}
                     <a id="googleDirectionsBtn"
-                        href="https://www.google.com/maps/dir/?api=1&amp;destination={{ (property.compound ~ ', Lusaka, Zambia')|urlencode }}"
+                        href="https://www.google.com/maps/dir/?api=1&amp;destination={{ (property.compound ~ ', ' ~ (property_city or 'Lusaka') ~ ', Zambia')|urlencode }}"
                         target="_blank" rel="noopener noreferrer"
                         class="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-800 transition">
                         <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>Directions to {{ property.compound }}
@@ -742,6 +970,28 @@
                             <span>Estimated total</span>
                             <span id="pdTotal">ZMW {{ "{:,.0f}".format((property.price_per_night * (upfront_months if property.price_period == 'month' else 1)) + service_fee + (property.cleaning_fee or 0)) }}</span>
                         </div>
+                        {% if property.price_period != 'month' %}
+                        <!-- Group Split-Cost Estimator -->
+                        <div class="border-t border-gray-200 pt-2.5 mt-2">
+                            <div class="flex items-center justify-between gap-2">
+                                <label for="pdSplitGuests" class="text-[11px] font-bold uppercase text-gray-500">
+                                    <i class="fa-solid fa-users mr-1 text-primary"></i>Split cost (friends / group)
+                                </label>
+                                <select id="pdSplitGuests" class="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-semibold">
+                                    <option value="1">1 guest (Solo)</option>
+                                    <option value="2">2 guests (Couple)</option>
+                                    <option value="3">3 guests</option>
+                                    <option value="4">4 guests</option>
+                                    <option value="5">5 guests</option>
+                                    <option value="6">6 guests</option>
+                                    <option value="8">8 guests</option>
+                                    <option value="10">10 guests</option>
+                                    <option value="12">12 guests</option>
+                                </select>
+                            </div>
+                            <p id="pdSplitResult" class="hidden mt-1.5 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-xs font-semibold text-emerald-900"></p>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -749,6 +999,24 @@
                     class="block w-full bg-primary text-white text-center py-3 rounded-lg font-bold text-lg hover:bg-red-600 transition shadow-lg shadow-red-200">
                     Reserve
                 </a>
+
+                <!-- Book a Physical Viewing (Before Paying) -->
+                {% if existing_viewing %}
+                <div class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+                    <p class="font-bold"><i class="fa-solid fa-calendar-check mr-1"></i>Viewing {{ existing_viewing.status|capitalize }}</p>
+                    <p class="mt-0.5">{{ existing_viewing.viewing_date }} at {{ existing_viewing.viewing_time }} · <a href="{{ url_for('tenant_dashboard') }}" class="underline font-semibold">Manage in Dashboard</a></p>
+                </div>
+                {% elif g.user %}
+                <button type="button" onclick="document.getElementById('viewingModal').classList.remove('hidden')"
+                    class="mt-3 w-full py-2.5 border-2 border-gray-900 text-gray-900 rounded-lg font-bold text-sm hover:bg-gray-900 hover:text-white transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-eye"></i>Book a Physical Viewing (Inspect First)
+                </button>
+                {% else %}
+                <a href="{{ url_for('login') }}"
+                    class="mt-3 block w-full py-2.5 border-2 border-gray-900 text-gray-900 text-center rounded-lg font-bold text-sm hover:bg-gray-900 hover:text-white transition">
+                    <i class="fa-solid fa-eye mr-1.5"></i>Log in to Book a Physical Viewing
+                </a>
+                {% endif %}
 
                 <div class="mt-4 flex gap-2">
                     <!-- Wishlist Button -->
@@ -829,7 +1097,7 @@
                             </div>
                             {% endif %}
                         </div>
-                        <p class="text-xs text-gray-500 mb-3"><i class="fa-solid fa-location-dot text-primary mr-1"></i>{{ prop.compound }}, Lusaka</p>
+                        <p class="text-xs text-gray-500 mb-3"><i class="fa-solid fa-location-dot text-primary mr-1"></i>{{ prop.compound }}, {{ prop.city or 'Lusaka' }}</p>
                     </div>
                     <div class="flex justify-between items-center pt-3 border-t">
                         <div>
@@ -849,6 +1117,65 @@
     {% endif %}
 </div>
 
+
+<!-- Schedule Physical Viewing Modal -->
+{% if g.user and g.user['role'] == 'tenant' %}
+<div id="viewingModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-md p-6 relative shadow-2xl">
+        <button type="button" onclick="document.getElementById('viewingModal').classList.add('hidden')"
+            class="absolute top-4 right-4 text-gray-400 hover:text-black">
+            <i class="fa-solid fa-xmark text-xl"></i>
+        </button>
+        <h3 class="text-xl font-bold text-gray-900 mb-1">Book a Physical Viewing</h3>
+        <p class="text-xs text-gray-500 mb-4">
+            Inspect <strong>{{ property.title }}</strong> in person before committing or paying rent.
+            {% if property.viewing_fee and property.viewing_fee > 0 %}
+            <span class="block mt-1 text-amber-800 font-semibold">Disclosed viewing fee: ZMW {{ "{:,.0f}".format(property.viewing_fee) }}</span>
+            {% else %}
+            <span class="block mt-1 text-green-700 font-semibold">Free viewing — no upfront viewing fee.</span>
+            {% endif %}
+        </p>
+        <form action="{{ url_for('request_property_viewing', property_id=property.id) }}" method="POST" class="space-y-3.5">
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Preferred Date</label>
+                    <input type="date" name="viewing_date" min="{{ today_iso }}" required
+                        class="w-full p-2.5 border rounded-lg text-sm focus:ring-primary focus:border-primary">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Time Slot</label>
+                    <select name="viewing_time" required
+                        class="w-full p-2.5 border rounded-lg text-sm bg-white focus:ring-primary focus:border-primary">
+                        {% for slot in viewing_time_slots %}
+                        <option value="{{ slot }}">{{ slot }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Your Name</label>
+                <input type="text" name="visitor_name" value="{{ g.user['full_name'] }}" required maxlength="120"
+                    class="w-full p-2.5 border rounded-lg text-sm focus:ring-primary focus:border-primary">
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Phone Number (WhatsApp / Call)</label>
+                <input type="tel" name="visitor_phone" value="{{ g.user['phone'] }}" required maxlength="40"
+                    class="w-full p-2.5 border rounded-lg text-sm focus:ring-primary focus:border-primary">
+            </div>
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Note for Host (optional)</label>
+                <textarea name="notes" rows="2" maxlength="1000"
+                    placeholder="e.g. Coming with my family / friend to inspect the rooms and yard"
+                    class="w-full p-2.5 border rounded-lg text-sm focus:ring-primary focus:border-primary"></textarea>
+            </div>
+            <button type="submit"
+                class="w-full bg-gray-900 text-white py-3 rounded-xl font-bold text-sm hover:bg-black transition">
+                <i class="fa-solid fa-calendar-check mr-1.5"></i>Request Physical Viewing
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 <!-- Contact Modal -->
 <div id="contactModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
@@ -884,6 +1211,8 @@
         const rateLine = document.getElementById('pdRateLine');
         const subtotalEl = document.getElementById('pdSubtotal');
         const totalEl = document.getElementById('pdTotal');
+        const splitSelect = document.getElementById('pdSplitGuests');
+        const splitResult = document.getElementById('pdSplitResult');
         const reserveBtn = document.getElementById('reservePropertyBtn');
         const baseCheckoutUrl = "{{ url_for('checkout', property_id=property.id) }}";
         const unitPrice = {{ property.price_per_night }};
@@ -954,6 +1283,16 @@
             rateLine.textContent = fmtMoney(rate) + ' × ' + n + ' ' + unitLabel;
             subtotalEl.textContent = fmtMoney(subtotal);
             totalEl.textContent = fmtMoney(total);
+            if (splitSelect && splitResult) {
+                const guests = parseInt(splitSelect.value, 10) || 1;
+                if (guests > 1) {
+                    const perPerson = total / guests;
+                    splitResult.textContent = 'Only ' + fmtMoney(perPerson) + ' per person when split between ' + guests + ' guests';
+                    splitResult.classList.remove('hidden');
+                } else {
+                    splitResult.classList.add('hidden');
+                }
+            }
             if (reserveBtn) {
                 reserveBtn.href = baseCheckoutUrl + '?unit=' + encodeURIComponent(unitParam) + '&duration=' + encodeURIComponent(n);
             }
@@ -967,6 +1306,7 @@
         selectEl.addEventListener('change', updateEstimate);
         if (hourlySelect) hourlySelect.addEventListener('change', updateEstimate);
         if (weeklySelect) weeklySelect.addEventListener('change', updateEstimate);
+        if (splitSelect) splitSelect.addEventListener('change', updateEstimate);
         if (customInput) {
             customInput.addEventListener('input', updateEstimate);
             customInput.addEventListener('change', updateEstimate);
@@ -1045,8 +1385,9 @@
         const propLng = {{ lng|tojson }};
         const hasExactPin = {{ has_exact_pin|tojson }};
         const compoundName = {{ property.compound|tojson }};
+        const cityName = {{ (property_city or 'Lusaka')|tojson }};
         const propTitle = {{ property.title|tojson }};
-        const baseQuery = hasExactPin ? (propLat + ',' + propLng) : (compoundName + ', Lusaka, Zambia');
+        const baseQuery = hasExactPin ? (propLat + ',' + propLng) : (compoundName + ', ' + cityName + ', Zambia');
         const defaultZoom = hasExactPin ? 17 : 15;
 
         const googleWrap = document.getElementById('googleMapWrap');
@@ -1084,7 +1425,7 @@
                     radius: 850,
                     color: '#ff385c',
                     fillOpacity: 0.12
-                }).addTo(leafletMap).bindPopup(compoundName + ', Lusaka (approximate area)').openPopup();
+                }).addTo(leafletMap).bindPopup(compoundName + ', ' + cityName + ' (approximate area)').openPopup();
             }
         }
 
@@ -1165,7 +1506,7 @@
                         const km = haversineKm(uLat, uLng, propLat, propLng);
                         const roadKm = km * 1.25;
                         const estMinutes = Math.max(2, Math.round((roadKm / 35) * 60));
-                        const dest = hasExactPin ? (propLat + ',' + propLng) : (compoundName + ', Lusaka, Zambia');
+                        const dest = hasExactPin ? (propLat + ',' + propLng) : (compoundName + ', ' + cityName + ', Zambia');
                         const dirUrl = 'https://www.google.com/maps/dir/?api=1&origin='
                             + encodeURIComponent(uLat.toFixed(6) + ',' + uLng.toFixed(6))
                             + '&destination=' + encodeURIComponent(dest);

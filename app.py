@@ -28,6 +28,25 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from upload_storage import LocalUploadStorage
 from supabase_storage import SupabaseUploadStorage
 from database import DB_ERRORS, DB_INTEGRITY_ERRORS, connect as connect_postgres
+from locations import (
+    CITY_KEY_LANDMARKS,
+    LAUNCH_CITIES,
+    LUSAKA_DEFAULT_COORDS,
+    LUSAKA_NEIGHBOURHOODS,
+    LUSAKA_NEIGHBOURHOOD_COORDS,
+    ZAMBIA_CITIES,
+    ZAMBIA_CITY_COORDS,
+    ZAMBIA_CITY_NEIGHBOURHOODS,
+    ZAMBIA_DEFAULT_CENTER,
+    ZAMBIA_DEFAULT_ZOOM,
+    ZAMBIA_UNIVERSITIES,
+    build_city_guide,
+    get_city_landmarks,
+    get_city_neighbourhoods,
+    get_neighbourhood_coordinates,
+    is_supported_city,
+    normalize_launch_city,
+)
 import phonenumbers
 
 # Load environment variables from .env file
@@ -99,173 +118,58 @@ TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', '').strip()
 TWILIO_FROM_NUMBER = os.getenv('TWILIO_FROM_NUMBER', '').strip()
 _last_booking_expiry_sweep = 0
 _booking_expiry_sweep_lock = threading.Lock()
-LUSAKA_NEIGHBOURHOODS = sorted([
-    'Avondale',
-    'Barlastone',
-    'Bauleni',
-    'Chaisa',
-    'Chalala',
-    'Chamba Valley',
-    'Chainda',
-    'Chazanga',
-    'Chawama',
-    'Chelstone',
-    'Chibolya',
-    'Chilenje',
-    'Chilenje South',
-    'Chinika',
-    'Chunga',
-    'Emmasdale',
-    'Foxdale',
-    'Garden',
-    'Garden House',
-    'George',
-    'Ibex Hill',
-    'Jack Compound',
-    'Jesmondine',
-    'John Laing',
-    'Kabwata',
-    'Kabulonga',
-    'Kabanana',
-    'Kalingalinga',
-    'Kalikiliki',
-    'Kalundu',
-    'Kamanga',
-    'Kamwala',
-    'Kamwala South',
-    'Kanyama',
-    'Kaunda Square',
-    'Libala',
-    'Libala South',
-    'Lilanda',
-    'Lilayi',
-    'Linda',
-    'Longacres',
-    'Makeni',
-    'Makeni Bonaventure',
-    'Makeni Villa',
-    'Mandevu',
-    'Marapodi',
-    'Mass Media',
-    'Matero',
-    'Meanwood',
-    'Meanwood Chamba Valley',
-    'Meanwood Ibex',
-    'Meanwood Kwamwena',
-    'Meanwood Ndeke',
-    'Mazyopa',
-    'Mtendere',
-    'Munali',
-    'New Kasama',
-    "Ng'ombe",
-    'Northmead',
-    'Olympia',
-    'Olympia Park',
-    'Olympia Extension',
-    'PHI',
-    'Rhodes Park',
-    'Roma',
-    'Salama Park',
-    'Showgrounds',
-    'Sikanze',
-    'State Lodge',
-    'Sunningdale',
-    'Thorn Park',
-    'Twin Palm',
-    'Woodlands',
-    'Woodlands Extension',
-    'Zingalume',
-])
-LUSAKA_DEFAULT_COORDS = (-15.4167, 28.2833)
-LUSAKA_NEIGHBOURHOOD_COORDS = {
-    'Avondale': (-15.3886, 28.3935),
-    'Barlastone': (-15.3520, 28.2345),
-    'Bauleni': (-15.4586, 28.3612),
-    'Chaisa': (-15.3745, 28.2845),
-    'Chalala': (-15.4685, 28.3485),
-    'Chamba Valley': (-15.3490, 28.3525),
-    'Chainda': (-15.3945, 28.4195),
-    'Chazanga': (-15.3350, 28.2890),
-    'Chawama': (-15.4580, 28.2735),
-    'Chelstone': (-15.3755, 28.3835),
-    'Chibolya': (-15.4325, 28.2685),
-    'Chilenje': (-15.4485, 28.3275),
-    'Chilenje South': (-15.4615, 28.3285),
-    'Chinika': (-15.4150, 28.2485),
-    'Chunga': (-15.3480, 28.2575),
-    'Emmasdale': (-15.3895, 28.2815),
-    'Foxdale': (-15.3595, 28.3345),
-    'Garden': (-15.3895, 28.2995),
-    'Garden House': (-15.3975, 28.2195),
-    'George': (-15.3675, 28.2455),
-    'Ibex Hill': (-15.4325, 28.3745),
-    'Jack Compound': (-15.4685, 28.2995),
-    'Jesmondine': (-15.3835, 28.3465),
-    'John Laing': (-15.4455, 28.2685),
-    'Kabwata': (-15.4395, 28.3085),
-    'Kabulonga': (-15.4245, 28.3525),
-    'Kabanana': (-15.3325, 28.3095),
-    'Kalingalinga': (-15.4055, 28.3495),
-    'Kalikiliki': (-15.4045, 28.3685),
-    'Kalundu': (-15.3875, 28.3245),
-    'Kamanga': (-15.3725, 28.3645),
-    'Kamwala': (-15.4295, 28.2895),
-    'Kamwala South': (-15.4555, 28.2985),
-    'Kanyama': (-15.4345, 28.2505),
-    'Kaunda Square': (-15.3735, 28.3545),
-    'Libala': (-15.4525, 28.3145),
-    'Libala South': (-15.4695, 28.3195),
-    'Lilanda': (-15.3735, 28.2515),
-    'Lilayi': (-15.5055, 28.2915),
-    'Linda': (-15.4895, 28.2795),
-    'Longacres': (-15.4145, 28.3115),
-    'Makeni': (-15.4685, 28.2535),
-    'Makeni Bonaventure': (-15.4865, 28.2485),
-    'Makeni Villa': (-15.4595, 28.2615),
-    'Mandevu': (-15.3675, 28.2825),
-    'Marapodi': (-15.3645, 28.2925),
-    'Mass Media': (-15.4025, 28.3345),
-    'Matero': (-15.3765, 28.2655),
-    'Meanwood': (-15.3395, 28.3685),
-    'Meanwood Chamba Valley': (-15.3445, 28.3625),
-    'Meanwood Ibex': (-15.4395, 28.3995),
-    'Meanwood Kwamwena': (-15.3245, 28.3745),
-    'Meanwood Ndeke': (-15.3395, 28.4315),
-    'Mazyopa': (-15.3495, 28.2965),
-    'Mtendere': (-15.4065, 28.3735),
-    'Munali': (-15.3835, 28.3595),
-    'New Kasama': (-15.4795, 28.4045),
-    "Ng'ombe": (-15.3675, 28.3155),
-    'Northmead': (-15.3995, 28.2985),
-    'Olympia': (-15.3965, 28.3145),
-    'Olympia Park': (-15.3945, 28.3175),
-    'Olympia Extension': (-15.3895, 28.3195),
-    'PHI': (-15.3885, 28.3685),
-    'Rhodes Park': (-15.4105, 28.3035),
-    'Roma': (-15.3725, 28.3295),
-    'Salama Park': (-15.3845, 28.3975),
-    'Showgrounds': (-15.4055, 28.3185),
-    'Sikanze': (-15.4315, 28.2975),
-    'State Lodge': (-15.4585, 28.4295),
-    'Sunningdale': (-15.4275, 28.3415),
-    'Thorn Park': (-15.4025, 28.2885),
-    'Twin Palm': (-15.4425, 28.3765),
-    'Woodlands': (-15.4425, 28.3425),
-    'Woodlands Extension': (-15.4495, 28.3545),
-    'Zingalume': (-15.3615, 28.2485),
+CITY_LAUNCH_GUIDE = build_city_guide()
+
+FURNISHING_OPTIONS = {
+    'furnished': 'Furnished',
+    'semi_furnished': 'Semi-Furnished',
+    'unfurnished': 'Unfurnished',
 }
 
+ZESCO_METER_OPTIONS = {
+    'own': 'Own ZESCO Prepaid Meter',
+    'shared': 'Shared ZESCO Meter',
+    'included': 'Electricity Included in Rent',
+}
 
-def get_neighbourhood_coordinates(compound):
-    if not compound:
-        return LUSAKA_DEFAULT_COORDS
-    if compound in LUSAKA_NEIGHBOURHOOD_COORDS:
-        return LUSAKA_NEIGHBOURHOOD_COORDS[compound]
-    needle = compound.strip().casefold()
-    for name, coords in LUSAKA_NEIGHBOURHOOD_COORDS.items():
-        if name.casefold() == needle:
-            return coords
-    return LUSAKA_DEFAULT_COORDS
+LISTING_SOURCE_OPTIONS = {
+    'owner': 'Direct Owner (No Agent Fee)',
+    'agent': 'Agent / Broker Listing',
+}
+
+SECURITY_FENCE_OPTIONS = {
+    'electric_fence': 'Wall + Electric Fence',
+    'wall_fence': 'Wall Fence',
+    'gated_complex': 'Gated Complex / Security Guard',
+    'none': 'Open / Unfenced',
+}
+
+BOARDING_GENDER_OPTIONS = {
+    'mixed': 'Mixed (Male & Female)',
+    'female': 'Female Only',
+    'male': 'Male Only',
+}
+
+CAMPUS_DISTANCE_OPTIONS = {
+    'walk_5': 'Walking distance (under 5 min)',
+    'walk_15': 'Walking distance (5–15 min)',
+    'walk_30': 'Walking distance (15–30 min)',
+    'bus_10': 'Short bus / taxi ride (5–10 min)',
+    'bus_20': 'Bus / taxi ride (10–20 min)',
+    'bus_30_plus': 'Bus / taxi ride (20+ min)',
+}
+
+GATE_CURFEW_OPTIONS = {
+    '24h_access': '24-Hour Gate Access (No Curfew)',
+    'curfew_22': 'Gate Curfew at 22:00 (10 PM)',
+    'curfew_21': 'Gate Curfew at 21:00 (9 PM)',
+    'curfew_20': 'Gate Curfew at 20:00 (8 PM)',
+    'strict_curfew': 'Strict Curfew (Confirm with Caretaker)',
+}
+
+VIEWING_TIME_SLOTS = [
+    '09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00', '17:00',
+]
 
 
 def extract_google_maps_coordinates(text):
@@ -289,68 +193,7 @@ def extract_google_maps_coordinates(text):
             if -90 <= lat <= 90 and -180 <= lng <= 180:
                 return (round(lat, 6), round(lng, 6))
     return None
-LUSAKA_AREA_GUIDE = [
-    {
-        'name': 'Kabulonga',
-        'overview': 'A well-established residential area in eastern Lusaka, with homes, restaurants, and everyday services spread along its main roads.',
-        'good_for': 'Guests looking for a residential base with dining and services nearby.',
-        'tip': 'Ask the host which road or landmark is closest; the area covers a broad stretch.',
-    },
-    {
-        'name': 'Rhodes Park',
-        'overview': 'A central residential neighbourhood with convenient access to offices, shops, and services in the surrounding city centre.',
-        'good_for': 'Guests who want a central base for business or city visits.',
-        'tip': 'Confirm parking and likely travel times for your specific destinations.',
-    },
-    {
-        'name': 'Woodlands',
-        'overview': 'A large residential area with shopping and services nearby, and a mix of quieter streets and busy commercial roads.',
-        'good_for': 'Guests seeking a residential stay with practical amenities close by.',
-        'tip': 'Check the exact location, since properties can be some distance apart.',
-    },
-    {
-        'name': 'Longacres',
-        'overview': 'A central district with residential accommodation alongside offices, hotels, and other city services.',
-        'good_for': 'Work trips and guests who value access to central Lusaka.',
-        'tip': 'Ask whether the property is on a busy road if noise is a concern.',
-    },
-    {
-        'name': 'Ibex Hill',
-        'overview': 'A growing residential area in the eastern part of Lusaka, with housing developments and shopping options.',
-        'good_for': 'Guests looking for a residential stay in eastern Lusaka.',
-        'tip': 'Check distances to your planned destinations before booking.',
-    },
-    {
-        'name': 'Avondale',
-        'overview': 'A residential neighbourhood in north-eastern Lusaka, with local shopping and services in the wider area.',
-        'good_for': 'Guests visiting the north-eastern side of the city.',
-        'tip': 'Confirm the nearest main road or landmark with your host.',
-    },
-    {
-        'name': 'Chelstone',
-        'overview': 'A sizeable residential neighbourhood in eastern Lusaka with local shops and community services.',
-        'good_for': 'Guests whose plans are centred in eastern Lusaka.',
-        'tip': 'The neighbourhood is broad; ask for directions and transport options.',
-    },
-    {
-        'name': 'Chilenje',
-        'overview': 'An established residential neighbourhood south of the city centre, with local markets and everyday services.',
-        'good_for': 'Guests looking for a lived-in neighbourhood and local amenities.',
-        'tip': 'Ask your host about nearby shops and the best route for your plans.',
-    },
-    {
-        'name': 'New Kasama',
-        'overview': 'A newer residential area in the southern part of Lusaka, with developing housing and services.',
-        'good_for': 'Guests who prefer a more residential setting in southern Lusaka.',
-        'tip': 'Check how close the listing is to shops and public transport.',
-    },
-    {
-        'name': 'Roma',
-        'overview': 'A residential area in northern Lusaka, with homes and services connected to the wider northern side of the city.',
-        'good_for': 'Guests visiting northern Lusaka or nearby institutions and businesses.',
-        'tip': 'Confirm the specific location and transport arrangements with your host.',
-    },
-]
+
 PHOTO_CATEGORIES = {
     'bedroom': 'Bedroom',
     'bathroom': 'Bathroom',
@@ -376,12 +219,188 @@ POWER_BACKUP_OPTIONS = {
     'other': 'Other backup',
 }
 WATER_SUPPLY_OPTIONS = {
-    'municipal': 'Municipal supply',
-    'borehole': 'Borehole',
+    'borehole_solar_pump': 'Borehole + Solar Backup Pump & Tank',
+    'borehole_tank_pump': 'Borehole + Overhead Tank & Booster Pump',
     'municipal_and_borehole': 'Municipal and borehole',
+    'borehole': 'Borehole',
+    'municipal': 'Municipal supply',
     'storage_tank': 'Storage tank',
     'other': 'Other',
 }
+
+YARD_TYPE_OPTIONS = {
+    'own_yard': 'Own Private Yard',
+    'standalone_paved': 'Standalone House — Paved Yard',
+    'flats_complex': 'Flats / Complex (Shared Compound)',
+    'semi_detached': 'Semi-Detached Home',
+}
+
+AVAILABILITY_PROMPT_DAYS = 14
+STALE_LISTING_HIDE_DAYS = 30
+_last_stale_availability_sweep = 0
+_stale_availability_sweep_lock = threading.Lock()
+
+ALLOWED_VIDEO_TOUR_HOSTS = {
+    'youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be',
+    'tiktok.com', 'www.tiktok.com', 'vm.tiktok.com', 'vt.tiktok.com',
+    'vimeo.com', 'www.vimeo.com', 'player.vimeo.com',
+    'instagram.com', 'www.instagram.com',
+    'facebook.com', 'www.facebook.com', 'fb.watch',
+    'drive.google.com',
+}
+
+
+def validate_video_tour_url(raw_url):
+    url = (raw_url or '').strip()
+    if not url:
+        return ''
+    if len(url) > 500:
+        raise ValueError('Video walkthrough URL is too long.')
+    parsed = urllib.parse.urlsplit(url)
+    host = (parsed.hostname or '').lower()
+    if parsed.scheme != 'https' or host not in ALLOWED_VIDEO_TOUR_HOSTS:
+        raise ValueError(
+            'Video walkthrough link must be an HTTPS URL from YouTube, TikTok, Vimeo, Instagram, Facebook, or Google Drive.'
+        )
+    return url
+
+
+def build_video_tour_embed(raw_url):
+    url = (raw_url or '').strip()
+    if not url:
+        return None
+    parsed = urllib.parse.urlsplit(url)
+    host = (parsed.hostname or '').lower()
+    path = parsed.path or ''
+
+    # YouTube (watch?v=, shorts/, youtu.be/)
+    yt_id = None
+    if host == 'youtu.be':
+        yt_id = path.strip('/').split('/')[0]
+    elif host in ('youtube.com', 'www.youtube.com', 'm.youtube.com'):
+        qs = urllib.parse.parse_qs(parsed.query)
+        if 'v' in qs and qs['v']:
+            yt_id = qs['v'][0]
+        elif path.startswith('/shorts/') or path.startswith('/embed/'):
+            parts = path.strip('/').split('/')
+            if len(parts) >= 2:
+                yt_id = parts[1]
+    if yt_id and re.fullmatch(r'[A-Za-z0-9_-]{6,20}', yt_id):
+        return {
+            'provider': 'YouTube',
+            'embed_url': f'https://www.youtube-nocookie.com/embed/{yt_id}',
+            'original_url': url,
+        }
+
+    # TikTok (/@user/video/<id>)
+    if host in ('tiktok.com', 'www.tiktok.com'):
+        match = re.search(r'/video/(\d{6,25})', path)
+        if match:
+            return {
+                'provider': 'TikTok',
+                'embed_url': f'https://www.tiktok.com/embed/v2/{match.group(1)}',
+                'original_url': url,
+            }
+
+    # Vimeo (/123456789)
+    if host in ('vimeo.com', 'www.vimeo.com', 'player.vimeo.com'):
+        match = re.search(r'/(\d{6,15})', path)
+        if match:
+            return {
+                'provider': 'Vimeo',
+                'embed_url': f'https://player.vimeo.com/video/{match.group(1)}',
+                'original_url': url,
+            }
+
+    # External safe link fallback (Instagram Reels, Facebook, short TikTok vm/vt links, Drive)
+    return {
+        'provider': 'Video Walkthrough',
+        'embed_url': None,
+        'original_url': url,
+    }
+
+
+def sweep_stale_availability_checks(db, force=False):
+    """Prompt hosts after 14 days and hide unconfirmed listings after 30 days."""
+    global _last_stale_availability_sweep
+    with _stale_availability_sweep_lock:
+        if not force and time.monotonic() - _last_stale_availability_sweep < 120:
+            return
+        try:
+            # 1. Auto-hide listings unconfirmed for > 30 days
+            stale_rows = db.execute(
+                '''SELECT id, owner_id, title
+                   FROM properties
+                   WHERE is_active = 1
+                     AND COALESCE(availability_status, 'available') = 'available'
+                     AND julianday('now') - julianday(COALESCE(last_confirmed_at, created_at)) > ?''',
+                (STALE_LISTING_HIDE_DAYS,),
+            ).fetchall()
+            for row in stale_rows:
+                db.execute(
+                    '''UPDATE properties
+                       SET availability_status = 'stale_unconfirmed',
+                           availability_prompted_at = CURRENT_TIMESTAMP
+                       WHERE id = ?''',
+                    (row['id'],),
+                )
+                create_notification(
+                    db,
+                    row['owner_id'],
+                    f'"{row["title"]}" was hidden from search because availability was not confirmed for {STALE_LISTING_HIDE_DAYS} days. Confirm it in your Landlord Dashboard to restore it immediately.',
+                    '/landlord/dashboard',
+                )
+
+            # 2. Auto-prompt hosts for listings 14–30 days since last confirmation (once per 14 days)
+            prompt_rows = db.execute(
+                '''SELECT id, owner_id, title
+                   FROM properties
+                   WHERE is_active = 1
+                     AND COALESCE(availability_status, 'available') = 'available'
+                     AND julianday('now') - julianday(COALESCE(last_confirmed_at, created_at)) >= ?
+                     AND julianday('now') - julianday(COALESCE(last_confirmed_at, created_at)) <= ?
+                     AND (availability_prompted_at IS NULL
+                          OR julianday('now') - julianday(availability_prompted_at) >= ?)''',
+                (AVAILABILITY_PROMPT_DAYS, STALE_LISTING_HIDE_DAYS, AVAILABILITY_PROMPT_DAYS),
+            ).fetchall()
+            for row in prompt_rows:
+                db.execute(
+                    'UPDATE properties SET availability_prompted_at = CURRENT_TIMESTAMP WHERE id = ?',
+                    (row['id'],),
+                )
+                create_notification(
+                    db,
+                    row['owner_id'],
+                    f'Is "{row["title"]}" still available? Confirm availability in your Landlord Dashboard to keep it visible to renters.',
+                    '/landlord/dashboard',
+                )
+
+            if stale_rows or prompt_rows:
+                db.commit()
+            _last_stale_availability_sweep = time.monotonic()
+        except DB_ERRORS:
+            db.rollback()
+            app.logger.exception('Stale availability sweep failed.')
+
+
+def compute_nearby_landmarks(lat, lng, city=None, limit=4):
+    landmarks = CITY_KEY_LANDMARKS.get(city) if city else None
+    if not landmarks:
+        return []
+    results = []
+    for name, icon, l_lat, l_lng in landmarks:
+        km = round(distance_km(lat, lng, l_lat, l_lng), 1)
+        drive_min = max(3, int(round((km * 1.25 / 35.0) * 60)))
+        results.append({
+            'name': name,
+            'icon': icon,
+            'distance_km': km,
+            'drive_min': drive_min,
+        })
+    # Keep airport first when present, then closest malls/hubs
+    airports = [r for r in results if r['icon'] == 'fa-plane']
+    others = sorted([r for r in results if r['icon'] != 'fa-plane'], key=lambda x: x['distance_km'])
+    return (airports[:1] + others)[:limit]
 INTERNET_OPTIONS = {
     'reliable_wifi': 'Wi-Fi (host reports it is reliable)',
     'variable_wifi': 'Wi-Fi (may be variable)',
@@ -782,7 +801,7 @@ def parse_property_utility_fields(form):
 
 
 def default_price_period_for_type(property_type):
-    if (property_type or '').strip() in ('House', 'Boarding House'):
+    if (property_type or '').strip() in ('House', 'Apartment', 'Boarding House'):
         return 'month'
     return 'night'
 
@@ -844,6 +863,116 @@ def parse_stay_terms_fields(form, property_type, price_period):
         'room_sharing': room_sharing or None,
         'upfront_months': upfront_months,
         'hourly_rate': hourly_rate,
+    }
+
+
+def parse_zambia_essentials_fields(form, property_type):
+    raw_city = (form.get('city') or '').strip()
+    city = normalize_launch_city(raw_city, allow_empty_default='Lusaka')
+
+    furnishing_status = (form.get('furnishing_status') or 'unfurnished').strip().lower()
+    if furnishing_status not in FURNISHING_OPTIONS:
+        furnishing_status = 'unfurnished'
+
+    master_self_contained = 1 if form.get('master_self_contained') in ('on', '1', 'true') else 0
+
+    zesco_meter_type = (form.get('zesco_meter_type') or '').strip().lower()
+    if zesco_meter_type and zesco_meter_type not in ZESCO_METER_OPTIONS:
+        raise ValueError('Choose a valid ZESCO electricity meter option.')
+
+    listing_source = (form.get('listing_source') or 'owner').strip().lower()
+    if listing_source not in LISTING_SOURCE_OPTIONS:
+        listing_source = 'owner'
+
+    viewing_fee = parse_nonnegative_money(form.get('viewing_fee'), 'Viewing fee')
+    if listing_source == 'owner' and not (form.get('viewing_fee') or '').strip():
+        viewing_fee = 0.0
+
+    security_fence = (form.get('security_fence') or '').strip().lower()
+    if security_fence and security_fence not in SECURITY_FENCE_OPTIONS:
+        raise ValueError('Choose a valid security / fence option.')
+
+    nearby_university = (form.get('nearby_university') or '').strip()
+    if nearby_university and nearby_university not in ZAMBIA_UNIVERSITIES:
+        nearby_university = ''
+
+    campus_distance = (form.get('campus_distance') or '').strip().lower()
+    if campus_distance and campus_distance not in CAMPUS_DISTANCE_OPTIONS:
+        campus_distance = ''
+
+    boarding_gender = (form.get('boarding_gender') or '').strip().lower()
+    if boarding_gender and boarding_gender not in BOARDING_GENDER_OPTIONS:
+        raise ValueError('Choose a valid boarding house gender policy.')
+
+    gate_curfew_policy = (form.get('gate_curfew_policy') or '').strip().lower()
+    if gate_curfew_policy and gate_curfew_policy not in GATE_CURFEW_OPTIONS:
+        gate_curfew_policy = ''
+
+    bed_spaces_raw = (form.get('bed_spaces_left') or '').strip()
+    bed_spaces_left = None
+    if bed_spaces_raw:
+        try:
+            bed_spaces_left = int(bed_spaces_raw)
+            if bed_spaces_left < 0 or bed_spaces_left > 500:
+                raise ValueError
+        except ValueError:
+            raise ValueError('Bed spaces left must be a whole number between 0 and 500.')
+
+    semester_raw = (form.get('semester_rate') or '').strip()
+    semester_rate = None
+    if semester_raw:
+        semester_rate = parse_nonnegative_money(semester_raw, 'Semester rate')
+        if semester_rate <= 0:
+            semester_rate = None
+
+    has_study_desk = 1 if form.get('has_study_desk') in ('on', '1', 'true') else 0
+    has_bed_mattress = 1 if form.get('has_bed_mattress') in ('on', '1', 'true') else 0
+    has_stove_fridge = 1 if form.get('has_stove_fridge') in ('on', '1', 'true') else 0
+    has_laundry_area = 1 if form.get('has_laundry_area') in ('on', '1', 'true') else 0
+    has_study_backup_power = 1 if form.get('has_study_backup_power') in ('on', '1', 'true') else 0
+
+    yard_type = (form.get('yard_type') or '').strip().lower()
+    if yard_type and yard_type not in YARD_TYPE_OPTIONS:
+        yard_type = ''
+    has_paved_yard = 1 if form.get('has_paved_yard') in ('on', '1', 'true') else 0
+    is_pet_friendly = 1 if form.get('is_pet_friendly') in ('on', '1', 'true') else 0
+    is_family_friendly = 1 if form.get('is_family_friendly') in ('on', '1', 'true') else 0
+    has_private_entrance = 1 if form.get('has_private_entrance') in ('on', '1', 'true') else 0
+    has_smart_tv = 1 if form.get('has_smart_tv') in ('on', '1', 'true') else 0
+    couples_friendly = 1 if form.get('couples_friendly') in ('on', '1', 'true') else 0
+    allows_small_gatherings = 1 if form.get('allows_small_gatherings') in ('on', '1', 'true') else 0
+    offers_airport_transfer = 1 if form.get('offers_airport_transfer') in ('on', '1', 'true') else 0
+    video_tour_url = validate_video_tour_url(form.get('video_tour_url'))
+
+    return {
+        'city': city,
+        'furnishing_status': furnishing_status,
+        'master_self_contained': master_self_contained,
+        'zesco_meter_type': zesco_meter_type,
+        'listing_source': listing_source,
+        'viewing_fee': viewing_fee,
+        'security_fence': security_fence,
+        'nearby_university': nearby_university,
+        'campus_distance': campus_distance,
+        'boarding_gender': boarding_gender,
+        'gate_curfew_policy': gate_curfew_policy,
+        'bed_spaces_left': bed_spaces_left,
+        'semester_rate': semester_rate,
+        'has_study_desk': has_study_desk,
+        'has_bed_mattress': has_bed_mattress,
+        'has_stove_fridge': has_stove_fridge,
+        'has_laundry_area': has_laundry_area,
+        'has_study_backup_power': has_study_backup_power,
+        'yard_type': yard_type,
+        'has_paved_yard': has_paved_yard,
+        'is_pet_friendly': is_pet_friendly,
+        'is_family_friendly': is_family_friendly,
+        'has_private_entrance': has_private_entrance,
+        'has_smart_tv': has_smart_tv,
+        'couples_friendly': couples_friendly,
+        'allows_small_gatherings': allows_small_gatherings,
+        'offers_airport_transfer': offers_airport_transfer,
+        'video_tour_url': video_tour_url,
     }
 
 
@@ -1438,6 +1567,35 @@ def init_db():
             'room_sharing': 'TEXT',
             'upfront_months': 'INTEGER NOT NULL DEFAULT 1',
             'hourly_rate': 'REAL',
+            'city': "TEXT NOT NULL DEFAULT 'Lusaka'",
+            'furnishing_status': "TEXT DEFAULT 'unfurnished'",
+            'master_self_contained': 'BOOLEAN NOT NULL DEFAULT 0',
+            'zesco_meter_type': "TEXT DEFAULT ''",
+            'listing_source': "TEXT DEFAULT 'owner'",
+            'viewing_fee': 'REAL NOT NULL DEFAULT 0',
+            'security_fence': "TEXT DEFAULT ''",
+            'nearby_university': "TEXT DEFAULT ''",
+            'campus_distance': "TEXT DEFAULT ''",
+            'boarding_gender': "TEXT DEFAULT ''",
+            'gate_curfew_policy': "TEXT DEFAULT ''",
+            'bed_spaces_left': 'INTEGER',
+            'semester_rate': 'REAL',
+            'has_study_desk': 'BOOLEAN NOT NULL DEFAULT 0',
+            'has_bed_mattress': 'BOOLEAN NOT NULL DEFAULT 0',
+            'has_stove_fridge': 'BOOLEAN NOT NULL DEFAULT 0',
+            'has_laundry_area': 'BOOLEAN NOT NULL DEFAULT 0',
+            'has_study_backup_power': 'BOOLEAN NOT NULL DEFAULT 0',
+            'yard_type': "TEXT DEFAULT ''",
+            'has_paved_yard': 'BOOLEAN NOT NULL DEFAULT 0',
+            'is_pet_friendly': 'BOOLEAN NOT NULL DEFAULT 0',
+            'is_family_friendly': 'BOOLEAN NOT NULL DEFAULT 0',
+            'has_private_entrance': 'BOOLEAN NOT NULL DEFAULT 0',
+            'has_smart_tv': 'BOOLEAN NOT NULL DEFAULT 0',
+            'couples_friendly': 'BOOLEAN NOT NULL DEFAULT 0',
+            'allows_small_gatherings': 'BOOLEAN NOT NULL DEFAULT 0',
+            'offers_airport_transfer': 'BOOLEAN NOT NULL DEFAULT 0',
+            'video_tour_url': "TEXT DEFAULT ''",
+            'availability_prompted_at': 'TIMESTAMP',
             'arrival_instructions': 'TEXT',
             'arrival_directions': 'TEXT',
             'nearby_essentials': 'TEXT',
@@ -1600,6 +1758,7 @@ def ensure_feature_schema(conn):
         'session_version': 'INTEGER NOT NULL DEFAULT 1',
         'totp_secret': 'TEXT',
         'totp_enabled': 'BOOLEAN NOT NULL DEFAULT 0',
+        'preferred_city': 'TEXT',
     }.items():
         if not any(row[1] == column_name for row in conn.execute('PRAGMA table_info(users)')):
             conn.execute(f'ALTER TABLE users ADD COLUMN {column_name} {ddl}')
@@ -1749,6 +1908,26 @@ def ensure_feature_schema(conn):
         );
         CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at
             ON admin_audit_logs(created_at DESC);
+        CREATE TABLE IF NOT EXISTS property_viewings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            property_id INTEGER NOT NULL,
+            tenant_id INTEGER NOT NULL,
+            owner_id INTEGER NOT NULL,
+            viewing_date TEXT NOT NULL,
+            viewing_time TEXT NOT NULL,
+            visitor_name TEXT NOT NULL,
+            visitor_phone TEXT NOT NULL,
+            notes TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            owner_response_note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE CASCADE,
+            FOREIGN KEY (tenant_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_property_viewings_owner ON property_viewings(owner_id, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_property_viewings_tenant ON property_viewings(tenant_id, created_at DESC);
     ''')
 
 
@@ -1789,6 +1968,35 @@ def ensure_db_schema():
                 'room_sharing': 'TEXT',
                 'upfront_months': 'INTEGER NOT NULL DEFAULT 1',
                 'hourly_rate': 'REAL',
+                'city': "TEXT NOT NULL DEFAULT 'Lusaka'",
+                'furnishing_status': "TEXT DEFAULT 'unfurnished'",
+                'master_self_contained': 'BOOLEAN NOT NULL DEFAULT 0',
+                'zesco_meter_type': "TEXT DEFAULT ''",
+                'listing_source': "TEXT DEFAULT 'owner'",
+                'viewing_fee': 'REAL NOT NULL DEFAULT 0',
+                'security_fence': "TEXT DEFAULT ''",
+                'nearby_university': "TEXT DEFAULT ''",
+                'campus_distance': "TEXT DEFAULT ''",
+                'boarding_gender': "TEXT DEFAULT ''",
+                'gate_curfew_policy': "TEXT DEFAULT ''",
+                'bed_spaces_left': 'INTEGER',
+                'semester_rate': 'REAL',
+                'has_study_desk': 'BOOLEAN NOT NULL DEFAULT 0',
+                'has_bed_mattress': 'BOOLEAN NOT NULL DEFAULT 0',
+                'has_stove_fridge': 'BOOLEAN NOT NULL DEFAULT 0',
+                'has_laundry_area': 'BOOLEAN NOT NULL DEFAULT 0',
+                'has_study_backup_power': 'BOOLEAN NOT NULL DEFAULT 0',
+                'yard_type': "TEXT DEFAULT ''",
+                'has_paved_yard': 'BOOLEAN NOT NULL DEFAULT 0',
+                'is_pet_friendly': 'BOOLEAN NOT NULL DEFAULT 0',
+                'is_family_friendly': 'BOOLEAN NOT NULL DEFAULT 0',
+                'has_private_entrance': 'BOOLEAN NOT NULL DEFAULT 0',
+                'has_smart_tv': 'BOOLEAN NOT NULL DEFAULT 0',
+                'couples_friendly': 'BOOLEAN NOT NULL DEFAULT 0',
+                'allows_small_gatherings': 'BOOLEAN NOT NULL DEFAULT 0',
+                'offers_airport_transfer': 'BOOLEAN NOT NULL DEFAULT 0',
+                'video_tour_url': "TEXT DEFAULT ''",
+                'availability_prompted_at': 'TIMESTAMP',
                 'arrival_instructions': 'TEXT',
                 'arrival_directions': 'TEXT',
                 'nearby_essentials': 'TEXT',
@@ -2121,7 +2329,7 @@ def _build_content_security_policy():
         "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com data:",
         f"img-src {' '.join(dict.fromkeys(img_sources))}",
         "connect-src 'self'",
-        "frame-src 'self' https://maps.google.com https://www.google.com",
+        "frame-src 'self' https://maps.google.com https://www.google.com https://www.youtube-nocookie.com https://www.youtube.com https://www.tiktok.com https://player.vimeo.com",
         "object-src 'none'",
         "base-uri 'self'",
         "frame-ancestors 'self'",
@@ -2207,27 +2415,38 @@ def handle_internal_error(_error):
     )
 
 @app.route('/areas')
+@app.route('/cities')
 def lusaka_areas():
-    featured_names = {area['name'] for area in LUSAKA_AREA_GUIDE}
-    other_neighbourhoods = [
-        name for name in LUSAKA_NEIGHBOURHOODS if name not in featured_names
-    ]
+    db = get_db()
+    rows = db.execute(
+        '''SELECT COALESCE(city, 'Lusaka') AS city, COUNT(*) AS cnt
+           FROM properties
+           WHERE is_active = 1
+             AND COALESCE(availability_status, 'available') != 'stale_unconfirmed'
+           GROUP BY COALESCE(city, 'Lusaka')'''
+    ).fetchall()
+    city_counts = {row['city']: row['cnt'] for row in rows}
+    selected_city = (request.args.get('city') or '').strip()
+    if selected_city not in ZAMBIA_CITIES:
+        selected_city = ''
     return render_template(
         'areas.html',
-        area_guide=LUSAKA_AREA_GUIDE,
-        other_neighbourhoods=other_neighbourhoods,
+        city_guide=CITY_LAUNCH_GUIDE,
+        city_counts=city_counts,
+        zambia_cities=ZAMBIA_CITIES,
+        selected_city=selected_city,
     )
 
 
 @app.route('/about')
 def about():
-    return render_template('about.html')
+    return render_template('about.html', zambia_cities=ZAMBIA_CITIES)
 
 
 @app.route('/terms')
 def terms_of_service():
     sections = [
-        ('Marketplace role and scope', 'Explain KwachaStay’s role in property discovery, enquiries, and booking connections in Lusaka.'),
+        ('Marketplace role and scope', 'Explain KwachaStay’s role in property discovery, enquiries, and booking connections across our seven launch cities in Zambia (Lusaka, Kitwe, Livingstone, Kabwe, Solwezi, Chipata, and Ndola).'),
         ('Accounts and user responsibilities', 'Set the approved requirements for guest, host, and listing information.'),
         ('Listings and host verification', 'Describe listing standards and the exact meaning and limits of any verification badge.'),
         ('Enquiries, bookings, and payments', 'Explain when a request becomes confirmed and how each enabled payment option works.'),
@@ -2254,6 +2473,7 @@ def privacy_policy():
 
 def _query_listings_context():
     db = get_db()
+    sweep_stale_availability_checks(db)
 
     near_lat = request.args.get('near_lat', '').strip()
     near_lon = request.args.get('near_lon', '').strip()
@@ -2281,17 +2501,25 @@ def _query_listings_context():
         FROM properties p 
         JOIN users u ON p.owner_id = u.id 
         WHERE p.is_active = 1
+          AND COALESCE(p.availability_status, 'available') != 'stale_unconfirmed'
     """
     params = []
     
     # Keyword Search
     search_q = request.args.get('q', '').strip()
     if search_q:
-        query += " AND (p.title LIKE ? OR p.description LIKE ? OR p.compound LIKE ? OR p.location_details LIKE ? OR p.agent_name LIKE ?)"
+        query += " AND (p.title LIKE ? OR p.description LIKE ? OR p.compound LIKE ? OR p.city LIKE ? OR p.location_details LIKE ? OR p.agent_name LIKE ? OR p.nearby_university LIKE ?)"
         like = f'%{search_q}%'
-        params.extend([like, like, like, like, like])
+        params.extend([like, like, like, like, like, like, like])
     
     # Filtering logic
+    selected_city = (request.args.get('city') or 'All').strip()
+    if selected_city not in ZAMBIA_CITIES:
+        selected_city = 'All'
+    if selected_city != 'All':
+        query += " AND COALESCE(p.city, 'Lusaka') = ?"
+        params.append(selected_city)
+
     compound = request.args.get('compound')
     if compound and compound != 'All':
         query += " AND p.compound = ?"
@@ -2336,10 +2564,38 @@ def _query_listings_context():
     featured_only = request.args.get('featured_only')
     power_backup = request.args.get('power_backup', '')
     water_supply = request.args.get('water_supply', '')
+    furnishing_status = request.args.get('furnishing_status', '')
+    zesco_meter_type = request.args.get('zesco_meter_type', '')
+    listing_source = request.args.get('listing_source', '')
+    security_fence = request.args.get('security_fence', '')
+    nearby_university = request.args.get('nearby_university', '')
+    campus_distance = request.args.get('campus_distance', '')
+    boarding_gender = request.args.get('boarding_gender', '')
+    gate_curfew_policy = request.args.get('gate_curfew_policy', '')
+    yard_type = request.args.get('yard_type', '')
+    master_self_contained = bool(request.args.get('master_self_contained'))
     if power_backup not in POWER_BACKUP_OPTIONS:
         power_backup = ''
     if water_supply not in WATER_SUPPLY_OPTIONS:
         water_supply = ''
+    if furnishing_status not in FURNISHING_OPTIONS:
+        furnishing_status = ''
+    if zesco_meter_type not in ZESCO_METER_OPTIONS:
+        zesco_meter_type = ''
+    if listing_source not in LISTING_SOURCE_OPTIONS:
+        listing_source = ''
+    if security_fence not in SECURITY_FENCE_OPTIONS:
+        security_fence = ''
+    if nearby_university not in ZAMBIA_UNIVERSITIES:
+        nearby_university = ''
+    if campus_distance not in CAMPUS_DISTANCE_OPTIONS:
+        campus_distance = ''
+    if boarding_gender not in BOARDING_GENDER_OPTIONS:
+        boarding_gender = ''
+    if gate_curfew_policy not in GATE_CURFEW_OPTIONS:
+        gate_curfew_policy = ''
+    if yard_type not in YARD_TYPE_OPTIONS:
+        yard_type = ''
     
     if min_price is not None:
         query += " AND p.price_per_night >= ?"
@@ -2360,6 +2616,45 @@ def _query_listings_context():
     if water_supply:
         query += " AND p.water_supply = ?"
         params.append(water_supply)
+
+    if furnishing_status:
+        query += " AND p.furnishing_status = ?"
+        params.append(furnishing_status)
+
+    if zesco_meter_type:
+        query += " AND p.zesco_meter_type = ?"
+        params.append(zesco_meter_type)
+
+    if listing_source:
+        query += " AND p.listing_source = ?"
+        params.append(listing_source)
+
+    if security_fence:
+        query += " AND p.security_fence = ?"
+        params.append(security_fence)
+
+    if nearby_university:
+        query += " AND p.nearby_university = ?"
+        params.append(nearby_university)
+
+    if campus_distance:
+        query += " AND p.campus_distance = ?"
+        params.append(campus_distance)
+
+    if boarding_gender:
+        query += " AND p.boarding_gender = ?"
+        params.append(boarding_gender)
+
+    if gate_curfew_policy:
+        query += " AND p.gate_curfew_policy = ?"
+        params.append(gate_curfew_policy)
+
+    if yard_type:
+        query += " AND p.yard_type = ?"
+        params.append(yard_type)
+
+    if master_self_contained:
+        query += " AND p.master_self_contained = 1"
 
     if listing_category and listing_category != 'All':
         query += " AND p.listing_category = ?"
@@ -2392,7 +2687,12 @@ def _query_listings_context():
         query += " AND p.is_featured = 1"
 
     # Amenities Checkboxes
-    amenities = ['has_solar', 'has_borehole', 'has_pool', 'has_wifi', 'has_ac', 'has_parking']
+    amenities = [
+        'has_solar', 'has_borehole', 'has_pool', 'has_wifi', 'has_ac', 'has_parking',
+        'has_study_desk', 'has_bed_mattress', 'has_stove_fridge', 'has_laundry_area', 'has_study_backup_power',
+        'has_paved_yard', 'is_pet_friendly', 'is_family_friendly', 'has_private_entrance',
+        'has_smart_tv', 'couples_friendly', 'allows_small_gatherings', 'offers_airport_transfer',
+    ]
     for amenity in amenities:
         if request.args.get(amenity):
             query += f" AND p.{amenity} = 1"
@@ -2413,12 +2713,16 @@ def _query_listings_context():
             FROM properties p
             JOIN users u ON p.owner_id = u.id
             WHERE p.is_active = 1
+              AND COALESCE(p.availability_status, 'available') != 'stale_unconfirmed'
         """
         params = []
         if search_q:
-            query += " AND (p.title LIKE ? OR p.description LIKE ? OR p.compound LIKE ? OR p.location_details LIKE ? OR p.agent_name LIKE ?)"
+            query += " AND (p.title LIKE ? OR p.description LIKE ? OR p.compound LIKE ? OR p.city LIKE ? OR p.location_details LIKE ? OR p.agent_name LIKE ? OR p.nearby_university LIKE ?)"
             like = f'%{search_q}%'
-            params.extend([like, like, like, like, like])
+            params.extend([like, like, like, like, like, like, like])
+        if selected_city != 'All':
+            query += " AND COALESCE(p.city, 'Lusaka') = ?"
+            params.append(selected_city)
         if compound and compound != 'All':
             query += " AND p.compound = ?"
             params.append(compound)
@@ -2441,6 +2745,35 @@ def _query_listings_context():
         if water_supply:
             query += " AND p.water_supply = ?"
             params.append(water_supply)
+        if furnishing_status:
+            query += " AND p.furnishing_status = ?"
+            params.append(furnishing_status)
+        if zesco_meter_type:
+            query += " AND p.zesco_meter_type = ?"
+            params.append(zesco_meter_type)
+        if listing_source:
+            query += " AND p.listing_source = ?"
+            params.append(listing_source)
+        if security_fence:
+            query += " AND p.security_fence = ?"
+            params.append(security_fence)
+        if nearby_university:
+            query += " AND p.nearby_university = ?"
+            params.append(nearby_university)
+        if campus_distance:
+            query += " AND p.campus_distance = ?"
+            params.append(campus_distance)
+        if boarding_gender:
+            query += " AND p.boarding_gender = ?"
+            params.append(boarding_gender)
+        if gate_curfew_policy:
+            query += " AND p.gate_curfew_policy = ?"
+            params.append(gate_curfew_policy)
+        if yard_type:
+            query += " AND p.yard_type = ?"
+            params.append(yard_type)
+        if master_self_contained:
+            query += " AND p.master_self_contained = 1"
         if listing_category and listing_category != 'All':
             query += " AND p.listing_category = ?"
             params.append(listing_category)
@@ -2528,13 +2861,35 @@ def _query_listings_context():
         
         properties.append(prop_dict)
     
-    # Stats for banner
-    total_active = db.execute("SELECT COUNT(*) FROM properties WHERE is_active = 1").fetchone()[0]
-    total_compounds = db.execute("SELECT COUNT(DISTINCT compound) FROM properties WHERE is_active = 1").fetchone()[0]
+    # Stats for banner & per-city live listing counts (7 launch cities)
+    total_active = db.execute(
+        "SELECT COUNT(*) FROM properties WHERE is_active = 1 AND COALESCE(availability_status, 'available') != 'stale_unconfirmed'"
+    ).fetchone()[0]
+    total_compounds = db.execute(
+        "SELECT COUNT(DISTINCT compound) FROM properties WHERE is_active = 1 AND COALESCE(availability_status, 'available') != 'stale_unconfirmed'"
+    ).fetchone()[0]
+    city_count_rows = db.execute(
+        '''SELECT COALESCE(city, 'Lusaka') AS city, COUNT(*) AS cnt
+           FROM properties
+           WHERE is_active = 1
+             AND COALESCE(availability_status, 'available') != 'stale_unconfirmed'
+           GROUP BY COALESCE(city, 'Lusaka')'''
+    ).fetchall()
+    city_counts = {row['city']: row['cnt'] for row in city_count_rows}
+
+    active_compounds = get_city_neighbourhoods(selected_city) if selected_city != 'All' else []
 
     return dict(
         properties=properties,
-        compounds=LUSAKA_NEIGHBOURHOODS,
+        compounds=active_compounds,
+        zambia_cities=ZAMBIA_CITIES,
+        city_neighbourhoods=ZAMBIA_CITY_NEIGHBOURHOODS,
+        city_coords=ZAMBIA_CITY_COORDS,
+        city_landmarks=CITY_KEY_LANDMARKS,
+        city_guide=CITY_LAUNCH_GUIDE,
+        city_counts=city_counts,
+        zambia_default_center=ZAMBIA_DEFAULT_CENTER,
+        selected_city=selected_city,
         selected_compound=compound,
         search_q=search_q,
         page=page,
@@ -2557,6 +2912,25 @@ def _query_listings_context():
         water_supply=water_supply,
         power_backup_options=POWER_BACKUP_OPTIONS,
         water_supply_options=WATER_SUPPLY_OPTIONS,
+        furnishing_status=furnishing_status,
+        zesco_meter_type=zesco_meter_type,
+        listing_source=listing_source,
+        security_fence=security_fence,
+        nearby_university=nearby_university,
+        campus_distance=campus_distance,
+        boarding_gender=boarding_gender,
+        gate_curfew_policy=gate_curfew_policy,
+        yard_type=yard_type,
+        master_self_contained=master_self_contained,
+        furnishing_options=FURNISHING_OPTIONS,
+        zesco_meter_options=ZESCO_METER_OPTIONS,
+        listing_source_options=LISTING_SOURCE_OPTIONS,
+        security_fence_options=SECURITY_FENCE_OPTIONS,
+        boarding_gender_options=BOARDING_GENDER_OPTIONS,
+        campus_distance_options=CAMPUS_DISTANCE_OPTIONS,
+        gate_curfew_options=GATE_CURFEW_OPTIONS,
+        yard_type_options=YARD_TYPE_OPTIONS,
+        zambia_universities=ZAMBIA_UNIVERSITIES,
         near_lat=near_lat,
         near_lon=near_lon,
         near_point=near_point,
@@ -2591,8 +2965,16 @@ def signup():
         country_region = request.form.get('country_region', 'ZM').upper()
         password = request.form.get('password', '')
         role = request.form.get('role', 'tenant')
+        preferred_city_raw = request.form.get('preferred_city', '').strip()
         db = get_db()
         password_error = validate_password_strength(password)
+        preferred_city_error = None
+        preferred_city = ''
+        if preferred_city_raw:
+            try:
+                preferred_city = normalize_launch_city(preferred_city_raw)
+            except ValueError as err:
+                preferred_city_error = str(err)
 
         if not full_name or len(full_name) > 120:
             flash('Enter a valid full name (up to 120 characters).', 'error')
@@ -2600,6 +2982,8 @@ def signup():
             flash('Enter a valid email address.', 'error')
         elif role not in ('tenant', 'owner'):
             flash('Choose either a guest or host account.', 'error')
+        elif preferred_city_error:
+            flash(preferred_city_error, 'error')
         elif password_error:
             flash(password_error, 'error')
         else:
@@ -2616,9 +3000,9 @@ def signup():
                 try:
                     is_configured_admin = 1 if email in ADMIN_EMAILS else 0
                     db.execute(
-                        '''INSERT INTO users (full_name, email, phone, password, role, is_admin)
-                           VALUES (?, ?, ?, ?, ?, ?)''',
-                        (full_name, email, full_phone, generate_password_hash(password), role, is_configured_admin),
+                        '''INSERT INTO users (full_name, email, phone, password, role, preferred_city, is_admin)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                        (full_name, email, full_phone, generate_password_hash(password), role, preferred_city or None, is_configured_admin),
                     )
                     db.commit()
                 except DB_INTEGRITY_ERRORS:
@@ -2631,7 +3015,12 @@ def signup():
     default_role = request.args.get('role', 'tenant')
     if default_role not in ('tenant', 'owner'):
         default_role = 'tenant'
-    return render_template('signup.html', phone_countries=phone_country_options(), default_role=default_role)
+    return render_template(
+        'signup.html',
+        phone_countries=phone_country_options(),
+        default_role=default_role,
+        zambia_cities=ZAMBIA_CITIES,
+    )
 
 
 @app.route('/saved-searches/save', methods=['POST'])
@@ -2741,7 +3130,7 @@ def create_trip_plan():
         flash('Trip plans can only include your currently saved, active listings.', 'error')
         return redirect(url_for('dashboard'))
 
-    name = request.form.get('name', '').strip()[:80] or 'My Lusaka shortlist'
+    name = request.form.get('name', '').strip()[:80] or 'My KwachaStay shortlist'
     try:
         db.execute('BEGIN IMMEDIATE')
         token = secrets.token_urlsafe(24)
@@ -3115,6 +3504,7 @@ def add_house():
             utility_fields = parse_property_utility_fields(request.form)
             checkin_fields = parse_checkin_fields(request.form, is_long_term=(price_period == 'month'))
             stay_terms = parse_stay_terms_fields(request.form, property_type, price_period)
+            essentials = parse_zambia_essentials_fields(request.form, property_type)
         except ValueError as error:
             flash(str(error), 'error')
             return redirect(url_for('add_house'))
@@ -3188,10 +3578,16 @@ def add_house():
         db = get_db()
         cursor = db.execute(
             '''INSERT INTO properties (
-                owner_id, title, description, price_per_night, price_period, compound, property_type,
+                owner_id, title, description, price_per_night, price_period, city, compound, property_type,
                 listing_category, availability_status, location_details, agent_name, agent_phone,
                 bedrooms, bathrooms, bed_type, room_sharing, room_capacity, kitchen_type, has_sitting_room,
-                upfront_months, hourly_rate,
+                upfront_months, hourly_rate, furnishing_status, master_self_contained, zesco_meter_type,
+                listing_source, viewing_fee, security_fence, nearby_university, campus_distance, boarding_gender,
+                gate_curfew_policy, bed_spaces_left, semester_rate,
+                has_study_desk, has_bed_mattress, has_stove_fridge, has_laundry_area, has_study_backup_power,
+                yard_type, has_paved_yard, is_pet_friendly, is_family_friendly,
+                has_private_entrance, has_smart_tv, couples_friendly, allows_small_gatherings, offers_airport_transfer,
+                video_tour_url,
                 has_solar, has_borehole, has_pool, has_garden, has_bbq,
                 has_balcony, has_ac, has_wifi, has_parking, image_main, is_featured,
                 cancellation_policy, house_rules, cleaning_fee, refundable_deposit,
@@ -3199,12 +3595,22 @@ def add_house():
                 internet_speed_mbps, emergency_contact_name, emergency_contact_phone,
                 arrival_instructions, arrival_directions, nearby_essentials,
                 checkin_time, checkout_time, self_checkin_method,
-                main_photo_category, latitude, longitude
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-            (owner_id, title, description, price, price_period, compound, property_type,
+                main_photo_category, latitude, longitude, last_confirmed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)''',
+            (owner_id, title, description, price, price_period, essentials['city'], compound, property_type,
              listing_category, availability_status, location_details, agent_name, agent_phone,
              bedrooms, bathrooms, bed_type, stay_terms['room_sharing'], room_capacity, kitchen_type, has_sitting_room,
              stay_terms['upfront_months'], stay_terms['hourly_rate'],
+             essentials['furnishing_status'], essentials['master_self_contained'], essentials['zesco_meter_type'],
+             essentials['listing_source'], essentials['viewing_fee'], essentials['security_fence'],
+             essentials['nearby_university'], essentials['campus_distance'], essentials['boarding_gender'],
+             essentials['gate_curfew_policy'], essentials['bed_spaces_left'], essentials['semester_rate'],
+             essentials['has_study_desk'], essentials['has_bed_mattress'], essentials['has_stove_fridge'],
+             essentials['has_laundry_area'], essentials['has_study_backup_power'],
+             essentials['yard_type'], essentials['has_paved_yard'], essentials['is_pet_friendly'], essentials['is_family_friendly'],
+             essentials['has_private_entrance'], essentials['has_smart_tv'], essentials['couples_friendly'],
+             essentials['allows_small_gatherings'], essentials['offers_airport_transfer'],
+             essentials['video_tour_url'],
              has_solar, has_borehole, has_pool, has_garden, has_bbq,
              has_balcony, has_ac, has_wifi, has_parking, image_url, is_featured,
              cancellation_policy, house_rules, cleaning_fee, refundable_deposit,
@@ -3237,14 +3643,30 @@ def add_house():
         flash('Property listed successfully!', 'success')
         return redirect(url_for('landlord_dashboard'))
         
+    preferred_city = ''
+    if g.user and 'preferred_city' in g.user.keys() and is_supported_city(g.user['preferred_city']):
+        preferred_city = g.user['preferred_city']
     return render_template(
         'add_house.html',
-        compounds=LUSAKA_NEIGHBOURHOODS,
+        default_city=preferred_city,
+        compounds=get_city_neighbourhoods(preferred_city) if preferred_city else [],
+        zambia_cities=ZAMBIA_CITIES,
+        city_neighbourhoods=ZAMBIA_CITY_NEIGHBOURHOODS,
+        city_coords=ZAMBIA_CITY_COORDS,
         neighbourhood_coords=LUSAKA_NEIGHBOURHOOD_COORDS,
         photo_categories=PHOTO_CATEGORIES,
         power_backup_options=POWER_BACKUP_OPTIONS,
         water_supply_options=WATER_SUPPLY_OPTIONS,
         internet_options=INTERNET_OPTIONS,
+        furnishing_options=FURNISHING_OPTIONS,
+        zesco_meter_options=ZESCO_METER_OPTIONS,
+        listing_source_options=LISTING_SOURCE_OPTIONS,
+        security_fence_options=SECURITY_FENCE_OPTIONS,
+        boarding_gender_options=BOARDING_GENDER_OPTIONS,
+        campus_distance_options=CAMPUS_DISTANCE_OPTIONS,
+        gate_curfew_options=GATE_CURFEW_OPTIONS,
+        yard_type_options=YARD_TYPE_OPTIONS,
+        zambia_universities=ZAMBIA_UNIVERSITIES,
     )
 
 
@@ -3266,8 +3688,17 @@ def geocode_location():
             'source': 'coordinates',
         })
 
-    # 2. Exact built-in Lusaka neighbourhood match
+    # 2. Exact built-in Zambia city or Lusaka neighbourhood match
     needle = query.casefold()
+    for city_name, coords in ZAMBIA_CITY_COORDS.items():
+        if city_name.casefold() == needle or f'{city_name.casefold()}, zambia' == needle:
+            return jsonify({
+                'latitude': coords[0],
+                'longitude': coords[1],
+                'label': f'{city_name}, Zambia',
+                'city': city_name,
+                'source': 'city',
+            })
     for name, coords in LUSAKA_NEIGHBOURHOOD_COORDS.items():
         if name.casefold() == needle or f'{name.casefold()}, lusaka' == needle:
             return jsonify({
@@ -3278,14 +3709,13 @@ def geocode_location():
                 'source': 'neighbourhood',
             })
 
-    # 3. Live OpenStreetMap Nominatim lookup biased to Lusaka, Zambia
-    search_q = query if 'lusaka' in needle or 'zambia' in needle else f'{query}, Lusaka, Zambia'
+    # 3. Live OpenStreetMap Nominatim lookup restricted to Zambia
+    search_q = query if 'zambia' in needle else f'{query}, Zambia'
     params = urllib.parse.urlencode({
         'q': search_q,
         'format': 'json',
         'limit': '1',
         'countrycodes': 'zm',
-        'viewbox': '28.05,-15.62,28.62,-15.18',
     })
     url = f'https://nominatim.openstreetmap.org/search?{params}'
     req = urllib.request.Request(
@@ -3308,18 +3738,28 @@ def geocode_location():
     except (urllib.error.URLError, TimeoutError, ValueError, KeyError, OSError):
         pass
 
-    # 4. Partial built-in Lusaka neighbourhood fallback
+    # 4. Partial built-in launch city or neighbourhood fallback
+    for city_name, coords in ZAMBIA_CITY_COORDS.items():
+        if needle in city_name.casefold() or city_name.casefold() in needle:
+            return jsonify({
+                'latitude': coords[0],
+                'longitude': coords[1],
+                'label': f'{city_name}, Zambia',
+                'city': city_name,
+                'source': 'city',
+            })
     for name, coords in LUSAKA_NEIGHBOURHOOD_COORDS.items():
         if needle in name.casefold() or name.casefold() in needle:
             return jsonify({
                 'latitude': coords[0],
                 'longitude': coords[1],
                 'label': f'{name}, Lusaka, Zambia',
+                'city': 'Lusaka',
                 'compound': name,
                 'source': 'neighbourhood',
             })
 
-    return jsonify({'error': 'Location not found. Try a Lusaka neighbourhood, road name, or drop a pin on the map.'}), 404
+    return jsonify({'error': 'Location not found. Try a city, neighbourhood, road name, or drop a pin on the map.'}), 404
 
 @app.route('/dashboard')
 @login_required
@@ -3335,7 +3775,7 @@ def tenant_dashboard():
 
     # 1. Fetch My Bookings (Tenant)
     bookings = db.execute('''
-        SELECT b.*, p.title, p.compound, p.image_main,
+        SELECT b.*, p.title, p.compound, p.city, p.image_main,
                p.arrival_instructions, p.arrival_directions, p.nearby_essentials,
                p.emergency_contact_name, p.emergency_contact_phone,
                p.checkin_time, p.checkout_time, p.self_checkin_method,
@@ -3380,9 +3820,21 @@ def tenant_dashboard():
         (g.user['id'],),
     ).fetchall()
 
+    my_viewings = db.execute(
+        '''SELECT v.*, p.title, p.compound, p.city, p.image_main, p.viewing_fee,
+                  u.full_name AS owner_name, u.phone AS owner_phone
+           FROM property_viewings v
+           JOIN properties p ON v.property_id = p.id
+           JOIN users u ON v.owner_id = u.id
+           WHERE v.tenant_id = ?
+           ORDER BY v.viewing_date DESC, v.created_at DESC''',
+        (g.user['id'],),
+    ).fetchall()
+
     return render_template(
         'tenant_dashboard.html',
         bookings=bookings,
+        my_viewings=my_viewings,
         wishlist=wishlist,
         messages=messages,
         saved_searches=saved_searches,
@@ -3399,13 +3851,21 @@ def tenant_dashboard():
 def landlord_dashboard():
     db = get_db()
     expire_pending_booking_requests(db, force=True)
+    sweep_stale_availability_checks(db, force=True)
 
     # 1. Fetch My Listings (Landlord / Lister)
     properties = db.execute('''
-        SELECT *, CAST(julianday('now') - julianday(last_confirmed_at) AS INTEGER)
+        SELECT *, CAST(julianday('now') - julianday(COALESCE(last_confirmed_at, created_at)) AS INTEGER)
             AS confirmation_age_days
         FROM properties WHERE owner_id = ? ORDER BY created_at DESC
     ''', (g.user['id'],)).fetchall()
+    availability_check_listings = [
+        prop for prop in properties
+        if prop['is_active'] and (
+            prop['availability_status'] == 'stale_unconfirmed'
+            or (prop['confirmation_age_days'] is not None and prop['confirmation_age_days'] >= AVAILABILITY_PROMPT_DAYS)
+        )
+    ]
     seasonal_pricing = {}
     calendar_imports = {}
     calendar_feed_urls = {}
@@ -3586,16 +4046,31 @@ def landlord_dashboard():
         ORDER BY m.created_at DESC
     ''', (g.user['id'],)).fetchall()
 
-    # 4. Fetch Payout Methods
+    # 4. Fetch Payout Methods & Incoming Physical Viewing Requests
     payout_methods = db.execute(
         'SELECT * FROM payout_methods WHERE user_id = ? ORDER BY is_primary DESC',
         (g.user['id'],)
+    ).fetchall()
+    incoming_viewings = db.execute(
+        '''SELECT v.*, p.title, p.compound, p.city, p.viewing_fee,
+                  u.full_name AS tenant_account_name, u.email AS tenant_email
+           FROM property_viewings v
+           JOIN properties p ON v.property_id = p.id
+           LEFT JOIN users u ON v.tenant_id = u.id
+           WHERE v.owner_id = ?
+           ORDER BY CASE WHEN v.status = 'pending' THEN 0 ELSE 1 END,
+                    v.viewing_date ASC, v.created_at DESC''',
+        (g.user['id'],),
     ).fetchall()
 
     return render_template(
         'landlord_dashboard.html',
         properties=properties,
+        availability_check_listings=availability_check_listings,
+        availability_prompt_days=AVAILABILITY_PROMPT_DAYS,
+        stale_listing_hide_days=STALE_LISTING_HIDE_DAYS,
         incoming_bookings=incoming_bookings,
+        incoming_viewings=incoming_viewings,
         messages=messages,
         earnings=earnings,
         payout_methods=payout_methods,
@@ -3747,21 +4222,49 @@ def property_details(property_id):
         similar.append(s_dict)
 
     has_exact_pin = property['latitude'] is not None and property['longitude'] is not None
+    prop_city = property['city'] if 'city' in property.keys() and property['city'] else 'Lusaka'
     if has_exact_pin:
         map_lat = float(property['latitude'])
         map_lng = float(property['longitude'])
     else:
-        map_lat, map_lng = get_neighbourhood_coordinates(property['compound'])
+        map_lat, map_lng = get_neighbourhood_coordinates(property['compound'], prop_city)
+
+    existing_viewing = None
+    if g.user and g.user['role'] == 'tenant':
+        existing_viewing = db.execute(
+            '''SELECT * FROM property_viewings
+               WHERE property_id = ? AND tenant_id = ?
+                 AND status IN ('pending', 'confirmed')
+               ORDER BY created_at DESC LIMIT 1''',
+            (property_id, g.user['id']),
+        ).fetchone()
+
+    nearby_landmarks = compute_nearby_landmarks(map_lat, map_lng, prop_city)
+    video_tour = build_video_tour_embed(property['video_tour_url'] if 'video_tour_url' in property.keys() else '')
 
     return render_template('property_details.html',
                            property=property,
+                           property_city=prop_city,
                            has_exact_pin=has_exact_pin,
                            map_lat=map_lat,
                            map_lng=map_lng,
+                           nearby_landmarks=nearby_landmarks,
+                           video_tour=video_tour,
+                           yard_type_options=YARD_TYPE_OPTIONS,
                            effective_hourly_rate=get_effective_hourly_rate(property),
                            can_book_hourly=supports_hourly_booking(property),
                            upfront_months=get_upfront_months(property),
                            room_sharing_options=ROOM_SHARING_OPTIONS,
+                           furnishing_options=FURNISHING_OPTIONS,
+                           zesco_meter_options=ZESCO_METER_OPTIONS,
+                           listing_source_options=LISTING_SOURCE_OPTIONS,
+                           security_fence_options=SECURITY_FENCE_OPTIONS,
+                           boarding_gender_options=BOARDING_GENDER_OPTIONS,
+                           campus_distance_options=CAMPUS_DISTANCE_OPTIONS,
+                           gate_curfew_options=GATE_CURFEW_OPTIONS,
+                           viewing_time_slots=VIEWING_TIME_SLOTS,
+                           existing_viewing=existing_viewing,
+                           today_iso=date.today().isoformat(),
                            images=image_list,
                            photo_categories=photo_categories,
                            reviews=reviews,
@@ -3777,6 +4280,150 @@ def property_details(property_id):
                            similar=similar)
 
 
+@app.route('/property/<int:property_id>/request-viewing', methods=['POST'])
+@tenant_required
+def request_property_viewing(property_id):
+    if not check_rate_limit('viewing_user', str(g.user['id']), 10, 900):
+        abort(429, description='Too many viewing requests submitted. Please wait a few minutes.')
+    db = get_db()
+    prop = db.execute(
+        'SELECT * FROM properties WHERE id = ? AND is_active = 1',
+        (property_id,),
+    ).fetchone()
+    if not prop:
+        flash('Property not found or no longer active.', 'error')
+        return redirect(url_for('index'))
+    if prop['owner_id'] == g.user['id']:
+        flash('You cannot schedule a viewing on your own property.', 'error')
+        return redirect(url_for('property_details', property_id=property_id))
+
+    viewing_date = parse_iso_date(request.form.get('viewing_date'))
+    viewing_time = (request.form.get('viewing_time') or '').strip()
+    visitor_name = (request.form.get('visitor_name') or g.user['full_name'] or '').strip()
+    visitor_phone = (request.form.get('visitor_phone') or g.user['phone'] or '').strip()
+    notes = (request.form.get('notes') or '').strip()
+
+    if not viewing_date or viewing_date < date.today():
+        flash('Please choose today or a future date for your viewing.', 'error')
+        return redirect(url_for('property_details', property_id=property_id))
+    if viewing_time not in VIEWING_TIME_SLOTS:
+        flash('Please choose a valid viewing time slot.', 'error')
+        return redirect(url_for('property_details', property_id=property_id))
+    if not visitor_name or not visitor_phone or len(visitor_name) > 120 or len(visitor_phone) > 40:
+        flash('Please provide a valid name and phone number.', 'error')
+        return redirect(url_for('property_details', property_id=property_id))
+    if len(notes) > 1000:
+        flash('Viewing note must be under 1,000 characters.', 'error')
+        return redirect(url_for('property_details', property_id=property_id))
+
+    duplicate = db.execute(
+        '''SELECT id FROM property_viewings
+           WHERE property_id = ? AND tenant_id = ? AND viewing_date = ?
+             AND status IN ('pending', 'confirmed')''',
+        (property_id, g.user['id'], viewing_date.isoformat()),
+    ).fetchone()
+    if duplicate:
+        flash('You already have an active viewing request for this property on that date.', 'info')
+        return redirect(url_for('property_details', property_id=property_id))
+
+    db.execute(
+        '''INSERT INTO property_viewings (
+               property_id, tenant_id, owner_id, viewing_date, viewing_time,
+               visitor_name, visitor_phone, notes, status
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')''',
+        (property_id, g.user['id'], prop['owner_id'], viewing_date.isoformat(),
+         viewing_time, visitor_name, visitor_phone, notes or None),
+    )
+    create_notification(
+        db,
+        prop['owner_id'],
+        f'New viewing request for "{prop["title"]}" from {visitor_name} on {viewing_date.isoformat()} at {viewing_time}.',
+        url_for('landlord_dashboard'),
+    )
+    db.commit()
+    flash(
+        f'Viewing request sent for {viewing_date.isoformat()} at {viewing_time}. '
+        'No payment is required — the host will confirm your visit.',
+        'success',
+    )
+    return redirect(url_for('tenant_dashboard'))
+
+
+@app.route('/viewing/<int:viewing_id>/update', methods=['POST'])
+@landlord_required
+def update_property_viewing(viewing_id):
+    action = (request.form.get('status') or '').strip().lower()
+    if action not in ('confirmed', 'declined', 'completed'):
+        flash('Invalid viewing status.', 'error')
+        return redirect(url_for('landlord_dashboard'))
+    owner_note = (request.form.get('owner_response_note') or '').strip()[:500]
+
+    db = get_db()
+    viewing = db.execute(
+        '''SELECT v.*, p.title
+           FROM property_viewings v
+           JOIN properties p ON v.property_id = p.id
+           WHERE v.id = ? AND v.owner_id = ?''',
+        (viewing_id, g.user['id']),
+    ).fetchone()
+    if not viewing:
+        flash('Viewing request not found or unauthorized.', 'error')
+        return redirect(url_for('landlord_dashboard'))
+
+    db.execute(
+        '''UPDATE property_viewings
+           SET status = ?, owner_response_note = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND owner_id = ?''',
+        (action, owner_note or viewing['owner_response_note'], viewing_id, g.user['id']),
+    )
+    status_msg = {
+        'confirmed': f'Your viewing for "{viewing["title"]}" on {viewing["viewing_date"]} at {viewing["viewing_time"]} was confirmed by the host.',
+        'declined': f'Your viewing request for "{viewing["title"]}" on {viewing["viewing_date"]} was declined by the host.',
+        'completed': f'Your viewing for "{viewing["title"]}" has been marked completed.',
+    }[action]
+    if owner_note:
+        status_msg += f' Note: {owner_note}'
+    create_notification(db, viewing['tenant_id'], status_msg, url_for('tenant_dashboard'))
+    db.commit()
+    flash(f'Viewing request marked as {action}.', 'success')
+    return redirect(url_for('landlord_dashboard'))
+
+
+@app.route('/viewing/<int:viewing_id>/cancel', methods=['POST'])
+@tenant_required
+def cancel_property_viewing(viewing_id):
+    db = get_db()
+    viewing = db.execute(
+        '''SELECT v.*, p.title
+           FROM property_viewings v
+           JOIN properties p ON v.property_id = p.id
+           WHERE v.id = ? AND v.tenant_id = ?''',
+        (viewing_id, g.user['id']),
+    ).fetchone()
+    if not viewing:
+        flash('Viewing request not found or unauthorized.', 'error')
+        return redirect(url_for('tenant_dashboard'))
+    if viewing['status'] not in ('pending', 'confirmed'):
+        flash('This viewing can no longer be cancelled.', 'info')
+        return redirect(url_for('tenant_dashboard'))
+
+    db.execute(
+        '''UPDATE property_viewings
+           SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND tenant_id = ?''',
+        (viewing_id, g.user['id']),
+    )
+    create_notification(
+        db,
+        viewing['owner_id'],
+        f'{viewing["visitor_name"]} cancelled their viewing for "{viewing["title"]}" on {viewing["viewing_date"]}.',
+        url_for('landlord_dashboard'),
+    )
+    db.commit()
+    flash('Viewing request cancelled.', 'info')
+    return redirect(url_for('tenant_dashboard'))
+
+
 @app.route('/property/<int:property_id>/confirm-details', methods=['POST'])
 @landlord_required
 def confirm_listing_details(property_id):
@@ -3784,7 +4431,10 @@ def confirm_listing_details(property_id):
     try:
         db.execute('BEGIN IMMEDIATE')
         result = db.execute(
-            '''UPDATE properties SET last_confirmed_at = CURRENT_TIMESTAMP
+            '''UPDATE properties
+               SET last_confirmed_at = CURRENT_TIMESTAMP,
+                   availability_status = 'available',
+                   availability_prompted_at = NULL
                WHERE id = ? AND owner_id = ?''',
             (property_id, g.user['id']),
         )
@@ -5482,6 +6132,7 @@ def inject_unread_counts():
         'self_checkin_options': SELF_CHECKIN_OPTIONS,
         'mobile_money_enabled': flutterwave_checkout_enabled(),
         'bank_transfer_enabled': BANK_TRANSFER_ENABLED,
+        'launch_cities': ZAMBIA_CITIES,
         'payment_whatsapp_number': PAYMENT_WHATSAPP_NUMBER,
         'uploads_enabled': app.config['UPLOADS_ENABLED'],
         'phone_verification_enabled': bool(
@@ -6766,6 +7417,7 @@ def edit_property(property_id):
             utility_fields = parse_property_utility_fields(request.form)
             checkin_fields = parse_checkin_fields(request.form, is_long_term=(price_period == 'month'))
             stay_terms = parse_stay_terms_fields(request.form, property_type, price_period)
+            essentials = parse_zambia_essentials_fields(request.form, property_type)
         except ValueError as error:
             flash(str(error), 'error')
             return redirect(url_for('edit_property', property_id=property_id))
@@ -6820,9 +7472,17 @@ def edit_property(property_id):
 
         db.execute('''
             UPDATE properties SET
-                title=?, description=?, price_per_night=?, price_period=?, compound=?,
+                title=?, description=?, price_per_night=?, price_period=?, city=?, compound=?,
                 property_type=?, bed_type=?, room_sharing=?, room_capacity=?, kitchen_type=?,
-                has_sitting_room=?, upfront_months=?, hourly_rate=?, has_solar=?, has_borehole=?, has_pool=?,
+                has_sitting_room=?, upfront_months=?, hourly_rate=?,
+                furnishing_status=?, master_self_contained=?, zesco_meter_type=?,
+                listing_source=?, viewing_fee=?, security_fence=?, nearby_university=?,
+                campus_distance=?, boarding_gender=?, gate_curfew_policy=?, bed_spaces_left=?, semester_rate=?,
+                has_study_desk=?, has_bed_mattress=?, has_stove_fridge=?, has_laundry_area=?, has_study_backup_power=?,
+                yard_type=?, has_paved_yard=?, is_pet_friendly=?, is_family_friendly=?,
+                has_private_entrance=?, has_smart_tv=?, couples_friendly=?, allows_small_gatherings=?, offers_airport_transfer=?,
+                video_tour_url=?,
+                has_solar=?, has_borehole=?, has_pool=?,
                 has_garden=?, has_bbq=?, has_balcony=?, has_ac=?, has_wifi=?,
                 has_parking=?, image_main=?, cancellation_policy=?, house_rules=?,
                 cleaning_fee=?, refundable_deposit=?, utilities_included=?,
@@ -6832,9 +7492,19 @@ def edit_property(property_id):
                 checkin_time=?, checkout_time=?, self_checkin_method=?,
                 main_photo_category=?, latitude=?, longitude=?
             WHERE id=? AND owner_id=?
-        ''', (title, description, price, price_period, compound, property_type,
+        ''', (title, description, price, price_period, essentials['city'], compound, property_type,
               bed_type, stay_terms['room_sharing'], room_capacity, kitchen_type, has_sitting_room,
               stay_terms['upfront_months'], stay_terms['hourly_rate'],
+              essentials['furnishing_status'], essentials['master_self_contained'], essentials['zesco_meter_type'],
+              essentials['listing_source'], essentials['viewing_fee'], essentials['security_fence'],
+              essentials['nearby_university'], essentials['campus_distance'], essentials['boarding_gender'],
+              essentials['gate_curfew_policy'], essentials['bed_spaces_left'], essentials['semester_rate'],
+              essentials['has_study_desk'], essentials['has_bed_mattress'], essentials['has_stove_fridge'],
+              essentials['has_laundry_area'], essentials['has_study_backup_power'],
+              essentials['yard_type'], essentials['has_paved_yard'], essentials['is_pet_friendly'], essentials['is_family_friendly'],
+              essentials['has_private_entrance'], essentials['has_smart_tv'], essentials['couples_friendly'],
+              essentials['allows_small_gatherings'], essentials['offers_airport_transfer'],
+              essentials['video_tour_url'],
               has_solar, has_borehole, has_pool, has_garden, has_bbq,
               has_balcony, has_ac, has_wifi, has_parking, image_main,
               cancellation_policy, house_rules, cleaning_fee, refundable_deposit,
@@ -6882,17 +7552,31 @@ def edit_property(property_id):
     photo_categories_present = {row['category'] for row in extra_images if row['category']}
     if property['image_main']:
         photo_categories_present.add(property['main_photo_category'] or 'other')
+    prop_city = property['city'] if 'city' in property.keys() and property['city'] else 'Lusaka'
     return render_template(
         'edit_house.html',
         property=property,
+        property_city=prop_city,
         extra_images=extra_images,
         photo_categories_present=photo_categories_present,
-        compounds=LUSAKA_NEIGHBOURHOODS,
+        compounds=ZAMBIA_CITY_NEIGHBOURHOODS.get(prop_city, LUSAKA_NEIGHBOURHOODS),
+        zambia_cities=ZAMBIA_CITIES,
+        city_neighbourhoods=ZAMBIA_CITY_NEIGHBOURHOODS,
+        city_coords=ZAMBIA_CITY_COORDS,
         neighbourhood_coords=LUSAKA_NEIGHBOURHOOD_COORDS,
         photo_categories=PHOTO_CATEGORIES,
         power_backup_options=POWER_BACKUP_OPTIONS,
         water_supply_options=WATER_SUPPLY_OPTIONS,
         internet_options=INTERNET_OPTIONS,
+        furnishing_options=FURNISHING_OPTIONS,
+        zesco_meter_options=ZESCO_METER_OPTIONS,
+        listing_source_options=LISTING_SOURCE_OPTIONS,
+        security_fence_options=SECURITY_FENCE_OPTIONS,
+        boarding_gender_options=BOARDING_GENDER_OPTIONS,
+        campus_distance_options=CAMPUS_DISTANCE_OPTIONS,
+        gate_curfew_options=GATE_CURFEW_OPTIONS,
+        yard_type_options=YARD_TYPE_OPTIONS,
+        zambia_universities=ZAMBIA_UNIVERSITIES,
     )
 
 
@@ -6991,7 +7675,7 @@ def change_password():
 def booking_receipt(booking_id):
     db = get_db()
     booking = db.execute('''
-        SELECT b.*, p.title, p.compound, p.property_type, p.image_main,
+        SELECT b.*, p.title, p.compound, p.city, p.property_type, p.image_main,
                p.arrival_instructions, p.arrival_directions, p.nearby_essentials,
                p.emergency_contact_name, p.emergency_contact_phone,
                p.checkin_time, p.checkout_time, p.self_checkin_method,

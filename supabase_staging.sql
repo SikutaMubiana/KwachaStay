@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     phone TEXT NOT NULL,
     password TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'tenant', -- 'tenant' or 'owner'
+    preferred_city TEXT,
     profile_pic TEXT,
     is_admin INTEGER DEFAULT 0,
     host_verification_status TEXT DEFAULT 'unverified',
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS properties (
     description TEXT,
     price_per_night DOUBLE PRECISION NOT NULL, -- Storing as generic price value
     price_period TEXT DEFAULT 'night', -- 'night' or 'month'
+    city TEXT NOT NULL DEFAULT 'Lusaka',
     compound TEXT NOT NULL,
     location_details TEXT,
     property_type TEXT NOT NULL DEFAULT 'House', -- House, Boarding House, Hotel, Villa, Guest House, Hostel
@@ -60,6 +62,34 @@ CREATE TABLE IF NOT EXISTS properties (
     has_sitting_room INTEGER DEFAULT 0,
     upfront_months INTEGER NOT NULL DEFAULT 1, -- Minimum upfront months required for monthly rentals
     hourly_rate DOUBLE PRECISION, -- Optional explicit hourly rate for Hotel/Villa/Hostel short stays (min 3 hours)
+    furnishing_status TEXT DEFAULT 'unfurnished',
+    master_self_contained INTEGER NOT NULL DEFAULT 0,
+    zesco_meter_type TEXT DEFAULT '',
+    listing_source TEXT DEFAULT 'owner',
+    viewing_fee DOUBLE PRECISION NOT NULL DEFAULT 0,
+    security_fence TEXT DEFAULT '',
+    nearby_university TEXT DEFAULT '',
+    campus_distance TEXT DEFAULT '',
+    boarding_gender TEXT DEFAULT '',
+    gate_curfew_policy TEXT DEFAULT '',
+    bed_spaces_left INTEGER,
+    semester_rate DOUBLE PRECISION,
+    has_study_desk INTEGER NOT NULL DEFAULT 0,
+    has_bed_mattress INTEGER NOT NULL DEFAULT 0,
+    has_stove_fridge INTEGER NOT NULL DEFAULT 0,
+    has_laundry_area INTEGER NOT NULL DEFAULT 0,
+    has_study_backup_power INTEGER NOT NULL DEFAULT 0,
+    yard_type TEXT DEFAULT '',
+    has_paved_yard INTEGER NOT NULL DEFAULT 0,
+    is_pet_friendly INTEGER NOT NULL DEFAULT 0,
+    is_family_friendly INTEGER NOT NULL DEFAULT 0,
+    has_private_entrance INTEGER NOT NULL DEFAULT 0,
+    has_smart_tv INTEGER NOT NULL DEFAULT 0,
+    couples_friendly INTEGER NOT NULL DEFAULT 0,
+    allows_small_gatherings INTEGER NOT NULL DEFAULT 0,
+    offers_airport_transfer INTEGER NOT NULL DEFAULT 0,
+    video_tour_url TEXT DEFAULT '',
+    availability_prompted_at TIMESTAMP,
     
     -- Lusaka Essentials & Luxury
     has_solar INTEGER DEFAULT 0,
@@ -409,6 +439,27 @@ CREATE TABLE IF NOT EXISTS admin_audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at
 ON admin_audit_logs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS property_viewings (
+    id BIGSERIAL PRIMARY KEY,
+    property_id INTEGER NOT NULL,
+    tenant_id INTEGER NOT NULL,
+    owner_id INTEGER NOT NULL,
+    viewing_date TEXT NOT NULL,
+    viewing_time TEXT NOT NULL,
+    visitor_name TEXT NOT NULL,
+    visitor_phone TEXT NOT NULL,
+    notes TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    owner_response_note TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_property_viewings_owner ON property_viewings(owner_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_property_viewings_tenant ON property_viewings(tenant_id, created_at DESC);
 
 CREATE OR REPLACE FUNCTION julianday(ts text, modifier text DEFAULT NULL)
 RETURNS double precision

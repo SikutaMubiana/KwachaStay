@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
     phone TEXT NOT NULL,
     password TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'tenant', -- 'tenant' or 'owner'
+    preferred_city TEXT,
     profile_pic TEXT,
     is_admin BOOLEAN DEFAULT 0,
     host_verification_status TEXT DEFAULT 'unverified',
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS properties (
     description TEXT,
     price_per_night REAL NOT NULL, -- Storing as generic price value
     price_period TEXT DEFAULT 'night', -- 'night' or 'month'
+    city TEXT NOT NULL DEFAULT 'Lusaka',
     compound TEXT NOT NULL,
     location_details TEXT,
     property_type TEXT NOT NULL DEFAULT 'House', -- House, Boarding House, Hotel, Villa, Guest House, Hostel
@@ -57,6 +59,34 @@ CREATE TABLE IF NOT EXISTS properties (
     has_sitting_room BOOLEAN DEFAULT 0,
     upfront_months INTEGER NOT NULL DEFAULT 1, -- Minimum upfront months required for monthly rentals
     hourly_rate REAL, -- Optional explicit hourly rate for Hotel/Villa/Hostel short stays (min 3 hours)
+    furnishing_status TEXT DEFAULT 'unfurnished', -- furnished, semi_furnished, unfurnished
+    master_self_contained BOOLEAN NOT NULL DEFAULT 0,
+    zesco_meter_type TEXT DEFAULT '', -- own, shared, included
+    listing_source TEXT DEFAULT 'owner', -- owner, agent
+    viewing_fee REAL NOT NULL DEFAULT 0,
+    security_fence TEXT DEFAULT '', -- electric_fence, wall_fence, gated_complex, none
+    nearby_university TEXT DEFAULT '',
+    campus_distance TEXT DEFAULT '',
+    boarding_gender TEXT DEFAULT '', -- mixed, female, male
+    gate_curfew_policy TEXT DEFAULT '', -- 24h_access, curfew_22, curfew_21, curfew_20, strict_curfew
+    bed_spaces_left INTEGER,
+    semester_rate REAL,
+    has_study_desk BOOLEAN NOT NULL DEFAULT 0,
+    has_bed_mattress BOOLEAN NOT NULL DEFAULT 0,
+    has_stove_fridge BOOLEAN NOT NULL DEFAULT 0,
+    has_laundry_area BOOLEAN NOT NULL DEFAULT 0,
+    has_study_backup_power BOOLEAN NOT NULL DEFAULT 0,
+    yard_type TEXT DEFAULT '',
+    has_paved_yard BOOLEAN NOT NULL DEFAULT 0,
+    is_pet_friendly BOOLEAN NOT NULL DEFAULT 0,
+    is_family_friendly BOOLEAN NOT NULL DEFAULT 0,
+    has_private_entrance BOOLEAN NOT NULL DEFAULT 0,
+    has_smart_tv BOOLEAN NOT NULL DEFAULT 0,
+    couples_friendly BOOLEAN NOT NULL DEFAULT 0,
+    allows_small_gatherings BOOLEAN NOT NULL DEFAULT 0,
+    offers_airport_transfer BOOLEAN NOT NULL DEFAULT 0,
+    video_tour_url TEXT DEFAULT '',
+    availability_prompted_at TIMESTAMP,
     
     -- Lusaka Essentials & Luxury
     has_solar BOOLEAN DEFAULT 0,
@@ -406,3 +436,24 @@ CREATE TABLE IF NOT EXISTS admin_audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at
 ON admin_audit_logs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS property_viewings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    property_id INTEGER NOT NULL,
+    tenant_id INTEGER NOT NULL,
+    owner_id INTEGER NOT NULL,
+    viewing_date TEXT NOT NULL,
+    viewing_time TEXT NOT NULL,
+    visitor_name TEXT NOT NULL,
+    visitor_phone TEXT NOT NULL,
+    notes TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    owner_response_note TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (property_id) REFERENCES properties (id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant_id) REFERENCES users (id) ON DELETE CASCADE,
+    FOREIGN KEY (owner_id) REFERENCES users (id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_property_viewings_owner ON property_viewings(owner_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_property_viewings_tenant ON property_viewings(tenant_id, created_at DESC);

@@ -3,8 +3,8 @@
 {% block content %}
 <div class="max-w-3xl mx-auto px-4 py-12">
     <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900">List your property</h1>
-        <p class="text-gray-500 mt-2">Share your space with travelers in Lusaka.</p>
+        <h1 class="text-3xl font-bold text-gray-900">List Your Property on KwachaStay.</h1>
+        <p class="text-gray-500 mt-2">Connect with property seekers across {{ zambia_cities | join(', ') }}.</p>
         <p class="mt-3 text-sm text-gray-600">
             Need help creating or managing a listing?
             <a class="font-semibold text-green-700 underline"
@@ -14,14 +14,43 @@
     </div>
 
     <form method="post" class="space-y-8" id="propertyForm" enctype="multipart/form-data">
-        <!-- Property Type -->
+        <!-- Step 1: Select City & Neighbourhood -->
         <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h2 class="text-lg font-semibold mb-4">Property Type</h2>
+            <h2 class="text-lg font-semibold mb-1">1. Select City &amp; Neighbourhood</h2>
+            <p class="text-xs text-gray-500 mb-4">Choose your Zambian city first — recognizable neighbourhoods in that city will load automatically.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="citySelect" class="block text-sm font-medium text-gray-700 mb-1">City (Launch Cities)</label>
+                    <select name="city" id="citySelect" required onchange="updateCityNeighbourhoods()"
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                        <option value="" disabled {% if not default_city %}selected{% endif %}>Select city</option>
+                        {% for city_name in zambia_cities %}
+                        <option value="{{ city_name }}" {% if default_city == city_name %}selected{% endif %}>{{ city_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="compoundSelect" class="block text-sm font-medium text-gray-700 mb-1">Neighbourhood / Area</label>
+                    <select name="compound" id="compoundSelect" required
+                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                        <option value="" disabled selected>{% if default_city %}Select area in {{ default_city }}{% else %}Select a city first{% endif %}</option>
+                        {% for comp in compounds %}
+                        <option value="{{ comp }}">{{ comp }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Property Type -->
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+            <h2 class="text-lg font-semibold mb-4">2. Select Property Type</h2>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">What kind of place is it?</label>
                 <select name="property_type" id="propertyType" required onchange="toggleFields()"
                     class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
                     <option value="House">House</option>
+                    <option value="Apartment">Apartment</option>
                     <option value="Boarding House">Boarding House / University Apartment</option>
                     <option value="Villa">Villa</option>
                     <option value="Guest House">Guest House</option>
@@ -29,34 +58,122 @@
                     <option value="Hostel">Hostel</option>
                 </select>
                 <p id="propertyTypeHint" class="text-xs text-gray-500 mt-2">
+                    Houses and Hostels default to monthly / long-term stays (months or years). Villas, Hotels, and Guest
+                    Houses default to nightly / short stays (days, weeks, or a month). You can adjust the billing period
+                    below.
                     Houses and Boarding Houses default to monthly stays (with upfront rent terms). Hotels, Villas,
                     Hostels, and Guest Houses support hourly (3-hour min), daily, and weekly bookings.
                 </p>
 
                 <!-- Boarding House / University Apartment Sub-Options -->
-                <div id="boardingHouseOptions" class="hidden mt-4 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 space-y-4">
+                <div id="boardingHouseOptions"
+                    class="hidden mt-4 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 space-y-4">
                     <div class="flex items-center gap-2 text-indigo-900 font-semibold text-sm">
                         <i class="fa-solid fa-graduation-cap text-indigo-600"></i>
                         <span>Boarding House / Student Apartment Options</span>
                     </div>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label for="roomSharingSelect" class="block text-sm font-medium text-gray-800 mb-1">Room Arrangement</label>
+                            <label for="roomSharingSelect" class="block text-sm font-medium text-gray-800 mb-1">Room
+                                Arrangement</label>
                             <select name="room_sharing" id="roomSharingSelect" onchange="syncRoomSharing()"
                                 class="w-full rounded-lg border-indigo-200 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
                                 <option value="single">Single Room (Private)</option>
                                 <option value="shared">Shared Room</option>
                             </select>
-                            <p class="text-xs text-gray-600 mt-1">Specify whether residents get a private single room or share a room.</p>
+                            <p class="text-xs text-gray-600 mt-1">Specify whether residents get a private single room or
+                                share a room.</p>
                         </div>
                         <div class="flex items-center">
-                            <label class="flex items-start gap-3 p-3 w-full bg-white border border-indigo-200 rounded-xl cursor-pointer hover:bg-indigo-50/50 transition">
-                                <input type="checkbox" id="boardingWifiCheckbox" onchange="syncBoardingWifi(this.checked)"
+                            <label
+                                class="flex items-start gap-3 p-3 w-full bg-white border border-indigo-200 rounded-xl cursor-pointer hover:bg-indigo-50/50 transition">
+                                <input type="checkbox" id="boardingWifiCheckbox"
+                                    onchange="syncBoardingWifi(this.checked)"
                                     class="mt-0.5 rounded text-primary focus:ring-primary w-5 h-5">
                                 <div class="text-sm">
-                                    <span class="font-bold block text-gray-900"><i class="fa-solid fa-wifi text-indigo-600 mr-1.5"></i>WiFi Available</span>
-                                    <span class="text-gray-500 text-xs">Highlight internet / WiFi access for university students &amp; residents</span>
+                                    <span class="font-bold block text-gray-900"><i
+                                            class="fa-solid fa-wifi text-indigo-600 mr-1.5"></i>WiFi Available</span>
+                                    <span class="text-gray-500 text-xs">Highlight internet / WiFi access for university
+                                        students &amp; residents</span>
                                 </div>
+                            </label>
+                        </div>
+                        <div>
+                            <label for="boardingGenderSelect" class="block text-sm font-medium text-gray-800 mb-1">Gender Policy</label>
+                            <select name="boarding_gender" id="boardingGenderSelect"
+                                class="w-full rounded-lg border-indigo-200 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                                <option value="">Not specified</option>
+                                {% for val, label in boarding_gender_options.items() %}
+                                <option value="{{ val }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="nearbyUniversitySelect" class="block text-sm font-medium text-gray-800 mb-1">Nearest University / College</label>
+                            <select name="nearby_university" id="nearbyUniversitySelect"
+                                class="w-full rounded-lg border-indigo-200 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                                <option value="">Select nearby institution (optional)</option>
+                                {% for uni in zambia_universities %}
+                                <option value="{{ uni }}">{{ uni }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="campusDistanceSelect" class="block text-sm font-medium text-gray-800 mb-1">Walking / Bus Distance to Campus</label>
+                            <select name="campus_distance" id="campusDistanceSelect"
+                                class="w-full rounded-lg border-indigo-200 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                                <option value="">Select distance (optional)</option>
+                                {% for val, label in campus_distance_options.items() %}
+                                <option value="{{ val }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="gateCurfewSelect" class="block text-sm font-medium text-gray-800 mb-1">Gate &amp; Curfew Policy</label>
+                            <select name="gate_curfew_policy" id="gateCurfewSelect"
+                                class="w-full rounded-lg border-indigo-200 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                                <option value="">Select gate policy (optional)</option>
+                                {% for val, label in gate_curfew_options.items() %}
+                                <option value="{{ val }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="bedSpacesLeftInput" class="block text-sm font-medium text-gray-800 mb-1">Bed Spaces Currently Left (optional)</label>
+                            <input type="number" name="bed_spaces_left" id="bedSpacesLeftInput" min="0" max="500" placeholder="e.g. 4"
+                                class="w-full rounded-lg border-indigo-200 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                        </div>
+                        <div>
+                            <label for="semesterRateInput" class="block text-sm font-medium text-gray-800 mb-1">Per-Semester / Term Rate (ZMW, optional)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-3 text-gray-500">K</span>
+                                <input type="number" name="semester_rate" id="semesterRateInput" min="0" step="0.01" placeholder="e.g. 6000.00"
+                                    class="w-full pl-8 rounded-lg border-indigo-200 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="border-t border-indigo-200 pt-3">
+                        <p class="text-xs font-bold uppercase tracking-wide text-indigo-900 mb-2.5">Student Room, Cooking &amp; Load-Shedding Essentials</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-sm">
+                            <label class="flex items-center gap-2.5 bg-white border border-indigo-100 rounded-lg p-2.5 cursor-pointer hover:bg-indigo-50/40">
+                                <input type="checkbox" name="has_bed_mattress" class="rounded text-primary focus:ring-primary w-4 h-4">
+                                <span class="text-gray-800 font-medium"><i class="fa-solid fa-bed text-indigo-600 mr-1.5"></i>Bed &amp; Mattress Provided</span>
+                            </label>
+                            <label class="flex items-center gap-2.5 bg-white border border-indigo-100 rounded-lg p-2.5 cursor-pointer hover:bg-indigo-50/40">
+                                <input type="checkbox" name="has_stove_fridge" class="rounded text-primary focus:ring-primary w-4 h-4">
+                                <span class="text-gray-800 font-medium"><i class="fa-solid fa-kitchen-set text-amber-600 mr-1.5"></i>Shared / Private Stove &amp; Fridge</span>
+                            </label>
+                            <label class="flex items-center gap-2.5 bg-white border border-indigo-100 rounded-lg p-2.5 cursor-pointer hover:bg-indigo-50/40">
+                                <input type="checkbox" name="has_laundry_area" class="rounded text-primary focus:ring-primary w-4 h-4">
+                                <span class="text-gray-800 font-medium"><i class="fa-solid fa-shirt text-blue-600 mr-1.5"></i>Laundry / Washing Area</span>
+                            </label>
+                            <label class="flex items-center gap-2.5 bg-white border border-indigo-100 rounded-lg p-2.5 cursor-pointer hover:bg-indigo-50/40">
+                                <input type="checkbox" name="has_study_desk" class="rounded text-primary focus:ring-primary w-4 h-4">
+                                <span class="text-gray-800 font-medium"><i class="fa-solid fa-book-open-reader text-purple-600 mr-1.5"></i>Study Desk / Quiet Study Area</span>
+                            </label>
+                            <label class="flex items-center gap-2.5 bg-white border border-indigo-100 rounded-lg p-2.5 cursor-pointer hover:bg-indigo-50/40 sm:col-span-2">
+                                <input type="checkbox" name="has_study_backup_power" class="rounded text-primary focus:ring-primary w-4 h-4">
+                                <span class="text-gray-800 font-medium"><i class="fa-solid fa-solar-panel text-orange-500 mr-1.5"></i>Backup Solar / Inverter for Study Lights &amp; Laptop Charging (ZESCO load-shedding ready)</span>
                             </label>
                         </div>
                     </div>
@@ -125,31 +242,20 @@
             </div>
         </div>
 
-        <!-- Location & Price -->
+        <!-- Pricing, Essentials & Map Pin -->
         <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-            <h2 class="text-lg font-semibold mb-4">Location & Pricing</h2>
+            <h2 class="text-lg font-semibold mb-4">Pricing, Essentials &amp; Map Pin</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Neighbourhood / Compound</label>
-                    <select name="compound" required
-                        class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
-                        <option value="" disabled selected>Select location</option>
-                        {% for comp in compounds %}
-                        <option value="{{ comp }}">{{ comp }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Billing / Stay Period</label>
+                    <label for="pricePeriod" class="block text-sm font-medium text-gray-700 mb-1">Billing / Stay Period</label>
                     <select name="price_period" id="pricePeriod" onchange="syncStayMode()"
                         class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
-                        <option value="month">Per Month (House / Boarding House: months &amp; years)</option>
+                        <option value="month">Per Month (House / Apartment / Boarding House: months &amp; years)</option>
                         <option value="night">Per Night (Hotel / Villa / Hostel: hours 3h min, days &amp; weeks)</option>
                     </select>
                 </div>
                 <div>
-                    <label id="priceLabel" class="block text-sm font-medium text-gray-700 mb-1">Price per Month
-                        (ZMW)</label>
+                    <label id="priceLabel" class="block text-sm font-medium text-gray-700 mb-1">Price per Month (ZMW)</label>
                     <div class="relative">
                         <span class="absolute left-3 top-3 text-gray-500">K</span>
                         <input type="number" name="price" required min="0" step="0.01" placeholder="0.00"
@@ -157,13 +263,16 @@
                     </div>
                 </div>
                 <!-- Monthly Upfront Rent Terms (Houses / Boarding Houses) -->
-                <div id="upfrontMonthsField" class="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                <div id="upfrontMonthsField"
+                    class="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
                     <label for="upfrontMonthsSelect" class="block text-sm font-semibold text-gray-900 mb-1">
-                        <i class="fa-solid fa-money-bill-wave text-amber-600 mr-1.5"></i>Upfront Rent Payment Requirement
+                        <i class="fa-solid fa-money-bill-wave text-amber-600 mr-1.5"></i>Upfront Rent Payment
+                        Requirement
                     </label>
                     <select name="upfront_months" id="upfrontMonthsSelect"
                         class="w-full rounded-lg border-amber-300 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
-                        <option value="1" selected>Monthly only — Pay 1 month at a time (no multi-month upfront required)</option>
+                        <option value="1" selected>Monthly only — Pay 1 month at a time (no multi-month upfront
+                            required)</option>
                         <option value="2">2 Months upfront required</option>
                         <option value="3">3 Months upfront required</option>
                         <option value="4">4 Months upfront required</option>
@@ -171,19 +280,24 @@
                         <option value="6">6 Months upfront required (Half Year)</option>
                         <option value="12">12 Months upfront required (1 Full Year)</option>
                     </select>
-                    <p class="text-xs text-gray-600 mt-1.5">Make it clear to tenants whether rent can be paid month-to-month or requires 3, 5, or more months upfront.</p>
+                    <p class="text-xs text-gray-600 mt-1.5">Make it clear to tenants whether rent can be paid
+                        month-to-month or requires 3, 5, or more months upfront.</p>
                 </div>
                 <!-- Optional Hourly Rate (Hotels / Villas / Hostels / Guest Houses) -->
-                <div id="hourlyRateField" class="hidden md:col-span-2 rounded-xl border border-blue-200 bg-blue-50/70 p-4">
+                <div id="hourlyRateField"
+                    class="hidden md:col-span-2 rounded-xl border border-blue-200 bg-blue-50/70 p-4">
                     <label for="hourlyRateInput" class="block text-sm font-semibold text-gray-900 mb-1">
-                        <i class="fa-regular fa-clock text-blue-600 mr-1.5"></i>Hourly Rate for Short Stays (ZMW / hour — 3-hour minimum)
+                        <i class="fa-regular fa-clock text-blue-600 mr-1.5"></i>Hourly Rate for Short Stays (ZMW / hour
+                        — 3-hour minimum)
                     </label>
                     <div class="relative">
                         <span class="absolute left-3 top-3 text-gray-500">K</span>
-                        <input type="number" name="hourly_rate" id="hourlyRateInput" min="0" step="0.01" placeholder="Optional — leave blank to auto-calculate (nightly ÷ 8)"
+                        <input type="number" name="hourly_rate" id="hourlyRateInput" min="0" step="0.01"
+                            placeholder="Optional — leave blank to auto-calculate (nightly ÷ 8)"
                             class="w-full pl-8 rounded-lg border-blue-200 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
                     </div>
-                    <p class="text-xs text-gray-600 mt-1.5">Guests booking Hotels, Villas, Hostels, or Guest Houses can choose Hours (minimum 3 hours), Days, or Weeks.</p>
+                    <p class="text-xs text-gray-600 mt-1.5">Guests booking Hotels, Villas, Hostels, or Guest Houses can
+                        choose Hours (minimum 3 hours), Days, or Weeks.</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">One-time cleaning fee (ZMW)</label>
@@ -201,6 +315,101 @@
                     <input type="checkbox" name="utilities_included" checked class="rounded text-primary">
                     Utilities are included in the displayed price
                 </label>
+            </div>
+            <!-- Zambia / Lusaka Rental Essentials -->
+            <div class="mt-6 border-t pt-5">
+                <h3 class="font-semibold text-gray-900 mb-1">Zambia Rental Essentials &amp; Transparency</h3>
+                <p class="text-xs text-gray-500 mb-4">Help families, workers, and students filter by the details that matter most.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label class="block text-sm font-medium text-gray-700">Furnishing status
+                        <select name="furnishing_status" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                            {% for value, label in furnishing_options.items() %}
+                            <option value="{{ value }}" {% if value == 'unfurnished' %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">ZESCO electricity meter
+                        <select name="zesco_meter_type" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                            <option value="">Not specified</option>
+                            {% for value, label in zesco_meter_options.items() %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">Security &amp; fence
+                        <select name="security_fence" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                            <option value="">Not specified</option>
+                            {% for value, label in security_fence_options.items() %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">Compound / Yard style
+                        <select name="yard_type" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                            <option value="">Not specified</option>
+                            {% for value, label in yard_type_options.items() %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">Who is listing this property?
+                        <select name="listing_source" class="mt-1 w-full rounded-lg border-gray-300 p-3 border bg-white">
+                            {% for value, label in listing_source_options.items() %}
+                            <option value="{{ value }}">{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="block text-sm font-medium text-gray-700">Physical viewing fee (ZMW — enter 0 if free)
+                        <input type="number" name="viewing_fee" min="0" step="0.01" value="0"
+                            class="mt-1 w-full rounded-lg border-gray-300 p-3 border">
+                    </label>
+                    <div class="md:col-span-2 flex flex-wrap gap-4 pt-2">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="master_self_contained" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <span class="text-sm font-semibold text-gray-800">Master Self-Contained (MSC)</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="has_paved_yard" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <span class="text-sm font-medium text-gray-700">Paved Yard</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="is_family_friendly" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <span class="text-sm font-medium text-gray-700">Kids / Family-Friendly</span>
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" name="is_pet_friendly" class="rounded text-primary focus:ring-primary w-5 h-5">
+                            <span class="text-sm font-medium text-gray-700">Pet-Friendly</span>
+                        </label>
+                    </div>
+                </div>
+                <!-- Short-Stay Comfort, Privacy & Group Tags (Hotels, Villas, Hostels, Guest Houses) -->
+                <div id="shortStayComfortPanel" class="hidden mt-5 rounded-xl border border-rose-200 bg-rose-50/50 p-4">
+                    <p class="text-xs font-bold uppercase tracking-wide text-rose-900 mb-2.5">
+                        <i class="fa-solid fa-champagne-glasses mr-1.5 text-primary"></i>Couples, Friends &amp; Short-Stay Highlights
+                    </p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-sm">
+                        <label class="flex items-center gap-2.5 bg-white border border-rose-100 rounded-lg p-2.5 cursor-pointer">
+                            <input type="checkbox" name="has_private_entrance" class="rounded text-primary focus:ring-primary w-4 h-4">
+                            <span class="text-gray-800 font-medium"><i class="fa-solid fa-key text-rose-600 mr-1.5"></i>Private Entrance / Discreet Access</span>
+                        </label>
+                        <label class="flex items-center gap-2.5 bg-white border border-rose-100 rounded-lg p-2.5 cursor-pointer">
+                            <input type="checkbox" name="couples_friendly" class="rounded text-primary focus:ring-primary w-4 h-4">
+                            <span class="text-gray-800 font-medium"><i class="fa-solid fa-heart text-pink-500 mr-1.5"></i>Couples Welcome / Discreet Parking</span>
+                        </label>
+                        <label class="flex items-center gap-2.5 bg-white border border-rose-100 rounded-lg p-2.5 cursor-pointer">
+                            <input type="checkbox" name="has_smart_tv" class="rounded text-primary focus:ring-primary w-4 h-4">
+                            <span class="text-gray-800 font-medium"><i class="fa-solid fa-tv text-indigo-600 mr-1.5"></i>Smart TV (Netflix) / DSTV</span>
+                        </label>
+                        <label class="flex items-center gap-2.5 bg-white border border-rose-100 rounded-lg p-2.5 cursor-pointer">
+                            <input type="checkbox" name="allows_small_gatherings" class="rounded text-primary focus:ring-primary w-4 h-4">
+                            <span class="text-gray-800 font-medium"><i class="fa-solid fa-fire-burner text-amber-600 mr-1.5"></i>Small Gatherings / Braai (BBQ) Allowed</span>
+                        </label>
+                        <label class="flex items-center gap-2.5 bg-white border border-rose-100 rounded-lg p-2.5 cursor-pointer sm:col-span-2">
+                            <input type="checkbox" name="offers_airport_transfer" class="rounded text-primary focus:ring-primary w-4 h-4">
+                            <span class="text-gray-800 font-medium"><i class="fa-solid fa-plane-arrival text-blue-600 mr-1.5"></i>Airport Transfer Available (e.g. KKIA / Livingstone / Ndola)</span>
+                        </label>
+                    </div>
+                </div>
             </div>
             <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <label class="block text-sm font-medium text-gray-700">Power and backup
@@ -373,7 +582,7 @@
             <h2 class="text-lg font-semibold mb-4">Amenities & Features</h2>
 
             <div class="mb-6">
-                <span class="block text-sm font-medium text-gray-700 mb-3">Lusaka Essentials (Critical)</span>
+                <span class="block text-sm font-medium text-gray-700 mb-3">Power &amp; Water Essentials (Critical)</span>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <label
                         class="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition">
@@ -498,6 +707,20 @@
                 <input type="hidden" name="extra_images" id="extraImagesInput">
                 <input type="hidden" name="extra_image_categories" id="extraImageCategoriesInput">
                 <p class="text-xs text-gray-400 mt-2">These appear in the property photo gallery.</p>
+            </div>
+
+            <!-- Short Video Walkthrough / Virtual Tour Link -->
+            <div class="mt-6 pt-5 border-t">
+                <label for="videoTourUrlInput" class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fa-solid fa-video text-primary mr-1.5"></i>Short Video Walkthrough / Virtual Tour Link
+                    <span class="text-gray-400 font-normal">(optional — 30–60 sec tour)</span>
+                </label>
+                <input type="url" name="video_tour_url" id="videoTourUrlInput" maxlength="500"
+                    placeholder="https://youtube.com/shorts/... or https://www.tiktok.com/@.../video/..."
+                    class="w-full rounded-lg border-gray-300 shadow-sm focus:border-primary focus:ring-primary p-3 border text-sm">
+                <p class="text-xs text-gray-500 mt-1.5">
+                    Paste a YouTube, YouTube Shorts, TikTok, Vimeo, Instagram, Facebook, or Google Drive link. Great for diaspora Zambians and students relocating from another town!
+                </p>
             </div>
 
         </div>
@@ -675,6 +898,7 @@
         const longTermNotice = document.getElementById('longTermArrivalNotice');
         const upfrontField = document.getElementById('upfrontMonthsField');
         const hourlyField = document.getElementById('hourlyRateField');
+        const shortStayPanel = document.getElementById('shortStayComfortPanel');
 
         priceLabel.textContent = isLongTerm ? 'Price per Month (ZMW)' : 'Price per Night (ZMW)';
         if (isLongTerm) {
@@ -683,6 +907,7 @@
             longTermNotice.classList.remove('hidden');
             if (upfrontField) upfrontField.classList.remove('hidden');
             if (hourlyField) hourlyField.classList.add('hidden');
+            if (shortStayPanel) shortStayPanel.classList.add('hidden');
             checkinInput.required = false;
             checkoutInput.required = false;
             checkinInput.value = '';
@@ -693,6 +918,7 @@
             longTermNotice.classList.add('hidden');
             if (upfrontField) upfrontField.classList.add('hidden');
             if (hourlyField) hourlyField.classList.remove('hidden');
+            if (shortStayPanel) shortStayPanel.classList.remove('hidden');
             checkinInput.required = true;
             checkoutInput.required = true;
             if (!checkinInput.value) checkinInput.value = '15:00';
@@ -721,7 +947,7 @@
             }
         }
 
-        if (type === 'House' || type === 'Boarding House') {
+        if (type === 'House' || type === 'Apartment' || type === 'Boarding House') {
             pricePeriod.value = 'month';
         } else {
             pricePeriod.value = 'night';
@@ -741,6 +967,28 @@
 </script>
 <script nonce="{{ csp_nonce() }}">
     window.LUSAKA_NEIGHBOURHOOD_COORDS = {{ neighbourhood_coords | tojson }};
+    window.ZAMBIA_CITY_NEIGHBOURHOODS = {{ city_neighbourhoods | tojson }};
+    window.ZAMBIA_CITY_COORDS = {{ city_coords | tojson }};
+
+    function updateCityNeighbourhoods() {
+        const cityEl = document.getElementById('citySelect');
+        const compEl = document.getElementById('compoundSelect');
+        if (!cityEl || !compEl) return;
+        const city = cityEl.value;
+        if (!city) {
+            compEl.innerHTML = '<option value="" disabled selected>Select a city first</option>';
+            return;
+        }
+        const areas = (window.ZAMBIA_CITY_NEIGHBOURHOODS && window.ZAMBIA_CITY_NEIGHBOURHOODS[city]) || [];
+        compEl.innerHTML = '<option value="" disabled selected>Select area in ' + city + '</option>';
+        areas.forEach(function (area) {
+            const opt = document.createElement('option');
+            opt.value = area;
+            opt.textContent = area;
+            compEl.appendChild(opt);
+        });
+        window.dispatchEvent(new CustomEvent('kwachastay:city-changed', { detail: { city: city } }));
+    }
 </script>
 <script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/location-picker.js') }}"></script>
 {% endblock %}

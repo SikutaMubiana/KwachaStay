@@ -13,4 +13,4 @@ Verify your email address:
 {% endif %}
 Verification links expire in 24 hours. If you did not request this, you can ignore it.
 
-KwachaStay · Lusaka, Zambia
+KwachaStay · Zambia

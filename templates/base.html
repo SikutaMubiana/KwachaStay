@@ -5,9 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>KwachaStay | Premium Lusaka Stays</title>
+    <title>KwachaStay | Zambian Property &amp; Accommodation Marketplace</title>
     <meta name="description"
-        content="Find and book premium accommodation in Lusaka, Zambia. From cozy guest houses to luxury villas in Kabulonga, Rhodes Park, and more.">
+        content="Your trusted marketplace for discovering and listing properties across Zambia.">
     <!-- Tailwind CSS -->
     <script nonce="{{ csp_nonce() }}" src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -91,7 +91,7 @@
                     <a href="{{ url_for('index') }}"
                         class="text-sm font-medium text-gray-700 hover:text-primary transition">Find Stays</a>
                     <a href="{{ url_for('lusaka_areas') }}"
-                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Lusaka Areas</a>
+                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Our Cities</a>
                     <a href="{{ url_for('about') }}"
                         class="text-sm font-medium text-gray-700 hover:text-primary transition">About</a>
                     <form action="{{ url_for('toggle_low_data_mode') }}" method="POST" class="inline">
@@ -167,7 +167,7 @@
                 <a href="{{ url_for('index') }}"
                     class="text-base font-medium text-gray-700 hover:text-primary transition">Find Stays</a>
                 <a href="{{ url_for('lusaka_areas') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">Lusaka Areas</a>
+                    class="text-base font-medium text-gray-700 hover:text-primary transition">Our Cities</a>
                 <a href="{{ url_for('about') }}"
                     class="text-base font-medium text-gray-700 hover:text-primary transition">About KwachaStay</a>
                 <form action="{{ url_for('toggle_low_data_mode') }}" method="POST">
@@ -256,7 +256,10 @@
     <footer class="bg-gray-50 border-t border-gray-100 mt-12">
         <div
             class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
-            <p class="text-base text-gray-500">&copy; 2026 KwachaStay. Made for Lusaka.</p>
+            <div>
+                <p class="text-base font-medium text-gray-700">&copy; 2026 KwachaStay. Your trusted marketplace for discovering and listing properties across Zambia.</p>
+                <p class="text-xs text-gray-500 mt-1">Launching across {{ launch_cities | join(' · ') }}</p>
+            </div>
             <div class="flex flex-wrap items-center gap-5 mt-4 md:mt-0">
                 <a href="{{ url_for('about') }}" class="text-sm font-medium text-gray-600 hover:text-primary">About
                     KwachaStay</a>

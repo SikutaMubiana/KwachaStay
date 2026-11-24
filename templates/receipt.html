@@ -46,15 +46,18 @@
             <!-- Property Info -->
             <div class="flex gap-4 items-start">
                 {% if booking.image_main %}
-                <img src="{{ booking.image_main }}" alt="{{ booking.title }}" class="w-20 h-20 rounded-xl object-cover flex-shrink-0"
+                <img src="{{ booking.image_main }}" alt="{{ booking.title }}"
+                    class="w-20 h-20 rounded-xl object-cover flex-shrink-0"
                     onerror="this.onerror=null;this.src='{{ url_for('static', filename='images/no-photo.svg') }}'">
                 {% endif %}
                 <div>
                     <h2 class="text-lg font-bold text-gray-900">{{ booking.title }}</h2>
                     <p class="text-sm text-gray-500">
-                        <i class="fa-solid fa-location-dot text-primary mr-1"></i>{{ booking.compound }}, Lusaka
+                        <i class="fa-solid fa-location-dot text-primary mr-1"></i>{{ booking.compound }}, {{
+                        booking.city or 'Lusaka' }}
                     </p>
-                    <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded mt-1 inline-block">{{ booking.property_type }}</span>
+                    <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded mt-1 inline-block">{{
+                        booking.property_type }}</span>
                 </div>
             </div>
 
@@ -84,21 +87,27 @@
             <section class="rounded-2xl border border-green-200 bg-green-50 p-5 space-y-3">
                 <h3 class="font-bold text-green-900"><i class="fa-solid fa-door-open mr-2"></i>Arrival guide</h3>
                 {% if booking.duration_unit != 'month' and booking.checkin_time and booking.checkout_time %}
-                <p class="text-sm text-gray-700"><strong>Check-in:</strong> {{ booking.checkin_time }} · <strong>Check-out:</strong> {{ booking.checkout_time }}</p>
+                <p class="text-sm text-gray-700"><strong>Check-in:</strong> {{ booking.checkin_time }} ·
+                    <strong>Check-out:</strong> {{ booking.checkout_time }}</p>
                 {% elif booking.duration_unit == 'month' %}
-                <p class="text-sm text-gray-700"><strong>Move-in / Key handover:</strong> Coordinated directly with your host (long-term stay)</p>
+                <p class="text-sm text-gray-700"><strong>Move-in / Key handover:</strong> Coordinated directly with your
+                    host (long-term stay)</p>
                 {% endif %}
-                {% if booking.self_checkin_method %}<p class="text-sm text-gray-700"><strong>Method:</strong> {{ self_checkin_options.get(booking.self_checkin_method, 'Contact host') }}</p>{% endif %}
-                {% if booking.arrival_instructions %}<p class="whitespace-pre-line text-sm text-gray-700"><strong>Check-in instructions</strong><br>{{ booking.arrival_instructions }}</p>{% endif %}
-                {% if booking.arrival_directions %}<p class="whitespace-pre-line text-sm text-gray-700"><strong>Directions / meeting point</strong><br>{{ booking.arrival_directions }}</p>{% endif %}
-                {% if booking.nearby_essentials %}<p class="whitespace-pre-line text-sm text-gray-700"><strong>Nearby essentials</strong><br>{{ booking.nearby_essentials }}</p>{% endif %}
+                {% if booking.self_checkin_method %}<p class="text-sm text-gray-700"><strong>Method:</strong> {{
+                    self_checkin_options.get(booking.self_checkin_method, 'Contact host') }}</p>{% endif %}
+                {% if booking.arrival_instructions %}<p class="whitespace-pre-line text-sm text-gray-700">
+                    <strong>Check-in instructions</strong><br>{{ booking.arrival_instructions }}</p>{% endif %}
+                {% if booking.arrival_directions %}<p class="whitespace-pre-line text-sm text-gray-700">
+                    <strong>Directions / meeting point</strong><br>{{ booking.arrival_directions }}</p>{% endif %}
+                {% if booking.nearby_essentials %}<p class="whitespace-pre-line text-sm text-gray-700"><strong>Nearby
+                        essentials</strong><br>{{ booking.nearby_essentials }}</p>{% endif %}
                 {% if booking.property_latitude is not none and booking.property_longitude is not none %}
                 <a class="inline-block text-sm font-semibold text-green-800 underline"
                     href="https://www.google.com/maps/dir/?api=1&amp;destination={{ booking.property_latitude }},{{ booking.property_longitude }}"
                     target="_blank" rel="noopener noreferrer">Open directions map</a>
                 {% else %}
                 <a class="inline-block text-sm font-semibold text-green-800 underline"
-                    href="https://www.google.com/maps/search/?api=1&amp;query={{ (booking.compound ~ ', Lusaka, Zambia')|urlencode }}"
+                    href="https://www.google.com/maps/search/?api=1&amp;query={{ (booking.compound ~ ', ' ~ (booking.city or 'Lusaka') ~ ', Zambia')|urlencode }}"
                     target="_blank" rel="noopener noreferrer">Open neighbourhood map</a>
                 {% endif %}
             </section>
@@ -108,7 +117,8 @@
                 <h3 class="font-bold text-red-900"><i class="fa-solid fa-phone-volume mr-2"></i>Emergency contact</h3>
                 <p class="mt-2 text-sm text-gray-700">{{ booking.emergency_contact_name }}</p>
                 {% if booking.emergency_contact_phone %}
-                <a class="text-sm font-semibold text-red-800 underline" href="tel:{{ booking.emergency_contact_phone }}">{{ booking.emergency_contact_phone }}</a>
+                <a class="text-sm font-semibold text-red-800 underline"
+                    href="tel:{{ booking.emergency_contact_phone }}">{{ booking.emergency_contact_phone }}</a>
                 {% endif %}
             </section>
             {% endif %}
@@ -135,7 +145,8 @@
             <div class="bg-gray-50 rounded-2xl p-5 space-y-2">
                 <div class="flex justify-between text-sm">
                     <span class="text-gray-600">Stay subtotal</span>
-                    <span class="font-medium">ZMW {{ "{:,.2f}".format(booking.base_amount if booking.base_amount or booking.total_price == 0 else booking.total_price) }}</span>
+                    <span class="font-medium">ZMW {{ "{:,.2f}".format(booking.base_amount if booking.base_amount or
+                        booking.total_price == 0 else booking.total_price) }}</span>
                 </div>
                 {% if booking.service_fee %}
                 <div class="flex justify-between text-sm">
@@ -175,7 +186,8 @@
                 {% if booking.payment_claim_reference %}
                 <div class="flex justify-between gap-4 text-sm">
                     <span class="text-gray-600">Submitted bank transfer ref</span>
-                    <span class="break-all font-mono text-amber-800">{{ booking.payment_claim_reference }} · awaiting bank verification</span>
+                    <span class="break-all font-mono text-amber-800">{{ booking.payment_claim_reference }} · awaiting
+                        bank verification</span>
                 </div>
                 {% endif %}
                 {% if booking.refund_reference %}
@@ -211,7 +223,7 @@
 
         <!-- Footer -->
         <div class="px-8 py-4 bg-gray-50 border-t text-center">
-            <p class="text-xs text-gray-400">Thank you for choosing KwachaStay · Lusaka, Zambia 🇿🇲</p>
+            <p class="text-xs text-gray-400">Thank you for choosing KwachaStay · Zambia 🇿🇲</p>
         </div>
     </div>
 
@@ -226,7 +238,8 @@
             <i class="fa-solid fa-arrow-left mr-2"></i>Back to Dashboard
         </a>
     </div>
-    {% if booking.user_id == g.user['id'] and booking.booking_status == 'confirmed' and booking.payment_status != 'paid' %}
+    {% if booking.user_id == g.user['id'] and booking.booking_status == 'confirmed' and booking.payment_status != 'paid'
+    %}
     <div class="mt-4 text-center">
         {% if mobile_money_enabled %}
         <form action="{{ url_for('start_mobile_money_payment', booking_id=booking.id) }}" method="POST">
@@ -236,35 +249,52 @@
         </form>
         <p class="mt-2 text-xs text-gray-500">Select your network on Flutterwave's secure payment page.</p>
         {% else %}
-        <p class="text-sm text-gray-600">Mobile-money checkout is not configured. <a class="font-semibold underline" href="{{ url_for('support_center', booking_id=booking.id) }}">Contact support</a>.</p>
+        <p class="text-sm text-gray-600">Mobile-money checkout is not configured. <a class="font-semibold underline"
+                href="{{ url_for('support_center', booking_id=booking.id) }}">Contact support</a>.</p>
         {% endif %}
         {% if bank_transfer_enabled %}
         <a href="{{ url_for('bank_transfer_payment', booking_id=booking.id) }}"
             class="mt-3 inline-block rounded-xl border border-blue-200 bg-blue-50 px-6 py-3 font-bold text-blue-900 hover:bg-blue-100">
             <i class="fa-solid fa-building-columns mr-2"></i>Pay by bank transfer
         </a>
-        <p class="mt-2 text-xs text-gray-500">Bank transfers are confirmed manually after they appear in the KwachaStay account.</p>
+        <p class="mt-2 text-xs text-gray-500">Bank transfers are confirmed manually after they appear in the KwachaStay
+            account.</p>
         {% endif %}
         <a href="https://wa.me/{{ payment_whatsapp_number }}?text={{ ('Hello, I need help completing payment for booking #' ~ booking.id ~ ' (' ~ booking.title ~ '). Please send me the official payment instructions.')|urlencode }}"
             target="_blank" rel="noopener noreferrer"
             class="mt-3 inline-block rounded-xl bg-green-600 px-6 py-3 font-bold text-white hover:bg-green-700">
             <i class="fa-brands fa-whatsapp mr-2"></i>WhatsApp +260 764 483 750
         </a>
-        <p class="mt-2 text-xs text-gray-500">WhatsApp support helps coordinate your booking; your booking is marked paid only after payment is verified. Never share your PIN or verification codes.</p>
+        <p class="mt-2 text-xs text-gray-500">WhatsApp support helps coordinate your booking; your booking is marked
+            paid only after payment is verified. Never share your PIN or verification codes.</p>
     </div>
     {% endif %}
     <p class="mt-4 text-center text-sm text-gray-600">
         Need help with this booking?
-        <a class="font-semibold text-primary underline" href="{{ url_for('support_center', booking_id=booking.id) }}">Report an issue or contact support</a>
+        <a class="font-semibold text-primary underline"
+            href="{{ url_for('support_center', booking_id=booking.id) }}">Report an issue or contact support</a>
     </p>
 </div>
 
 <!-- Print Styles -->
 <style>
     @media print {
-        nav, footer, .flash-msg, #loadingOverlay { display: none !important; }
-        .max-w-2xl { max-width: 100% !important; }
-        button, a[href*="dashboard"] { display: none !important; }
+
+        nav,
+        footer,
+        .flash-msg,
+        #loadingOverlay {
+            display: none !important;
+        }
+
+        .max-w-2xl {
+            max-width: 100% !important;
+        }
+
+        button,
+        a[href*="dashboard"] {
+            display: none !important;
+        }
     }
 </style>
 {% endblock %}

@@ -10,10 +10,11 @@
     const clearPinBtn = document.getElementById('clearLocationPinBtn');
     const previewLink = document.getElementById('googleMapsPreviewLink');
     const compoundSelect = document.querySelector('select[name="compound"]');
+    const citySelect = document.querySelector('select[name="city"]');
     if (!mapElement || !latitudeInput || !longitudeInput || !status) return;
 
     const neighbourhoodCoords = window.LUSAKA_NEIGHBOURHOOD_COORDS || {};
-    const lusakaCenter = [-15.4167, 28.2833];
+    const zambiaCenter = [-14.2000, 28.3000];
     let map;
     let marker;
     let streetLayer;
@@ -116,7 +117,7 @@
         if (!latitudeInput.value && !longitudeInput.value) {
             if (marker && map) map.removeLayer(marker);
             marker = null;
-            status.textContent = 'No exact pin yet — guests will still see your selected Lusaka neighbourhood on Google Maps.';
+            status.textContent = 'No exact pin yet — guests will still see your selected city and neighbourhood on Google Maps.';
             updatePreviewLink();
             return;
         }
@@ -131,7 +132,9 @@
     }
 
     if (window.L) {
-        map = L.map(mapElement).setView(lusakaCenter, 12);
+        const selectedCity = citySelect && citySelect.value;
+        const selectedCityCoords = selectedCity && window.ZAMBIA_CITY_COORDS && window.ZAMBIA_CITY_COORDS[selectedCity];
+        map = L.map(mapElement).setView(selectedCityCoords || zambiaCenter, selectedCityCoords ? 12 : 6);
         streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors',
             maxZoom: 19
@@ -198,6 +201,15 @@
         });
     }
 
+    window.addEventListener('kwachastay:city-changed', function (event) {
+        const city = event && event.detail && event.detail.city;
+        const cityCoords = window.ZAMBIA_CITY_COORDS && window.ZAMBIA_CITY_COORDS[city];
+        if (cityCoords && map) {
+            map.setView(cityCoords, 13);
+            status.textContent = 'Map centred on ' + city + '. Pick an area, search a street, or click the map to pin your property.';
+        }
+    });
+
     async function runLocationSearch() {
         if (!searchInput) return;
         const query = searchInput.value.trim();
@@ -211,7 +223,7 @@
         }
 
         if (searchButton) searchButton.disabled = true;
-        status.textContent = 'Searching Lusaka location…';
+        status.textContent = 'Searching location…';
         try {
             const resp = await fetch('/api/geocode?q=' + encodeURIComponent(query));
             const data = await resp.json();

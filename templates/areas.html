@@ -2,53 +2,107 @@
 
 {% block content %}
 <main class="max-w-7xl mx-auto px-4 py-10">
-    <header class="max-w-3xl mb-10">
-        <p class="text-sm font-bold uppercase tracking-wide text-primary mb-2">KwachaStay Lusaka guide</p>
-        <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Find the right area for your stay</h1>
+    <header class="max-w-3xl mb-8">
+        <p class="text-sm font-bold uppercase tracking-wide text-primary mb-2">Seven-City Launch · Zambia</p>
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Explore Properties Across Our Cities.</h1>
         <p class="text-gray-600">
-            Get a quick orientation to popular Lusaka neighbourhoods, then browse available places.
-            Area descriptions are general; confirm the exact location, transport, and nearby services with your host.
+            KwachaStay connects property seekers, landlords, real estate agents, property managers, hotels, and
+            accommodation providers across seven major Zambian cities.
+            Choose a city below to explore recognizable neighbourhoods and browse available properties.
         </p>
     </header>
 
-    <section aria-labelledby="featured-areas-heading">
-        <h2 id="featured-areas-heading" class="text-2xl font-bold text-gray-900 mb-5">Popular areas</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {% for area in area_guide %}
-            <article class="rounded-2xl border bg-white p-6 shadow-sm flex flex-col">
-                <div class="flex items-start justify-between gap-3 mb-3">
-                    <h3 class="text-xl font-bold text-gray-900">{{ area.name }}</h3>
-                    <i class="fa-solid fa-location-dot text-primary mt-1" aria-hidden="true"></i>
+    <!-- Quick City Jump Pills -->
+    <div class="flex flex-wrap gap-2 mb-8">
+        <a href="{{ url_for('lusaka_areas') }}"
+            class="rounded-full px-4 py-2 text-sm font-semibold border transition {% if not selected_city %}bg-primary text-white border-primary{% else %}bg-white text-gray-700 border-gray-200 hover:border-primary hover:text-primary{% endif %}">
+            All 7 Cities
+        </a>
+        {% for city in city_guide %}
+        <a href="{{ url_for('lusaka_areas', city=city.name) }}"
+            class="rounded-full px-4 py-2 text-sm font-semibold border transition {% if selected_city == city.name %}bg-primary text-white border-primary{% else %}bg-white text-gray-700 border-gray-200 hover:border-primary hover:text-primary{% endif %}">
+            {{ city.name }}
+            <span class="ml-1 text-xs opacity-80">({{ city_counts.get(city.name, 0) }})</span>
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Seven Launch Cities Overview Grid -->
+    <section aria-labelledby="launch-cities-heading" class="space-y-6">
+        <h2 id="launch-cities-heading" class="sr-only">Our seven launch cities</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for city in city_guide %}
+            {% if not selected_city or selected_city == city.name %}
+            <article
+                class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm flex flex-col hover:border-primary/40 transition">
+                <div class="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-900">{{ city.name }}</h3>
+                        <p class="text-xs font-medium text-gray-500">{{ city.neighbourhood_count }} neighbourhoods
+                            listed</p>
+                    </div>
+                    <span
+                        class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-primary">
+                        {{ city_counts.get(city.name, 0) }} active
+                    </span>
                 </div>
-                <p class="text-sm text-gray-600 mb-4">{{ area.overview }}</p>
-                <p class="text-sm text-gray-700 mb-2"><strong>Often suits:</strong> {{ area.good_for }}</p>
-                <p class="text-sm text-gray-500 mb-5"><strong>Tip:</strong> {{ area.tip }}</p>
-                <a href="{{ url_for('index', compound=area.name) }}"
+                <p class="text-sm text-gray-600 mb-3">{{ city.overview }}</p>
+                <p class="text-sm text-gray-700 mb-2"><strong>Often suits:</strong> {{ city.good_for }}</p>
+                <p class="text-xs text-gray-500 mb-4"><strong>Local tip:</strong> {{ city.tip }}</p>
+
+                <div class="mb-5">
+                    <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-2">Popular neighbourhoods
+                    </p>
+                    <div class="flex flex-wrap gap-1.5">
+                        {% for area in city.featured_neighbourhoods %}
+                        <a href="{{ url_for('index', city=city.name, compound=area) }}"
+                            class="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 hover:border-primary hover:text-primary transition">
+                            {{ area }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <a href="{{ url_for('index', city=city.name) }}"
                     class="mt-auto inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline">
-                    Browse {{ area.name }} stays <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                    Browse properties in {{ city.name }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
                 </a>
             </article>
+            {% endif %}
             {% endfor %}
         </div>
     </section>
 
-    <section aria-labelledby="all-areas-heading" class="mt-12 border-t pt-8">
-        <h2 id="all-areas-heading" class="text-2xl font-bold text-gray-900 mb-2">Browse all neighbourhoods</h2>
-        <p class="text-sm text-gray-600 mb-5">Explore listings across Lusaka's neighbourhoods and compounds.</p>
-        <div class="flex flex-wrap gap-2">
-            {% for neighbourhood in other_neighbourhoods %}
-            <a href="{{ url_for('index', compound=neighbourhood) }}"
-                class="rounded-full border bg-white px-4 py-2 text-sm text-gray-700 hover:border-primary hover:text-primary">
-                {{ neighbourhood }}
-            </a>
-            {% endfor %}
-            {% for area in area_guide %}
-            <a href="{{ url_for('index', compound=area.name) }}"
-                class="rounded-full border bg-white px-4 py-2 text-sm text-gray-700 hover:border-primary hover:text-primary">
-                {{ area.name }}
-            </a>
-            {% endfor %}
+    <!-- All Neighbourhoods Grouped by City -->
+    <section aria-labelledby="all-city-areas-heading" class="mt-14 border-t border-gray-200 pt-10 space-y-8">
+        <div>
+            <h2 id="all-city-areas-heading" class="text-2xl font-bold text-gray-900 mb-2">Browse Neighbourhoods by City
+            </h2>
+            <p class="text-sm text-gray-600">Select any neighbourhood in our seven launch cities to view available
+                houses, apartments, boarding houses, hotels, villas, and hostels.</p>
         </div>
+        {% for city in city_guide %}
+        {% if not selected_city or selected_city == city.name %}
+        <div class="rounded-2xl border border-gray-100 bg-gray-50/70 p-6">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+                <h3 class="text-lg font-bold text-gray-900">
+                    <i class="fa-solid fa-location-dot text-primary mr-1.5" aria-hidden="true"></i>{{ city.name }}
+                </h3>
+                <a href="{{ url_for('index', city=city.name) }}" class="text-xs font-bold text-primary hover:underline">
+                    View all in {{ city.name }} →
+                </a>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                {% for neighbourhood in city.neighbourhoods %}
+                <a href="{{ url_for('index', city=city.name, compound=neighbourhood) }}"
+                    class="rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-medium text-gray-700 hover:border-primary hover:text-primary transition">
+                    {{ neighbourhood }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
     </section>
 </main>
 {% endblock %}
