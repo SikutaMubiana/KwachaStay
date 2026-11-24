@@ -26,7 +26,7 @@ TABLES_WITH_ID = {
     'payout_methods', 'saved_searches', 'property_reports', 'support_requests',
     'notifications', 'trip_plans', 'calendar_imports', 'calendar_import_events',
     'seasonal_pricing', 'payout_ledger', 'email_messages', 'email_webhook_events',
-    'admin_audit_logs',
+    'admin_audit_logs', 'property_viewings',
 }
 
 INSERT_TARGET = re.compile(r'\bINSERT\s+INTO\s+"?([A-Za-z_]\w*)"?', re.IGNORECASE)
@@ -92,6 +92,63 @@ def _row_factory(cursor):
     return lambda values: PgRow(names, tuple(_normalize_value(v) for v in values))
 
 
+def _cast_julianday_first_arg(sql):
+    """Wrap non-literal first arguments to julianday(...) with ::text for PostgreSQL.
+
+    Handles both bare columns (julianday(created_at)) and nested expressions
+    (julianday(COALESCE(last_confirmed_at, created_at))).
+    """
+    result = []
+    pos = 0
+    pattern = re.compile(r'\bjulianday\s*\(', re.IGNORECASE)
+    while True:
+        match = pattern.search(sql, pos)
+        if not match:
+            result.append(sql[pos:])
+            break
+        result.append(sql[pos:match.end()])
+        arg_start = match.end()
+        depth = 1
+        in_quote = False
+        i = arg_start
+        first_arg_end = None
+        while i < len(sql) and depth > 0:
+            ch = sql[i]
+            if in_quote:
+                if ch == "'" and i + 1 < len(sql) and sql[i + 1] == "'":
+                    i += 2
+                    continue
+                if ch == "'":
+                    in_quote = False
+            else:
+                if ch == "'":
+                    in_quote = True
+                elif ch == '(':
+                    depth += 1
+                elif ch == ')':
+                    depth -= 1
+                    if depth == 0 and first_arg_end is None:
+                        first_arg_end = i
+                elif ch == ',' and depth == 1 and first_arg_end is None:
+                    first_arg_end = i
+            i += 1
+        if first_arg_end is None:
+            result.append(sql[arg_start:])
+            break
+        first_arg = sql[arg_start:first_arg_end].strip()
+        if (
+            first_arg
+            and not first_arg.startswith("'")
+            and first_arg != '%s'
+            and not first_arg.lower().endswith('::text')
+        ):
+            result.append(f'({first_arg})::text')
+        else:
+            result.append(sql[arg_start:first_arg_end])
+        pos = first_arg_end
+    return ''.join(result)
+
+
 def translate_sql(sql):
     """Rewrite SQLite SQL into the PostgreSQL dialect used by Supabase."""
     original = sql
@@ -110,10 +167,7 @@ def translate_sql(sql):
     )
     sql = re.sub(r'\blast_insert_rowid\s*\(\s*\)', 'lastval()', sql, flags=re.IGNORECASE)
     sql = re.sub(r'\bLIKE\b', 'ILIKE', sql, flags=re.IGNORECASE)
-    sql = re.sub(
-        r'julianday\(\s*([A-Za-z_][\w.]*)\s*\)', r'julianday((\1)::text)', sql,
-        flags=re.IGNORECASE,
-    )
+    sql = _cast_julianday_first_arg(sql)
     if ignored_insert and 'ON CONFLICT' not in sql.upper():
         sql = sql.rstrip().rstrip(';') + ' ON CONFLICT DO NOTHING'
     if original.rstrip().endswith(';'):

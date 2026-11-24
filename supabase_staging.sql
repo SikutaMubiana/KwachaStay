@@ -471,6 +471,20 @@ AS $$
     )) / 86400.0 + 2440587.5
 $$;
 
+CREATE OR REPLACE FUNCTION julianday(ts timestamp without time zone, modifier text DEFAULT NULL)
+RETURNS double precision
+LANGUAGE sql STABLE
+AS $$
+    SELECT julianday(ts::text, modifier)
+$$;
+
+CREATE OR REPLACE FUNCTION julianday(ts timestamp with time zone, modifier text DEFAULT NULL)
+RETURNS double precision
+LANGUAGE sql STABLE
+AS $$
+    SELECT julianday((ts AT TIME ZONE 'UTC')::text, modifier)
+$$;
+
 CREATE OR REPLACE FUNCTION distance_km(
     latitude_a double precision,
     longitude_a double precision,

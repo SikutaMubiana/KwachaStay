@@ -32,9 +32,19 @@ class TranslateSqlTests(unittest.TestCase):
         self.assertIn('lastval()', translate_sql('SELECT last_insert_rowid()'))
 
     def test_julianday_casts_column_arguments(self):
-        translated = translate_sql("SELECT julianday(created_at), julianday('now', ?)")
+        translated = translate_sql(
+            "SELECT julianday(created_at), julianday(COALESCE(last_confirmed_at, created_at)), julianday('now', ?)"
+        )
         self.assertIn('julianday((created_at)::text)', translated)
+        self.assertIn('julianday((COALESCE(last_confirmed_at, created_at))::text)', translated)
         self.assertIn("julianday('now', %s)", translated)
+
+    def test_property_viewings_insert_returns_id(self):
+        translated, expects_id = prepare_statement(
+            'INSERT INTO property_viewings (property_id, tenant_id, owner_id, viewing_date, viewing_time, visitor_name, visitor_phone) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )
+        self.assertTrue(expects_id)
+        self.assertTrue(translated.endswith('RETURNING id'))
 
     def test_tables_without_serial_id_do_not_get_returning(self):
         translated, expects_id = prepare_statement(

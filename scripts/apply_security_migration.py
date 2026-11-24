@@ -93,6 +93,22 @@ POSTGRES_STATEMENTS = [
     """,
     "CREATE INDEX IF NOT EXISTS idx_property_viewings_owner ON property_viewings(owner_id, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_property_viewings_tenant ON property_viewings(tenant_id, created_at DESC)",
+    """
+    CREATE OR REPLACE FUNCTION julianday(ts timestamp without time zone, modifier text DEFAULT NULL)
+    RETURNS double precision
+    LANGUAGE sql STABLE
+    AS $$
+        SELECT julianday(ts::text, modifier)
+    $$
+    """,
+    """
+    CREATE OR REPLACE FUNCTION julianday(ts timestamp with time zone, modifier text DEFAULT NULL)
+    RETURNS double precision
+    LANGUAGE sql STABLE
+    AS $$
+        SELECT julianday((ts AT TIME ZONE 'UTC')::text, modifier)
+    $$
+    """,
 ]
 
 
