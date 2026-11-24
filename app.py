@@ -893,7 +893,14 @@ def parse_zambia_essentials_fields(form, property_type):
         raise ValueError('Choose a valid security / fence option.')
 
     nearby_university = (form.get('nearby_university') or '').strip()
-    if nearby_university and nearby_university not in ZAMBIA_UNIVERSITIES:
+    nearby_university_other = ' '.join((form.get('nearby_university_other') or '').split())
+    if nearby_university == 'Other College / Institution':
+        if not nearby_university_other:
+            raise ValueError('Please enter the name of the university, college, or school.')
+        if len(nearby_university_other) > 120:
+            raise ValueError('University or college name must be 120 characters or fewer.')
+        nearby_university = nearby_university_other
+    elif nearby_university and nearby_university not in ZAMBIA_UNIVERSITIES:
         nearby_university = ''
 
     campus_distance = (form.get('campus_distance') or '').strip().lower()
@@ -2584,9 +2591,23 @@ def _query_listings_context():
         zesco_meter_type = ''
     if listing_source not in LISTING_SOURCE_OPTIONS:
         listing_source = ''
+    custom_uni_rows = db.execute(
+        '''SELECT DISTINCT nearby_university
+           FROM properties
+           WHERE is_active = 1
+             AND COALESCE(availability_status, 'available') != 'stale_unconfirmed'
+             AND nearby_university IS NOT NULL AND nearby_university != ''
+           ORDER BY nearby_university'''
+    ).fetchall()
+    available_universities = [u for u in ZAMBIA_UNIVERSITIES if u != 'Other College / Institution']
+    for row in custom_uni_rows:
+        val = (row['nearby_university'] or '').strip()
+        if val and val != 'Other College / Institution' and val not in available_universities:
+            available_universities.append(val)
+
     if security_fence not in SECURITY_FENCE_OPTIONS:
         security_fence = ''
-    if nearby_university not in ZAMBIA_UNIVERSITIES:
+    if nearby_university not in available_universities:
         nearby_university = ''
     if campus_distance not in CAMPUS_DISTANCE_OPTIONS:
         campus_distance = ''
@@ -2930,7 +2951,7 @@ def _query_listings_context():
         campus_distance_options=CAMPUS_DISTANCE_OPTIONS,
         gate_curfew_options=GATE_CURFEW_OPTIONS,
         yard_type_options=YARD_TYPE_OPTIONS,
-        zambia_universities=ZAMBIA_UNIVERSITIES,
+        zambia_universities=available_universities,
         near_lat=near_lat,
         near_lon=near_lon,
         near_point=near_point,

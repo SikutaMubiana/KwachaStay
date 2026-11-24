@@ -838,6 +838,70 @@ class StayTypeAndPricingTests(unittest.TestCase):
             payload = geo.get_json()
             self.assertEqual(payload['city'], city)
 
+    def test_boarding_house_custom_other_university_is_saved_displayed_editable_and_filterable(self):
+        csrf = self._login_as(self.owner_id)
+
+        # 1. Selecting "Other College / Institution" without typing a name is rejected
+        missing_resp = self.client.post('/add_house', data={
+            'csrf_token': csrf,
+            'city': 'Kitwe',
+            'compound': 'Riverside',
+            'property_type': 'Boarding House',
+            'room_sharing': 'shared',
+            'nearby_university': 'Other College / Institution',
+            'nearby_university_other': '   ',
+            'title': 'Missing Custom Uni Boarding',
+            'description': 'Should require custom school name.',
+            'price': '1500',
+            'price_period': 'month',
+            'image_url': 'https://example.com/property.jpg',
+        }, follow_redirects=True)
+        self.assertIn('enter the name of the university', missing_resp.get_data(as_text=True))
+
+        # 2. Typing a custom university/school saves and renders on details, cards, edit form, and filter
+        custom_school = 'Zambia Catholic University (Kalulushi / Kitwe)'
+        ok_resp = self.client.post('/add_house', data={
+            'csrf_token': csrf,
+            'city': 'Kitwe',
+            'compound': 'Riverside',
+            'property_type': 'Boarding House',
+            'room_sharing': 'single',
+            'nearby_university': 'Other College / Institution',
+            'nearby_university_other': custom_school,
+            'campus_distance': 'walk_15',
+            'title': 'Custom Uni Boarding House',
+            'description': 'Student boarding house near a custom college.',
+            'price': '1800',
+            'price_period': 'month',
+            'image_url': 'https://example.com/property.jpg',
+        }, follow_redirects=False)
+        self.assertEqual(ok_resp.status_code, 302)
+
+        with kwachastay.app.app_context():
+            row = kwachastay.get_db().execute(
+                "SELECT id, nearby_university FROM properties WHERE title = 'Custom Uni Boarding House'"
+            ).fetchone()
+            self.assertIsNotNone(row)
+            self.assertEqual(row['nearby_university'], custom_school)
+            prop_id = row['id']
+
+        # Shows on property details
+        detail_html = self.client.get(f'/property/{prop_id}').get_data(as_text=True)
+        self.assertIn(custom_school, detail_html)
+
+        # Pre-fills custom input on edit page
+        edit_html = self.client.get(f'/property/{prop_id}/edit').get_data(as_text=True)
+        self.assertIn(custom_school, edit_html)
+        self.assertIn('nearby_university_other', edit_html)
+
+        # Appears on public listing cards and works in the Near My University filter
+        self.client.post('/logout', data={'csrf_token': csrf})
+        filtered = self.client.get('/', query_string={'nearby_university': custom_school})
+        self.assertEqual(filtered.status_code, 200)
+        filtered_html = filtered.get_data(as_text=True)
+        self.assertIn('Custom Uni Boarding House', filtered_html)
+        self.assertIn(custom_school, filtered_html)
+
 
 if __name__ == '__main__':
     unittest.main()

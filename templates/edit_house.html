@@ -163,14 +163,27 @@
                             </select>
                         </div>
                         <div>
+                            {% set saved_uni = property.nearby_university or '' %}
+                            {% set is_custom_uni = saved_uni and (saved_uni not in zambia_universities or saved_uni == 'Other College / Institution') %}
                             <label for="nearbyUniversitySelect" class="block text-sm font-medium text-gray-800 mb-1">Nearest University / College</label>
-                            <select name="nearby_university" id="nearbyUniversitySelect"
+                            <select name="nearby_university" id="nearbyUniversitySelect" onchange="toggleCustomUniversity()"
                                 class="w-full rounded-lg border-indigo-200 shadow-sm focus:border-primary focus:ring-primary p-3 border bg-white">
                                 <option value="">Select nearby institution (optional)</option>
                                 {% for uni in zambia_universities %}
-                                <option value="{{ uni }}" {% if property.nearby_university == uni %}selected{% endif %}>{{ uni }}</option>
+                                <option value="{{ uni }}" {% if (is_custom_uni and uni == 'Other College / Institution') or (not is_custom_uni and saved_uni == uni) %}selected{% endif %}>{{ uni }}</option>
                                 {% endfor %}
                             </select>
+                            <div id="nearbyUniversityOtherWrap" class="{% if not is_custom_uni %}hidden {% endif %}mt-2">
+                                <label for="nearbyUniversityOtherInput" class="block text-xs font-semibold text-indigo-900 mb-1">
+                                    Type University / College / School Name
+                                </label>
+                                <input type="text" name="nearby_university_other" id="nearbyUniversityOtherInput"
+                                    maxlength="120"
+                                    value="{{ saved_uni if is_custom_uni and saved_uni != 'Other College / Institution' else '' }}"
+                                    placeholder="e.g. Zambia Catholic University, Chipata Trades, etc."
+                                    class="w-full rounded-lg border-indigo-300 shadow-sm focus:border-primary focus:ring-primary p-2.5 border bg-white text-sm">
+                                <p class="text-[11px] text-indigo-700 mt-1">This school or university name will be saved and displayed on your boarding house listing.</p>
+                            </div>
                         </div>
                         <div>
                             <label for="campusDistanceSelect" class="block text-sm font-medium text-gray-800 mb-1">Walking / Bus Distance to Campus</label>
@@ -962,6 +975,16 @@
     window.ZAMBIA_CITY_NEIGHBOURHOODS = {{ city_neighbourhoods|tojson }};
     window.ZAMBIA_CITY_COORDS = {{ city_coords|tojson }};
 
+    function toggleCustomUniversity() {
+        const selectEl = document.getElementById('nearbyUniversitySelect');
+        const wrapEl = document.getElementById('nearbyUniversityOtherWrap');
+        const inputEl = document.getElementById('nearbyUniversityOtherInput');
+        if (!selectEl || !wrapEl || !inputEl) return;
+        const isOther = selectEl.value === 'Other College / Institution';
+        wrapEl.classList.toggle('hidden', !isOther);
+        inputEl.required = isOther;
+    }
+
     function updateCityNeighbourhoods() {
         const cityEl = document.getElementById('citySelect');
         const compEl = document.getElementById('compoundSelect');
@@ -977,6 +1000,7 @@
         });
         window.dispatchEvent(new CustomEvent('kwachastay:city-changed', { detail: { city: city } }));
     }
+    toggleCustomUniversity();
 </script>
 <script nonce="{{ csp_nonce() }}" src="{{ url_for('static', filename='js/location-picker.js') }}"></script>
 {% endblock %}
