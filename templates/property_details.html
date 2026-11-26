@@ -398,7 +398,7 @@
                         <p class="text-[11px] font-bold uppercase tracking-wide text-gray-500 mb-2">Comfort, Privacy &amp; Group Highlights</p>
                         <div class="flex flex-wrap gap-2 text-xs font-semibold">
                             {% if property.has_private_entrance %}
-                            <span class="rounded-full bg-rose-50 text-rose-800 px-3 py-1">
+                            <span class="rounded-full bg-lime-50 text-rose-800 px-3 py-1">
                                 <i class="fa-solid fa-key mr-1"></i>Private Entrance / Discreet Access
                             </span>
                             {% endif %}
@@ -996,7 +996,7 @@
                 </div>
 
                 <a id="reservePropertyBtn" href="{{ url_for('checkout', property_id=property.id) }}"
-                    class="block w-full bg-primary text-white text-center py-3 rounded-lg font-bold text-lg hover:bg-red-600 transition shadow-lg shadow-red-200">
+                    class="block w-full bg-primary text-white text-center py-3 rounded-lg font-bold text-lg hover:bg-primaryDark transition shadow-lg shadow-lime-500/20">
                     Reserve
                 </a>
 
@@ -1105,7 +1105,7 @@
                             <span class="text-gray-400 text-xs"> / {{ prop.price_period }}</span>
                         </div>
                         <a href="{{ url_for('property_details', property_id=prop.id) }}"
-                            class="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-red-600 transition shadow-sm">
+                            class="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-primaryDark transition shadow-sm">
                             View
                         </a>
                     </div>
@@ -1423,7 +1423,7 @@
             } else {
                 L.circle([propLat, propLng], {
                     radius: 850,
-                    color: '#ff385c',
+                    color: '#65A30D',
                     fillOpacity: 0.12
                 }).addTo(leafletMap).bindPopup(compoundName + ', ' + cityName + ' (approximate area)').openPopup();
             }

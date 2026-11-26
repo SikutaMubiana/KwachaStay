@@ -6,8 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>KwachaStay | Zambian Property &amp; Accommodation Marketplace</title>
-    <meta name="description"
-        content="Your trusted marketplace for discovering and listing properties across Zambia.">
+    <meta name="description" content="Your trusted marketplace for discovering and listing properties across Zambia.">
     <!-- Tailwind CSS -->
     <script nonce="{{ csp_nonce() }}" src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -25,9 +24,13 @@
                         sans: ['Outfit', 'sans-serif'],
                     },
                     colors: {
-                        primary: '#FF385C', /* Airbnb Red */
-                        dark: '#222222',
-                        light: '#F7F7F7'
+                        primary: '#65A30D', /* Rich Lime Green */
+                        primaryDark: '#4D7C0F',
+                        limeBright: '#A3E635', /* Electric Lime for Midnight Black surfaces */
+                        midnight: '#0A0D12', /* Midnight Black */
+                        midnightSoft: '#131922',
+                        dark: '#0A0D12',
+                        light: '#FFFFFF'
                     }
                 }
             }
@@ -75,86 +78,86 @@
     </style>
 </head>
 
-<body class="font-sans text-dark bg-white antialiased">
+<body class="font-sans text-midnight bg-white antialiased">
 
     <!-- Navbar -->
-    <nav class="border-b border-gray-100 bg-white/95 backdrop-blur-md sticky top-0 z-50">
+    <nav class="border-b border-white/10 bg-midnight/95 backdrop-blur-md sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-20">
                 <div class="flex items-center">
                     <a href="{{ url_for('index') }}"
-                        class="flex items-center gap-2 text-primary text-2xl font-bold tracking-tighter">
-                        <i class="fa-solid fa-house-chimney"></i> KwachaStay
+                        class="flex items-center gap-2 text-limeBright text-2xl font-bold tracking-tighter">
+                        <i class="fa-solid fa-house-chimney"></i> <span class="text-white">Kwacha<span class="text-limeBright">Stay</span></span>
                     </a>
                 </div>
                 <div class="hidden md:flex space-x-8 items-center">
                     <a href="{{ url_for('index') }}"
-                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Find Stays</a>
+                        class="text-sm font-medium text-white/90 hover:text-limeBright transition">Find Stays</a>
                     <a href="{{ url_for('lusaka_areas') }}"
-                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Our Cities</a>
+                        class="text-sm font-medium text-white/90 hover:text-limeBright transition">Our Cities</a>
                     <a href="{{ url_for('about') }}"
-                        class="text-sm font-medium text-gray-700 hover:text-primary transition">About</a>
+                        class="text-sm font-medium text-white/90 hover:text-limeBright transition">About</a>
                     <form action="{{ url_for('toggle_low_data_mode') }}" method="POST" class="inline">
                         <input type="hidden" name="enabled" value="{{ 0 if low_data_mode else 1 }}">
-                        <button class="text-sm font-medium text-gray-700 hover:text-primary transition" type="submit"
+                        <button class="text-sm font-medium text-gray-300 hover:text-limeBright transition" type="submit"
                             aria-pressed="{{ 'true' if low_data_mode else 'false' }}">
                             {{ 'Standard data' if low_data_mode else 'Low-data mode' }}
                         </button>
                     </form>
                     {% if g.user and g.user['role'] == 'owner' %}
                     <a href="{{ url_for('add_house') }}"
-                        class="text-sm font-medium text-gray-700 hover:text-primary transition">List Property</a>
+                        class="text-sm font-semibold text-limeBright hover:text-white transition">List Property</a>
                     {% elif not g.user %}
                     <a href="{{ url_for('signup', role='owner') }}"
-                        class="text-sm font-medium text-gray-700 hover:text-primary transition">List a Property</a>
+                        class="text-sm font-semibold text-limeBright hover:text-white transition">List a Property</a>
                     {% endif %}
 
                     {% if g.user %}
                     <div class="flex items-center gap-4">
                         {% if g.user['is_admin'] %}
                         <a href="{{ url_for('admin_dashboard') }}"
-                            class="text-sm font-bold text-red-600 hover:text-red-800 transition uppercase">Admin</a>
+                            class="text-sm font-bold text-limeBright hover:text-white transition uppercase">Admin</a>
                         {% endif %}
-                        <span class="text-sm font-medium text-gray-900">Hi, {{ g.user['full_name'].split()[0] }}</span>
+                        <span class="text-sm font-medium text-white">Hi, {{ g.user['full_name'].split()[0] }}</span>
                         <a href="{{ url_for('landlord_dashboard') if g.user['role'] == 'owner' else url_for('tenant_dashboard') }}"
-                            class="text-sm font-medium text-gray-700 hover:text-primary transition">
+                            class="text-sm font-medium text-white/90 hover:text-limeBright transition">
                             {{ 'Landlord Dashboard' if g.user['role'] == 'owner' else 'Tenant Dashboard' }}
                             {% if unread_messages > 0 %}
                             <span
-                                class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full ml-0.5 -mt-1 align-top">{{
+                                class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-midnight bg-limeBright rounded-full ml-0.5 -mt-1 align-top">{{
                                 unread_messages }}</span>
                             {% endif %}
                         </a>
                         <a href="{{ url_for('support_center') }}"
-                            class="text-sm font-medium text-gray-700 hover:text-primary transition">Support</a>
+                            class="text-sm font-medium text-white/90 hover:text-limeBright transition">Support</a>
                         <!-- Notifications Bell -->
                         <a href="{{ url_for('notifications') }}"
-                            class="relative text-gray-600 hover:text-primary transition" title="Notifications">
+                            class="relative text-gray-300 hover:text-limeBright transition" title="Notifications">
                             <i class="fa-solid fa-bell text-lg"></i>
                             {% if unread_notifications > 0 %}
                             <span
-                                class="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold text-white bg-primary rounded-full flex items-center justify-center">{{
+                                class="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold text-midnight bg-limeBright rounded-full flex items-center justify-center">{{
                                 unread_notifications }}</span>
                             {% endif %}
                         </a>
                         <form action="{{ url_for('logout') }}" method="POST" class="inline no-loader">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit"
-                                class="text-sm font-medium text-gray-500 hover:text-red-600 transition">Logout</button>
+                                class="text-sm font-medium text-gray-300 hover:text-limeBright transition">Logout</button>
                         </form>
                     </div>
                     {% else %}
                     <a href="{{ url_for('login') }}"
-                        class="text-sm font-medium text-gray-700 hover:text-primary transition">Log in</a>
+                        class="text-sm font-medium text-white/90 hover:text-limeBright transition">Log in</a>
                     <a href="{{ url_for('signup') }}"
-                        class="px-4 py-2 text-sm font-medium text-white bg-primary rounded-full hover:bg-red-600 transition shadow-md shadow-red-200">Sign
+                        class="px-5 py-2 text-sm font-bold text-midnight bg-limeBright rounded-full hover:bg-lime-300 transition shadow-md shadow-lime-500/20">Sign
                         Up</a>
                     {% endif %}
                 </div>
 
                 <!-- Mobile Menu Button -->
                 <div class="md:hidden flex items-center">
-                    <button id="mobile-menu-btn" class="text-gray-700 hover:text-primary focus:outline-none">
+                    <button id="mobile-menu-btn" class="text-white hover:text-limeBright focus:outline-none">
                         <i class="fa-solid fa-bars text-2xl"></i>
                     </button>
                 </div>
@@ -162,59 +165,59 @@
         </div>
 
         <!-- Mobile Menu -->
-        <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-gray-100 pb-4 px-4 slide-in-top">
+        <div id="mobile-menu" class="hidden md:hidden bg-midnightSoft border-t border-white/10 pb-4 px-4 slide-in-top">
             <div class="flex flex-col space-y-3 mt-4">
                 <a href="{{ url_for('index') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">Find Stays</a>
+                    class="text-base font-medium text-white/90 hover:text-limeBright transition">Find Stays</a>
                 <a href="{{ url_for('lusaka_areas') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">Our Cities</a>
+                    class="text-base font-medium text-white/90 hover:text-limeBright transition">Our Cities</a>
                 <a href="{{ url_for('about') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">About KwachaStay</a>
+                    class="text-base font-medium text-white/90 hover:text-limeBright transition">About KwachaStay</a>
                 <form action="{{ url_for('toggle_low_data_mode') }}" method="POST">
                     <input type="hidden" name="enabled" value="{{ 0 if low_data_mode else 1 }}">
-                    <button class="text-base font-medium text-gray-700 hover:text-primary transition" type="submit"
+                    <button class="text-base font-medium text-gray-300 hover:text-limeBright transition" type="submit"
                         aria-pressed="{{ 'true' if low_data_mode else 'false' }}">
                         {{ 'Standard data mode' if low_data_mode else 'Enable low-data mode' }}
                     </button>
                 </form>
                 {% if g.user and g.user['role'] == 'owner' %}
                 <a href="{{ url_for('add_house') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">List Property</a>
+                    class="text-base font-semibold text-limeBright hover:text-white transition">List Property</a>
                 {% elif not g.user %}
                 <a href="{{ url_for('signup', role='owner') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">List a Property</a>
+                    class="text-base font-semibold text-limeBright hover:text-white transition">List a Property</a>
                 {% endif %}
 
                 {% if g.user %}
-                <hr class="border-gray-100">
+                <hr class="border-white/10">
                 <div class="flex items-center gap-3 py-2">
                     <div
-                        class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                        class="w-8 h-8 rounded-full bg-limeBright/20 text-limeBright flex items-center justify-center font-bold">
                         {{ g.user['full_name'][0] }}
                     </div>
-                    <span class="font-bold text-gray-900">{{ g.user['full_name'] }}</span>
+                    <span class="font-bold text-white">{{ g.user['full_name'] }}</span>
                 </div>
                 {% if g.user['is_admin'] %}
-                <a href="{{ url_for('admin_dashboard') }}" class="text-base font-bold text-red-600 uppercase">Admin
+                <a href="{{ url_for('admin_dashboard') }}" class="text-base font-bold text-limeBright uppercase">Admin
                     Dashboard</a>
                 {% endif %}
                 <a href="{{ url_for('landlord_dashboard') if g.user['role'] == 'owner' else url_for('tenant_dashboard') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">
+                    class="text-base font-medium text-white/90 hover:text-limeBright transition">
                     {{ 'Landlord Dashboard' if g.user['role'] == 'owner' else 'Tenant Dashboard' }}
                 </a>
                 <a href="{{ url_for('support_center') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">Support</a>
+                    class="text-base font-medium text-white/90 hover:text-limeBright transition">Support</a>
                 <form action="{{ url_for('logout') }}" method="POST" class="no-loader">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit"
-                        class="text-base font-medium text-gray-500 hover:text-red-600 transition">Logout</button>
+                        class="text-base font-medium text-gray-300 hover:text-limeBright transition">Logout</button>
                 </form>
                 {% else %}
-                <hr class="border-gray-100">
+                <hr class="border-white/10">
                 <a href="{{ url_for('login') }}"
-                    class="text-base font-medium text-gray-700 hover:text-primary transition">Log in</a>
+                    class="text-base font-medium text-white/90 hover:text-limeBright transition">Log in</a>
                 <a href="{{ url_for('signup') }}"
-                    class="text-base font-medium text-primary hover:text-red-600 transition font-bold">Sign Up</a>
+                    class="text-base font-bold text-limeBright hover:text-lime-300 transition">Sign Up</a>
                 {% endif %}
             </div>
         </div>
@@ -253,32 +256,32 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-gray-50 border-t border-gray-100 mt-12">
+    <footer class="bg-midnight text-white border-t border-white/10 mt-12">
         <div
-            class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center">
+            class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
-                <p class="text-base font-medium text-gray-700">&copy; 2026 KwachaStay. Your trusted marketplace for discovering and listing properties across Zambia.</p>
-                <p class="text-xs text-gray-500 mt-1">Launching across {{ launch_cities | join(' · ') }}</p>
+                <p class="text-base font-medium text-white">&copy; 2026 <span class="text-limeBright font-bold">KwachaStay</span>. Your trusted marketplace for discovering and listing properties across Zambia.</p>
+                <p class="text-xs text-gray-400 mt-1">Launching across {{ launch_cities | join(' · ') }}</p>
             </div>
             <div class="flex flex-wrap items-center gap-5 mt-4 md:mt-0">
-                <a href="{{ url_for('about') }}" class="text-sm font-medium text-gray-600 hover:text-primary">About
+                <a href="{{ url_for('about') }}" class="text-sm font-medium text-gray-300 hover:text-limeBright transition">About
                     KwachaStay</a>
                 <a href="{{ url_for('terms_of_service') }}"
-                    class="text-sm font-medium text-gray-600 hover:text-primary">Terms</a>
+                    class="text-sm font-medium text-gray-300 hover:text-limeBright transition">Terms</a>
                 <a href="{{ url_for('privacy_policy') }}"
-                    class="text-sm font-medium text-gray-600 hover:text-primary">Privacy</a>
+                    class="text-sm font-medium text-gray-300 hover:text-limeBright transition">Privacy</a>
                 <a href="https://wa.me/{{ payment_whatsapp_number }}?text={{ 'Hello KwachaStay, I need help with a booking or property listing.'|urlencode }}"
                     target="_blank" rel="noopener noreferrer"
-                    class="text-sm font-semibold text-green-700 hover:text-green-800">
+                    class="text-sm font-semibold text-limeBright hover:text-lime-300 transition">
                     <i class="fa-brands fa-whatsapp mr-1"></i>+260 764 483 750
                 </a>
                 <a href="https://www.facebook.com/share/1QGWyvp4dq/?mibextid=wwXIfr" target="_blank"
-                    rel="noopener noreferrer" class="text-gray-500 hover:text-blue-700"
+                    rel="noopener noreferrer" class="text-gray-400 hover:text-limeBright transition"
                     aria-label="KwachaStay on Facebook">
                     <i class="fa-brands fa-facebook text-xl" aria-hidden="true"></i>
                 </a>
                 <a href="https://www.instagram.com/_sikuta/" target="_blank" rel="noopener noreferrer"
-                    class="text-gray-500 hover:text-pink-700" aria-label="Sikuta Mubiana on Instagram">
+                    class="text-gray-400 hover:text-limeBright transition" aria-label="Sikuta Mubiana on Instagram">
                     <i class="fa-brands fa-instagram text-xl" aria-hidden="true"></i>
                 </a>
             </div>
@@ -286,9 +289,9 @@
     </footer>
 
     <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-gray-900/75 flex items-center justify-center z-[100] hidden">
+    <div id="loadingOverlay" class="fixed inset-0 bg-midnight/85 flex items-center justify-center z-[100] hidden">
         <div class="text-center">
-            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary mx-auto"></div>
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-limeBright mx-auto"></div>
             <p class="text-white mt-4 text-lg font-semibold">Processing...</p>
         </div>
     </div>

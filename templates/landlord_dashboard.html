@@ -14,7 +14,7 @@
             <p class="text-sm text-gray-500 mt-1">Manage your property listings, incoming bookings, availability, earnings, and guest enquiries.</p>
         </div>
         <a href="{{ url_for('add_house') }}"
-            class="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-red-600 transition shadow-sm">
+            class="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primaryDark transition shadow-sm">
             <i class="fa-solid fa-plus mr-1.5"></i>List a Property
         </a>
     </div>
@@ -130,7 +130,7 @@
         <div class="flex justify-between items-center mb-6">
             <h2 class="text-xl font-bold">Your Properties</h2>
             <a href="{{ url_for('add_house') }}"
-                class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-red-600 transition">
+                class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-primaryDark transition">
                 <i class="fa-solid fa-plus"></i> Add New
             </a>
         </div>
@@ -598,7 +598,7 @@
                                         placeholder="Write a reply..."
                                         class="flex-grow text-sm p-2 border rounded-lg focus:outline-none focus:border-primary">
                                     <button type="submit"
-                                        class="bg-primary text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-red-600 transition flex-shrink-0">
+                                        class="bg-primary text-white px-3 py-2 rounded-lg text-sm font-bold hover:bg-primaryDark transition flex-shrink-0">
                                         Send
                                     </button>
                                 </form>
@@ -673,7 +673,7 @@
                 </div>
 
                 <button type="submit"
-                    class="w-full bg-primary text-white py-3 rounded-lg font-bold hover:bg-red-600 transition shadow-md shadow-red-200">
+                    class="w-full bg-primary text-white py-3 rounded-lg font-bold hover:bg-primaryDark transition shadow-md shadow-lime-500/20">
                     Save Changes
                 </button>
             </form>
@@ -956,7 +956,7 @@
                 if (status === 'blocked') button.className += 'bg-red-100 border-red-300 text-red-800';
                 else if (status === 'pending') button.className += 'bg-amber-100 border-amber-300 text-amber-900';
                 else if (status === 'confirmed') button.className += 'bg-blue-100 border-blue-300 text-blue-900';
-                else button.className += 'bg-white border-gray-200 hover:border-primary hover:bg-red-50';
+                else button.className += 'bg-white border-gray-200 hover:border-primary hover:bg-lime-50';
                 if (status === 'pending' || status === 'confirmed') {
                     button.disabled = true;
                     button.className += ' opacity-70 cursor-not-allowed';

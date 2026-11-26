@@ -1,16 +1,20 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<section class="bg-gradient-to-br from-midnight via-midnightSoft to-[#1A2E05] text-white border-b border-limeBright/20 py-12 px-4">
+    <div class="max-w-7xl mx-auto">
+        <header class="max-w-3xl">
+            <p class="text-sm font-bold uppercase tracking-wide text-limeBright mb-2">Seven-City Launch · Zambia</p>
+            <h1 class="text-3xl md:text-4xl font-bold text-white mb-3">Explore Properties Across Our Cities.</h1>
+            <p class="text-gray-300">
+                KwachaStay connects property seekers, landlords, real estate agents, property managers, hotels, and
+                accommodation providers across seven major Zambian cities.
+                Choose a city below to explore recognizable neighbourhoods and browse available properties.
+            </p>
+        </header>
+    </div>
+</section>
 <main class="max-w-7xl mx-auto px-4 py-10">
-    <header class="max-w-3xl mb-8">
-        <p class="text-sm font-bold uppercase tracking-wide text-primary mb-2">Seven-City Launch · Zambia</p>
-        <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-3">Explore Properties Across Our Cities.</h1>
-        <p class="text-gray-600">
-            KwachaStay connects property seekers, landlords, real estate agents, property managers, hotels, and
-            accommodation providers across seven major Zambian cities.
-            Choose a city below to explore recognizable neighbourhoods and browse available properties.
-        </p>
-    </header>
 
     <!-- Quick City Jump Pills -->
     <div class="flex flex-wrap gap-2 mb-8">
@@ -42,7 +46,7 @@
                             listed</p>
                     </div>
                     <span
-                        class="inline-flex items-center gap-1 rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-primary">
+                        class="inline-flex items-center gap-1 rounded-full bg-lime-50 px-3 py-1 text-xs font-bold text-primary">
                         {{ city_counts.get(city.name, 0) }} active
                     </span>
                 </div>

@@ -714,7 +714,7 @@ class StayTypeAndPricingTests(unittest.TestCase):
 
         r_about = self.client.get('/about')
         self.assertEqual(r_about.status_code, 200)
-        about_html = r_about.get_data(as_text=True)
+        about_html = ' '.join(r_about.get_data(as_text=True).split())
         self.assertIn('KwachaStay is a Zambian property marketplace connecting property seekers, landlords, real estate agents, property managers, hotels and accommodation providers across multiple major cities in Zambia.', about_html)
         self.assertNotIn('Lusaka, Zambia only', about_html)
 

@@ -25,9 +25,13 @@
                         sans: ['Outfit', 'sans-serif'],
                     },
                     colors: {
-                        primary: '#FF385C',
-                        dark: '#222222',
-                        light: '#F7F7F7'
+                        primary: '#65A30D',
+                        primaryDark: '#4D7C0F',
+                        limeBright: '#A3E635',
+                        midnight: '#0A0D12',
+                        midnightSoft: '#131922',
+                        dark: '#0A0D12',
+                        light: '#FFFFFF'
                     }
                 }
             }
@@ -73,32 +77,32 @@
     </style>
 </head>
 
-<body class="font-sans text-dark bg-gray-50 antialiased min-h-screen flex flex-col">
+<body class="font-sans text-midnight bg-white antialiased min-h-screen flex flex-col">
     {% set home_url = url_for('admin_dashboard') if (g.user and g.user['is_admin']) else (url_for('landlord_dashboard')
     if (g.user and g.user['role'] == 'owner') else url_for('tenant_dashboard')) %}
 
     <!-- Dedicated Dashboard Topbar (separate from public landing page) -->
-    <nav class="border-b border-gray-200 bg-white sticky top-0 z-50">
+    <nav class="border-b border-white/10 bg-midnight sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <div class="flex items-center gap-3">
                     <a href="{{ home_url }}"
-                        class="flex items-center gap-2 text-primary text-xl font-bold tracking-tighter">
-                        <i class="fa-solid fa-house-chimney"></i> KwachaStay
+                        class="flex items-center gap-2 text-limeBright text-xl font-bold tracking-tighter">
+                        <i class="fa-solid fa-house-chimney"></i> <span class="text-white">Kwacha<span class="text-limeBright">Stay</span></span>
                     </a>
                     {% if g.user and g.user['is_admin'] %}
                     <span
-                        class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide bg-red-100 text-red-700">
+                        class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide bg-limeBright text-midnight">
                         Admin Portal
                     </span>
                     {% elif g.user and g.user['role'] == 'owner' %}
                     <span
-                        class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide bg-indigo-100 text-indigo-800">
+                        class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide bg-limeBright/15 text-limeBright border border-limeBright/30">
                         Landlord Portal
                     </span>
                     {% elif g.user %}
                     <span
-                        class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide bg-blue-100 text-blue-800">
+                        class="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wide bg-white/10 text-white border border-white/20">
                         Tenant Portal
                     </span>
                     {% endif %}
@@ -108,87 +112,87 @@
                 <div class="hidden md:flex items-center gap-6">
                     {% if g.user and g.user['is_admin'] %}
                     <a href="{{ url_for('admin_dashboard') }}"
-                        class="text-sm font-semibold {% if request.endpoint == 'admin_dashboard' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_dashboard' %}text-limeBright{% else %}text-white/85 hover:text-limeBright{% endif %} transition">
                         Overview
                     </a>
                     <a href="{{ url_for('admin_listings') }}"
-                        class="text-sm font-semibold {% if request.endpoint == 'admin_listings' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_listings' %}text-limeBright{% else %}text-white/85 hover:text-limeBright{% endif %} transition">
                         Listings
                     </a>
                     <a href="{{ url_for('admin_accounting') }}"
-                        class="text-sm font-semibold {% if request.endpoint == 'admin_accounting' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_accounting' %}text-limeBright{% else %}text-white/85 hover:text-limeBright{% endif %} transition">
                         Accounting
                     </a>
                     <a href="{{ url_for('admin_users') }}"
-                        class="text-sm font-semibold {% if request.endpoint == 'admin_users' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_users' %}text-limeBright{% else %}text-white/85 hover:text-limeBright{% endif %} transition">
                         Users
                     </a>
                     <a href="{{ url_for('admin_settings') }}"
-                        class="text-sm font-semibold {% if request.endpoint == 'admin_settings' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        class="text-sm font-semibold {% if request.endpoint == 'admin_settings' %}text-limeBright{% else %}text-white/85 hover:text-limeBright{% endif %} transition">
                         <i class="fa-solid fa-sliders mr-1"></i>Settings
                     </a>
                     {% elif g.user and g.user['role'] == 'owner' %}
                     <a href="{{ url_for('landlord_dashboard') }}"
-                        class="text-sm font-semibold {% if request.endpoint == 'landlord_dashboard' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        class="text-sm font-semibold {% if request.endpoint == 'landlord_dashboard' %}text-limeBright{% else %}text-white/85 hover:text-limeBright{% endif %} transition">
                         Landlord Dashboard
                         {% if unread_messages > 0 %}
                         <span
-                            class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full ml-0.5 -mt-1 align-top">{{
+                            class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-midnight bg-limeBright rounded-full ml-0.5 -mt-1 align-top">{{
                             unread_messages }}</span>
                         {% endif %}
                     </a>
                     <a href="{{ url_for('add_house') }}"
-                        class="text-sm font-semibold {% if request.endpoint == 'add_house' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        class="text-sm font-semibold {% if request.endpoint == 'add_house' %}text-limeBright{% else %}text-white/85 hover:text-limeBright{% endif %} transition">
                         <i class="fa-solid fa-plus mr-1"></i>List Property
                     </a>
                     <a href="{{ url_for('support_center') }}"
-                        class="text-sm font-medium {% if request.endpoint == 'support_center' %}text-primary{% else %}text-gray-600 hover:text-primary{% endif %} transition">
+                        class="text-sm font-medium {% if request.endpoint == 'support_center' %}text-limeBright{% else %}text-gray-300 hover:text-limeBright{% endif %} transition">
                         Support
                     </a>
                     {% elif g.user %}
                     <a href="{{ url_for('tenant_dashboard') }}"
-                        class="text-sm font-semibold {% if request.endpoint == 'tenant_dashboard' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        class="text-sm font-semibold {% if request.endpoint == 'tenant_dashboard' %}text-limeBright{% else %}text-white/85 hover:text-limeBright{% endif %} transition">
                         Tenant Dashboard
                         {% if unread_messages > 0 %}
                         <span
-                            class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-primary rounded-full ml-0.5 -mt-1 align-top">{{
+                            class="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-midnight bg-limeBright rounded-full ml-0.5 -mt-1 align-top">{{
                             unread_messages }}</span>
                         {% endif %}
                     </a>
                     <a href="{{ url_for('browse_stays') }}"
-                        class="text-sm font-semibold {% if request.endpoint == 'browse_stays' %}text-primary{% else %}text-gray-700 hover:text-primary{% endif %} transition">
+                        class="text-sm font-semibold {% if request.endpoint == 'browse_stays' %}text-limeBright{% else %}text-white/85 hover:text-limeBright{% endif %} transition">
                         <i class="fa-solid fa-magnifying-glass mr-1"></i>Browse Stays
                     </a>
                     <a href="{{ url_for('support_center') }}"
-                        class="text-sm font-medium {% if request.endpoint == 'support_center' %}text-primary{% else %}text-gray-600 hover:text-primary{% endif %} transition">
+                        class="text-sm font-medium {% if request.endpoint == 'support_center' %}text-limeBright{% else %}text-gray-300 hover:text-limeBright{% endif %} transition">
                         Support
                     </a>
                     {% endif %}
 
                     <form action="{{ url_for('toggle_low_data_mode') }}" method="POST" class="inline">
                         <input type="hidden" name="enabled" value="{{ 0 if low_data_mode else 1 }}">
-                        <button class="text-xs font-medium text-gray-500 hover:text-primary transition" type="submit"
+                        <button class="text-xs font-medium text-gray-400 hover:text-limeBright transition" type="submit"
                             aria-pressed="{{ 'true' if low_data_mode else 'false' }}">
                             {{ 'Standard data' if low_data_mode else 'Low-data' }}
                         </button>
                     </form>
 
                     {% if g.user %}
-                    <div class="flex items-center gap-4 pl-4 border-l border-gray-200">
+                    <div class="flex items-center gap-4 pl-4 border-l border-white/15">
                         <a href="{{ url_for('notifications') }}"
-                            class="relative text-gray-600 hover:text-primary transition" title="Notifications">
+                            class="relative text-gray-300 hover:text-limeBright transition" title="Notifications">
                             <i class="fa-solid fa-bell text-base"></i>
                             {% if unread_notifications > 0 %}
                             <span
-                                class="absolute -top-1.5 -right-1.5 w-4 h-4 text-[9px] font-bold text-white bg-primary rounded-full flex items-center justify-center">{{
+                                class="absolute -top-1.5 -right-1.5 w-4 h-4 text-[9px] font-bold text-midnight bg-limeBright rounded-full flex items-center justify-center">{{
                                 unread_notifications }}</span>
                             {% endif %}
                         </a>
-                        <span class="text-sm font-medium text-gray-800">{{ g.user['full_name'].split()[0] }}</span>
+                        <span class="text-sm font-medium text-white">{{ g.user['full_name'].split()[0] }}</span>
                         <form action="{{ url_for('logout') }}" method="POST" class="inline no-loader">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit"
-                                class="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-red-50 hover:text-red-600 transition">
+                                class="px-3 py-1.5 text-xs font-semibold text-white bg-white/10 rounded-lg hover:bg-limeBright hover:text-midnight transition">
                                 Logout
                             </button>
                         </form>
@@ -200,16 +204,16 @@
                 <div class="md:hidden flex items-center gap-3">
                     {% if g.user %}
                     <a href="{{ url_for('notifications') }}"
-                        class="relative text-gray-600 hover:text-primary transition" title="Notifications">
+                        class="relative text-gray-300 hover:text-limeBright transition" title="Notifications">
                         <i class="fa-solid fa-bell text-lg"></i>
                         {% if unread_notifications > 0 %}
                         <span
-                            class="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold text-white bg-primary rounded-full flex items-center justify-center">{{
+                            class="absolute -top-1 -right-1 w-4 h-4 text-[9px] font-bold text-midnight bg-limeBright rounded-full flex items-center justify-center">{{
                             unread_notifications }}</span>
                         {% endif %}
                     </a>
                     {% endif %}
-                    <button id="mobile-menu-btn" class="text-gray-700 hover:text-primary focus:outline-none">
+                    <button id="mobile-menu-btn" class="text-white hover:text-limeBright focus:outline-none">
                         <i class="fa-solid fa-bars text-xl"></i>
                     </button>
                 </div>
@@ -217,46 +221,46 @@
         </div>
 
         <!-- Mobile Menu -->
-        <div id="mobile-menu" class="hidden md:hidden bg-white border-t border-gray-100 pb-4 px-4 slide-in-top">
+        <div id="mobile-menu" class="hidden md:hidden bg-midnightSoft border-t border-white/10 pb-4 px-4 slide-in-top">
             <div class="flex flex-col space-y-3 mt-4">
                 {% if g.user %}
                 <div class="flex items-center gap-3 py-1">
                     <div
-                        class="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold">
+                        class="w-8 h-8 rounded-full bg-limeBright/20 text-limeBright flex items-center justify-center font-bold">
                         {{ g.user['full_name'][0] }}
                     </div>
                     <div>
-                        <p class="font-bold text-sm text-gray-900">{{ g.user['full_name'] }}</p>
-                        <p class="text-xs text-gray-500">
+                        <p class="font-bold text-sm text-white">{{ g.user['full_name'] }}</p>
+                        <p class="text-xs text-gray-400">
                             {% if g.user['is_admin'] %}Admin Portal{% elif g.user['role'] == 'owner' %}Landlord Portal{%
                             else %}Tenant Portal{% endif %}
                         </p>
                     </div>
                 </div>
-                <hr class="border-gray-100">
+                <hr class="border-white/10">
                 {% if g.user['is_admin'] %}
-                <a href="{{ url_for('admin_dashboard') }}" class="text-sm font-bold text-red-600">Overview</a>
-                <a href="{{ url_for('admin_listings') }}" class="text-sm font-medium text-gray-700">Listings</a>
-                <a href="{{ url_for('admin_bookings') }}" class="text-sm font-medium text-gray-700">Bookings</a>
-                <a href="{{ url_for('admin_accounting') }}" class="text-sm font-medium text-gray-700">Money &amp; Accounting</a>
-                <a href="{{ url_for('admin_users') }}" class="text-sm font-medium text-gray-700">Users &amp; Roles</a>
-                <a href="{{ url_for('admin_moderation') }}" class="text-sm font-medium text-gray-700">Moderation &amp; Support</a>
-                <a href="{{ url_for('admin_audit_log') }}" class="text-sm font-medium text-gray-700">Audit Log</a>
-                <a href="{{ url_for('admin_settings') }}" class="text-sm font-semibold text-gray-900">Account &amp; Settings</a>
+                <a href="{{ url_for('admin_dashboard') }}" class="text-sm font-bold text-limeBright">Overview</a>
+                <a href="{{ url_for('admin_listings') }}" class="text-sm font-medium text-white/90">Listings</a>
+                <a href="{{ url_for('admin_bookings') }}" class="text-sm font-medium text-white/90">Bookings</a>
+                <a href="{{ url_for('admin_accounting') }}" class="text-sm font-medium text-white/90">Money &amp; Accounting</a>
+                <a href="{{ url_for('admin_users') }}" class="text-sm font-medium text-white/90">Users &amp; Roles</a>
+                <a href="{{ url_for('admin_moderation') }}" class="text-sm font-medium text-white/90">Moderation &amp; Support</a>
+                <a href="{{ url_for('admin_audit_log') }}" class="text-sm font-medium text-white/90">Audit Log</a>
+                <a href="{{ url_for('admin_settings') }}" class="text-sm font-semibold text-white">Account &amp; Settings</a>
                 {% elif g.user['role'] == 'owner' %}
-                <a href="{{ url_for('landlord_dashboard') }}" class="text-sm font-semibold text-gray-800">Landlord
+                <a href="{{ url_for('landlord_dashboard') }}" class="text-sm font-semibold text-limeBright">Landlord
                     Dashboard</a>
-                <a href="{{ url_for('add_house') }}" class="text-sm font-medium text-gray-700">List Property</a>
-                <a href="{{ url_for('support_center') }}" class="text-sm font-medium text-gray-700">Support</a>
+                <a href="{{ url_for('add_house') }}" class="text-sm font-medium text-white/90">List Property</a>
+                <a href="{{ url_for('support_center') }}" class="text-sm font-medium text-white/90">Support</a>
                 {% else %}
-                <a href="{{ url_for('tenant_dashboard') }}" class="text-sm font-semibold text-gray-800">Tenant
+                <a href="{{ url_for('tenant_dashboard') }}" class="text-sm font-semibold text-limeBright">Tenant
                     Dashboard</a>
-                <a href="{{ url_for('browse_stays') }}" class="text-sm font-medium text-gray-700">Browse Stays</a>
-                <a href="{{ url_for('support_center') }}" class="text-sm font-medium text-gray-700">Support</a>
+                <a href="{{ url_for('browse_stays') }}" class="text-sm font-medium text-white/90">Browse Stays</a>
+                <a href="{{ url_for('support_center') }}" class="text-sm font-medium text-white/90">Support</a>
                 {% endif %}
-                <form action="{{ url_for('logout') }}" method="POST" class="pt-2 border-t border-gray-100 no-loader">
+                <form action="{{ url_for('logout') }}" method="POST" class="pt-2 border-t border-white/10 no-loader">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <button type="submit" class="text-sm font-semibold text-red-600">Logout</button>
+                    <button type="submit" class="text-sm font-semibold text-limeBright">Logout</button>
                 </form>
                 {% endif %}
             </div>
@@ -296,21 +300,21 @@
     </main>
 
     <!-- Minimal Dashboard Footer -->
-    <footer class="border-t border-gray-200 bg-white mt-12">
+    <footer class="border-t border-white/10 bg-midnight text-gray-300 mt-12">
         <div
-            class="max-w-7xl mx-auto py-5 px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-3 text-xs text-gray-500">
-            <span>&copy; 2026 KwachaStay</span>
+            class="max-w-7xl mx-auto py-5 px-4 sm:px-6 lg:px-8 flex flex-wrap justify-between items-center gap-3 text-xs text-gray-400">
+            <span>&copy; 2026 <span class="text-limeBright font-semibold">KwachaStay</span></span>
             <a href="https://wa.me/{{ payment_whatsapp_number }}?text={{ 'Hello KwachaStay, I need support with my account.'|urlencode }}"
-                target="_blank" rel="noopener noreferrer" class="font-semibold text-green-700 hover:text-green-800">
+                target="_blank" rel="noopener noreferrer" class="font-semibold text-limeBright hover:text-lime-300">
                 <i class="fa-brands fa-whatsapp mr-1"></i>Support: +260 764 483 750
             </a>
         </div>
     </footer>
 
     <!-- Loading Overlay -->
-    <div id="loadingOverlay" class="fixed inset-0 bg-gray-900/75 flex items-center justify-center z-[100] hidden">
+    <div id="loadingOverlay" class="fixed inset-0 bg-midnight/85 flex items-center justify-center z-[100] hidden">
         <div class="text-center">
-            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary mx-auto"></div>
+            <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-limeBright mx-auto"></div>
             <p class="text-white mt-4 text-lg font-semibold">Processing...</p>
         </div>
     </div>

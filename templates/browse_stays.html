@@ -55,7 +55,7 @@
                 </div>
                 <div class="flex items-end">
                     <button type="submit"
-                        class="w-full bg-primary hover:bg-red-600 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition shadow-sm h-[42px]">
+                        class="w-full bg-primary hover:bg-primaryDark text-white px-6 py-2.5 rounded-xl font-bold text-sm transition shadow-sm h-[42px]">
                         <i class="fa-solid fa-magnifying-glass mr-1.5"></i>Find Stays
                     </button>
                 </div>
@@ -318,7 +318,7 @@
                     </div>
 
                     <button type="submit"
-                        class="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-red-600 transition shadow-md shadow-red-200">
+                        class="w-full bg-primary text-white py-3 rounded-xl font-bold hover:bg-primaryDark transition shadow-md shadow-lime-500/20">
                         Apply Filters
                     </button>
                     <button type="submit" formmethod="POST" formaction="{{ url_for('save_search') }}"
@@ -446,7 +446,7 @@
                                 <span class="text-gray-400 text-sm"> / {{ prop.price_period }}</span>
                             </div>
                             <a href="{{ url_for('property_details', property_id=prop.id) }}"
-                                class="bg-primary text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-red-600 transition shadow-sm">
+                                class="bg-primary text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-primaryDark transition shadow-sm">
                                 View
                             </a>
                         </div>
@@ -585,7 +585,7 @@
         if (searchPoint) {
             L.circle(searchPoint, {
                 radius: Number(document.querySelector('[name="near_radius_km"]').value) * 1000,
-                color: '#ff385c',
+                color: '#65A30D',
                 fillOpacity: 0.08
             }).addTo(map);
         }
